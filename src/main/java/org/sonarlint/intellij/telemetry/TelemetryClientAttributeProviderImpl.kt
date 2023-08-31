@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,13 +21,13 @@ package org.sonarlint.intellij.telemetry
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
-import com.intellij.ui.jcef.JBCefApp
 import org.sonarlint.intellij.common.util.SonarLintUtils
 import org.sonarlint.intellij.config.Settings
 import org.sonarlint.intellij.config.global.ServerConnection
-import org.sonarlint.intellij.core.EngineManager
+import org.sonarlint.intellij.config.global.SonarLintGlobalSettings
 import org.sonarlint.intellij.core.NodeJsManager
 import org.sonarlint.intellij.core.ProjectBindingManager
+import org.sonarlint.intellij.core.SonarLintEngineManager
 import org.sonarsource.sonarlint.core.client.api.standalone.StandaloneRuleDetails
 import org.sonarsource.sonarlint.core.telemetry.TelemetryClientAttributesProvider
 import java.util.Arrays
@@ -42,7 +42,7 @@ class TelemetryClientAttributeProviderImpl : TelemetryClientAttributesProvider {
     }
 
     override fun useSonarCloud(): Boolean {
-        return isAnyProjectConnectedToSonarCloud()
+        return isAnyProjectConnectedToCodeScanCloud()
     }
 
     override fun nodeVersion(): Optional<String> {
@@ -55,25 +55,25 @@ class TelemetryClientAttributeProviderImpl : TelemetryClientAttributesProvider {
     }
 
     override fun getNonDefaultEnabledRules(): Collection<String> {
-        val rules = Settings.getGlobalSettings().rulesByKey
-            .filterValues { it.isActive }
-            .keys
+        val rules = Settings.getGlobalSettings().rules
+            .filter(SonarLintGlobalSettings.Rule::isActive)
+            .map(SonarLintGlobalSettings.Rule::getKey)
+            .toSet()
         val defaultEnabledRuleKeys = defaultEnabledRuleKeys()
         return rules.minus(defaultEnabledRuleKeys)
     }
 
     override fun getDefaultDisabledRules(): Collection<String> {
-        return Settings.getGlobalSettings().rulesByKey
-            .filterValues { !it.isActive }
-            .keys
+        return Settings.getGlobalSettings().rules
+            .filter { rule: SonarLintGlobalSettings.Rule -> !rule.isActive }
+            .map(SonarLintGlobalSettings.Rule::getKey)
+            .toSet()
     }
 
-    override fun additionalAttributes(): Map<String, Any> {
-        return mapOf("intellij" to mapOf("jcefSupported" to JBCefApp.isSupported()))
-    }
+    override fun additionalAttributes() = emptyMap<String, Any>()
 
     private fun defaultEnabledRuleKeys(): Set<String> {
-        val engineManager = SonarLintUtils.getService(EngineManager::class.java)
+        val engineManager = SonarLintUtils.getService(SonarLintEngineManager::class.java)
         return engineManager.standaloneEngine.allRuleDetails.stream()
             .filter { obj: StandaloneRuleDetails -> obj.isActiveByDefault }
             .map { obj: StandaloneRuleDetails -> obj.key }
@@ -85,10 +85,10 @@ class TelemetryClientAttributeProviderImpl : TelemetryClientAttributesProvider {
         private fun isAnyProjectConnected(): Boolean =
             isAnyOpenProjectMatch { p: Project -> Settings.getSettingsFor(p).isBindingEnabled }
 
-        private fun isAnyProjectConnectedToSonarCloud(): Boolean = isAnyOpenProjectMatch { p: Project ->
+        private fun isAnyProjectConnectedToCodeScanCloud(): Boolean = isAnyOpenProjectMatch { p: Project ->
             val bindingManager = SonarLintUtils.getService(p, ProjectBindingManager::class.java)
             bindingManager.tryGetServerConnection()
-                .filter { obj: ServerConnection -> obj.isSonarCloud }
+                .filter { obj: ServerConnection -> obj.isCodeScanCloud }
                 .isPresent
         }
 

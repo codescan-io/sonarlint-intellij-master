@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,8 +21,8 @@ package org.sonarlint.intellij.ui.nodes.taint.vulnerabilities
 
 import com.intellij.icons.AllIcons
 import com.intellij.ui.SimpleTextAttributes
-import org.sonarlint.intellij.finding.Location
-import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability
+import org.sonarlint.intellij.issue.Location
+import org.sonarlint.intellij.issue.vulnerabilities.LocalTaintVulnerability
 import org.sonarlint.intellij.ui.nodes.AbstractNode
 import org.sonarlint.intellij.ui.tree.TreeCellRenderer
 import java.util.Objects
@@ -39,7 +39,6 @@ class LocationFileGroupNode(private val position: Int, private val location: Loc
     if (file == null || !file.isValid) {
       renderer.append(" (unreachable in local code)", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
     }
-    renderer.toolTipText = null
   }
 
   override fun equals(other: Any?): Boolean {
@@ -49,7 +48,5 @@ class LocationFileGroupNode(private val position: Int, private val location: Loc
   override fun hashCode(): Int {
     return Objects.hash(position, location.file)
   }
-
-  override fun toString() = location.file?.name ?: location.originalFileName ?: "Unknown file"
 
 }

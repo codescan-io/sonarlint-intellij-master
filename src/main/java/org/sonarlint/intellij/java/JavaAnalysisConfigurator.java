@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,7 +20,8 @@
 package org.sonarlint.intellij.java;
 
 import com.intellij.compiler.CompilerConfiguration;
-import com.intellij.openapi.module.LanguageLevelUtil;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.module.EffectiveLanguageLevelUtil;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.projectRoots.JdkUtil;
 import com.intellij.openapi.projectRoots.Sdk;
@@ -38,23 +39,23 @@ import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.jrt.JrtFileSystem;
 import com.intellij.pom.java.LanguageLevel;
+
 import java.io.File;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
+
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JpsJavaSdkType;
 import org.sonarlint.intellij.common.analysis.AnalysisConfigurator;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
 
-import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.isEmpty;
 
 public class JavaAnalysisConfigurator implements AnalysisConfigurator {
@@ -66,17 +67,16 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
   private static final String JAVA_TEST_LIBRARIES_PROPERTY = "sonar.java.test.libraries";
   private static final String JAVA_TEST_BINARIES_PROPERTY = "sonar.java.test.binaries";
   private static final String JAVA_JDK_HOME_PROPERTY = "sonar.java.jdkHome";
-  private static final String JAVA_ENABLE_PREVIEW = "sonar.java.enablePreview";
 
   private static final char SEPARATOR = ',';
 
   @Override
   public AnalysisConfiguration configure(@NotNull Module ijModule, Collection<VirtualFile> filesToAnalyze) {
-    var config = new AnalysisConfiguration();
-    var moduleClasspath = new JavaModuleClasspath();
+    AnalysisConfiguration config = new AnalysisConfiguration();
+    JavaModuleClasspath moduleClasspath = new JavaModuleClasspath();
     moduleClasspath.dependentModules().add(ijModule);
     collectModuleClasspath(moduleClasspath, ijModule, true, false);
-    var properties = config.extraProperties;
+    Map<String, String> properties = config.extraProperties;
     setMultiValuePropertyIfNonEmpty(properties, JAVA_LIBRARIES_PROPERTY, moduleClasspath.libraries());
     setMultiValuePropertyIfNonEmpty(properties, JAVA_TEST_LIBRARIES_PROPERTY, moduleClasspath.testLibraries());
     setMultiValuePropertyIfNonEmpty(properties, JAVA_BINARIES_PROPERTY, moduleClasspath.binaries());
@@ -90,30 +90,22 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
 
   private static void setMultiValuePropertyIfNonEmpty(Map<String, String> properties, String propKey, Set<String> values) {
     if (!values.isEmpty()) {
-      var joinedLibs = StringUtils.join(values.stream().map(JavaAnalysisConfigurator::csvEscape).collect(Collectors.toList()), SEPARATOR);
+      String joinedLibs = StringUtils.join(values, SEPARATOR);
       properties.put(propKey, joinedLibs);
     }
   }
 
-  private static String csvEscape(String string) {
-    // escape only when needed
-    return string.contains(",") ? ("\"" + string + "\"") : string;
-  }
-
   private static void configureJavaSourceTarget(final Module ijModule, Map<String, String> properties) {
-    var languageLevel = computeReadActionSafely(ijModule.getProject(), () -> LanguageLevelUtil.getEffectiveLanguageLevel(ijModule));
-    if (languageLevel == null) {
-      return;
-    }
-    final var languageLevelStr = getLanguageLevelOption(languageLevel);
-    var bytecodeTarget = CompilerConfiguration.getInstance(ijModule.getProject()).getBytecodeTargetLevel(ijModule);
+    LanguageLevel languageLevel = ApplicationManager.getApplication()
+      .<LanguageLevel>runReadAction(() -> EffectiveLanguageLevelUtil.getEffectiveLanguageLevel(ijModule));
+    final String languageLevelStr = getLanguageLevelOption(languageLevel);
+    String bytecodeTarget = CompilerConfiguration.getInstance(ijModule.getProject()).getBytecodeTargetLevel(ijModule);
     if (isEmpty(bytecodeTarget)) {
       // according to IDEA rule: if not specified explicitly, set target to be the same as source language level
       bytecodeTarget = languageLevelStr;
     }
     properties.put(JAVA_SOURCE_PROPERTY, languageLevelStr);
     properties.put(JAVA_TARGET_PROPERTY, bytecodeTarget);
-    properties.put(JAVA_ENABLE_PREVIEW, String.valueOf(languageLevel.isPreview()));
   }
 
   private static String getLanguageLevelOption(LanguageLevel level) {
@@ -125,9 +117,9 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
       return;
     }
     processCompilerOutput(moduleClasspath, module, topLevel, testClasspathOnly);
-    final var mrm = ModuleRootManager.getInstance(module);
-    final var orderEntries = mrm.getOrderEntries();
-    for (final var entry : orderEntries) {
+    final ModuleRootManager mrm = ModuleRootManager.getInstance(module);
+    final OrderEntry[] orderEntries = mrm.getOrderEntries();
+    for (final OrderEntry entry : orderEntries) {
       if ((!topLevel && !isExported(entry)) || !entry.isValid()) {
         continue;
       }
@@ -142,8 +134,8 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
   }
 
   private static void processModuleOrderEntry(JavaModuleClasspath moduleClasspath, boolean testClasspathOnly, ModuleOrderEntry moduleOrderEntry) {
-    var dependentModule = moduleOrderEntry.getModule();
-    var alreadyVisitedModules = (testClasspathOnly || isOnlyForTestClasspath(moduleOrderEntry.getScope())) ? moduleClasspath.testDependentModules()
+    Module dependentModule = moduleOrderEntry.getModule();
+    Set<Module> alreadyVisitedModules = (testClasspathOnly || isOnlyForTestClasspath(moduleOrderEntry.getScope())) ? moduleClasspath.testDependentModules()
       : moduleClasspath.dependentModules();
     if (!alreadyVisitedModules.contains(dependentModule)) {
       // Protect against circular dependencies
@@ -153,8 +145,8 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
   }
 
   private static void processLibraryOrderEntry(JavaModuleClasspath moduleClasspath, LibraryOrderEntry libraryOrderEntry, boolean testClasspathOnly) {
-    var lib = libraryOrderEntry.getLibrary();
-    final var libOnlyForTestClasspath = testClasspathOnly || isOnlyForTestClasspath(libraryOrderEntry.getScope());
+    Library lib = libraryOrderEntry.getLibrary();
+    final boolean libOnlyForTestClasspath = testClasspathOnly || isOnlyForTestClasspath(libraryOrderEntry.getScope());
     getLibraryEntries(lib)
       .stream()
       .map(VfsUtilCore::virtualToIoFile)
@@ -173,9 +165,9 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
   }
 
   private static void processCompilerOutput(JavaModuleClasspath moduleClasspath, @NotNull Module module, boolean topLevel, boolean testModule) {
-    var output = getCompilerOutputPath(module);
+    VirtualFile output = getCompilerOutputPath(module);
     if (output != null) {
-      final var outputPath = VfsUtilCore.virtualToIoFile(output).getAbsolutePath();
+      final String outputPath = VfsUtilCore.virtualToIoFile(output).getAbsolutePath();
       if (topLevel) {
         moduleClasspath.binaries().add(outputPath);
         // Production .class should be on tests classpath
@@ -189,9 +181,9 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
         }
       }
     }
-    var testOutput = getCompilerTestOutputPath(module);
+    VirtualFile testOutput = getCompilerTestOutputPath(module);
     if (testOutput != null) {
-      final var testOutputPath = VfsUtilCore.virtualToIoFile(testOutput).getAbsolutePath();
+      final String testOutputPath = VfsUtilCore.virtualToIoFile(testOutput).getAbsolutePath();
       if (topLevel) {
         moduleClasspath.testBinaries().add(testOutputPath);
       }
@@ -210,16 +202,16 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
   }
 
   private static void processJdkOrderEntry(final Module module, JavaModuleClasspath moduleClasspath, Sdk jdk) {
-    var jdkHomePath = jdk.getHomePath();
+    String jdkHomePath = jdk.getHomePath();
     if (moduleClasspath.getJdkHome() != null) {
       SonarLintConsole.get(module.getProject()).info("Multiple Jdk configured for module: " + module.getName());
     } else {
       moduleClasspath.setJdkHome(jdkHomePath);
     }
     if (jdkHomePath != null && JdkUtil.isModularRuntime(jdkHomePath)) {
-      final var jrtFs = new File(jdkHomePath, "lib/jrt-fs.jar");
+      final File jrtFs = new File(jdkHomePath, "lib/jrt-fs.jar");
       if (jrtFs.isFile()) {
-        final var jrtFsPath = jrtFs.getAbsolutePath();
+        final String jrtFsPath = jrtFs.getAbsolutePath();
         moduleClasspath.libraries().add(jrtFsPath);
         moduleClasspath.testLibraries().add(jrtFsPath);
       } else {
@@ -240,14 +232,14 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
     if (lib == null) {
       return Collections.emptyList();
     }
-    return List.of(lib.getFiles(OrderRootType.CLASSES));
+    return Arrays.asList(lib.getFiles(OrderRootType.CLASSES));
   }
 
   @CheckForNull
   private static VirtualFile getCompilerOutputPath(final Module module) {
-    final var compilerModuleExtension = CompilerModuleExtension.getInstance(module);
+    final CompilerModuleExtension compilerModuleExtension = CompilerModuleExtension.getInstance(module);
     if (compilerModuleExtension != null) {
-      var file = compilerModuleExtension.getCompilerOutputPath();
+      VirtualFile file = compilerModuleExtension.getCompilerOutputPath();
       // see SLI-107
       if (exists(file)) {
         return file;
@@ -258,9 +250,9 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
 
   @CheckForNull
   private static VirtualFile getCompilerTestOutputPath(final Module module) {
-    final var compilerModuleExtension = CompilerModuleExtension.getInstance(module);
+    final CompilerModuleExtension compilerModuleExtension = CompilerModuleExtension.getInstance(module);
     if (compilerModuleExtension != null) {
-      var file = compilerModuleExtension.getCompilerOutputPathForTests();
+      VirtualFile file = compilerModuleExtension.getCompilerOutputPathForTests();
       if (exists(file)) {
         return file;
       }

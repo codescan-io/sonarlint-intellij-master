@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -30,51 +30,58 @@ import com.intellij.openapi.wm.ToolWindowType;
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener;
 import com.intellij.ui.JBSplitter;
 import com.intellij.ui.OnePixelSplitter;
+import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentManager;
+
 import javax.swing.JComponent;
+
 import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.actions.SonarLintToolWindow;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.issue.IssueManager;
+import org.sonarlint.intellij.issue.hotspot.LocalHotspot;
 import org.sonarlint.intellij.ui.vulnerabilities.TaintVulnerabilitiesPanel;
 
-import static org.sonarlint.intellij.actions.SonarLintToolWindow.buildTabName;
+import static org.sonarlint.intellij.actions.SonarLintToolWindow.buildVulnerabilitiesTabName;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 
 /**
- * Factory of SonarLint tool window.
+ * Factory of CodeScan tool window.
  * Nothing can be injected as it runs in the root pico container.
  */
 public class SonarLintToolWindowFactory implements ToolWindowFactory {
-  public static final String TOOL_WINDOW_ID = "SonarLint";
-  public static final String LOG_TAB_TITLE = "Log";
-  public static final String CURRENT_FILE_TAB_TITLE = "Current File";
-  public static final String REPORT_TAB_TITLE = "Report";
-  public static final String TAINT_VULNERABILITIES_TAB_TITLE = "Taint Vulnerabilities";
-  public static final String SECURITY_HOTSPOTS_TAB_TITLE = "Security Hotspots";
+  public static final String TOOL_WINDOW_ID = "CodeScan";
+  public static final String TAB_LOGS = "Log";
+  public static final String TAB_CURRENT_FILE = "Current file";
+  public static final String TAB_ANALYSIS_RESULTS = "Report";
+  public static final String TAB_TAINT_VULNERABILITIES = "Taint vulnerabilities";
 
   @Override
   public void createToolWindowContent(Project project, final ToolWindow toolWindow) {
-    var contentManager = toolWindow.getContentManager();
-    addCurrentFileTab(project, contentManager);
-    addReportTab(project, contentManager);
-    var sonarLintToolWindow = getService(project, SonarLintToolWindow.class);
-    addSecurityHotspotsTab(project, contentManager);
+    ContentManager contentManager = toolWindow.getContentManager();
+    addIssuesTab(project, contentManager);
+    addAnalysisResultsTab(project, contentManager);
     if (SonarLintUtils.isTaintVulnerabilitiesEnabled()) {
-      addTaintVulnerabilitiesTab(project, contentManager);
+      addTaintIssuesTab(project, contentManager);
     }
     addLogTab(project, toolWindow);
     toolWindow.setType(ToolWindowType.DOCKED, null);
+    SonarLintToolWindow sonarLintToolWindow = getService(project, SonarLintToolWindow.class);
     contentManager.addContentManagerListener(sonarLintToolWindow);
+    LocalHotspot activeHotspot = sonarLintToolWindow.getActiveHotspot();
+    if (activeHotspot != null) {
+      sonarLintToolWindow.show(activeHotspot);
+    }
   }
 
   public static JBSplitter createSplitter(Project project, JComponent parentComponent, Disposable parentDisposable, JComponent c1, JComponent c2, String proportionProperty,
     float defaultSplit) {
-    var splitter = new OnePixelSplitter(splitVertically(project), proportionProperty, defaultSplit);
+    JBSplitter splitter = new OnePixelSplitter(splitVertically(project), proportionProperty, defaultSplit);
     splitter.setFirstComponent(c1);
     splitter.setSecondComponent(c2);
     splitter.setHonorComponentsMinimumSize(true);
 
-    final var listener = new ToolWindowManagerListener() {
+    final ToolWindowManagerListener listener = new ToolWindowManagerListener() {
       @Override
       public void stateChanged(@NotNull ToolWindowManager toolWindowManager) {
         splitter.setOrientation(splitVertically(project));
@@ -92,75 +99,61 @@ public class SonarLintToolWindowFactory implements ToolWindowFactory {
   }
 
   public static boolean splitVertically(Project project) {
-    final var toolWindow = ToolWindowManager.getInstance(project).getToolWindow(SonarLintToolWindowFactory.TOOL_WINDOW_ID);
-    var splitVertically = false;
+    final ToolWindow toolWindow = ToolWindowManager.getInstance(project).getToolWindow(SonarLintToolWindowFactory.TOOL_WINDOW_ID);
+    boolean splitVertically = false;
     if (toolWindow != null) {
-      final var anchor = toolWindow.getAnchor();
+      final ToolWindowAnchor anchor = toolWindow.getAnchor();
       splitVertically = anchor == ToolWindowAnchor.LEFT || anchor == ToolWindowAnchor.RIGHT;
     }
     return splitVertically;
   }
 
-  private static void addCurrentFileTab(Project project, @NotNull ContentManager contentManager) {
-    var currentFilePanel = new CurrentFilePanel(project);
-    var currentFileContent = contentManager.getFactory()
+  private static void addIssuesTab(Project project, @NotNull ContentManager contentManager) {
+    IssueManager issueManager = getService(project, IssueManager.class);
+    CurrentFileController scope = new CurrentFileController(project, issueManager);
+    SonarLintIssuesPanel issuesPanel = new SonarLintIssuesPanel(project, scope);
+    Content issuesContent = contentManager.getFactory()
       .createContent(
-        currentFilePanel,
-        CURRENT_FILE_TAB_TITLE,
+        issuesPanel,
+        TAB_CURRENT_FILE,
         false);
-    currentFileContent.setCloseable(false);
-    contentManager.addDataProvider(currentFilePanel);
-    contentManager.addContent(currentFileContent);
+    Disposer.register(issuesContent, scope);
+    issuesContent.setCloseable(false);
+    contentManager.addDataProvider(issuesPanel);
+    contentManager.addContent(issuesContent);
   }
 
-  private static void addReportTab(Project project, @NotNull ContentManager contentManager) {
-    var reportPanel = new ReportPanel(project);
-    var reportContent = contentManager.getFactory()
+  private static void addAnalysisResultsTab(Project project, @NotNull ContentManager contentManager) {
+    SonarLintAnalysisResultsPanel resultsPanel = new SonarLintAnalysisResultsPanel(project);
+    Content analysisResultsContent = contentManager.getFactory()
       .createContent(
-        reportPanel,
-        REPORT_TAB_TITLE,
+        resultsPanel,
+        TAB_ANALYSIS_RESULTS,
         false);
-    reportContent.setCloseable(false);
-    contentManager.addDataProvider(reportPanel);
-    contentManager.addContent(reportContent);
+    analysisResultsContent.setCloseable(false);
+    contentManager.addDataProvider(resultsPanel);
+    contentManager.addContent(analysisResultsContent);
   }
 
-  private static void addTaintVulnerabilitiesTab(Project project, @NotNull ContentManager contentManager) {
-    var vulnerabilitiesPanel = new TaintVulnerabilitiesPanel(project);
-    var taintVulnerabilitiesContent = contentManager.getFactory()
+  private static void addTaintIssuesTab(Project project, @NotNull ContentManager contentManager) {
+    TaintVulnerabilitiesPanel vulnerabilitiesPanel = new TaintVulnerabilitiesPanel(project);
+    Content analysisResultsContent = contentManager.getFactory()
       .createContent(
         vulnerabilitiesPanel,
-        buildTabName(0, SonarLintToolWindowFactory.TAINT_VULNERABILITIES_TAB_TITLE),
+        buildVulnerabilitiesTabName(0),
         false);
-    taintVulnerabilitiesContent.setCloseable(false);
+    analysisResultsContent.setCloseable(false);
     contentManager.addDataProvider(vulnerabilitiesPanel);
-    contentManager.addContent(taintVulnerabilitiesContent);
-  }
-
-  private static void addSecurityHotspotsTab(Project project, @NotNull ContentManager contentManager) {
-    var hotspotsPanel = new SecurityHotspotsPanel(project);
-    var securityHotspotsContent = contentManager.getFactory()
-      .createContent(
-        hotspotsPanel,
-        buildTabName(0, SECURITY_HOTSPOTS_TAB_TITLE),
-        false);
-    securityHotspotsContent.setCloseable(false);
-    contentManager.addDataProvider(hotspotsPanel);
-    contentManager.addContent(securityHotspotsContent);
+    contentManager.addContent(analysisResultsContent);
   }
 
   private static void addLogTab(Project project, ToolWindow toolWindow) {
-    var logContent = toolWindow.getContentManager().getFactory()
+    Content logContent = toolWindow.getContentManager().getFactory()
       .createContent(
         new SonarLintLogPanel(toolWindow, project),
-        LOG_TAB_TITLE,
+        TAB_LOGS,
         false);
     logContent.setCloseable(false);
     toolWindow.getContentManager().addContent(logContent);
-  }
-
-  public static ToolWindow getSonarLintToolWindow(Project project) {
-    var toolWindowManager = ToolWindowManager.getInstance(project);
-    return toolWindowManager.getToolWindow(SonarLintToolWindowFactory.TOOL_WINDOW_ID);
   }
 }

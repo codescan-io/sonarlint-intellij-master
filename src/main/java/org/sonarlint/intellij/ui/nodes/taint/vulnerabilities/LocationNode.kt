@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,16 +21,16 @@ package org.sonarlint.intellij.ui.nodes.taint.vulnerabilities
 
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.util.ui.JBUI
-import org.sonarlint.intellij.finding.Flow
-import org.sonarlint.intellij.finding.Location
-import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability
+import org.sonarlint.intellij.issue.Flow
+import org.sonarlint.intellij.issue.Location
+import org.sonarlint.intellij.issue.vulnerabilities.LocalTaintVulnerability
 import org.sonarlint.intellij.ui.nodes.AbstractNode
 import org.sonarlint.intellij.ui.tree.TreeCellRenderer
 import java.util.Objects
 
 class LocationNode(private val number: Int?, val location: Location, val associatedFlow: Flow, val issue: LocalTaintVulnerability) : AbstractNode() {
   override fun render(renderer: TreeCellRenderer) {
-    renderer.ipad = JBUI.insets(3)
+    renderer.ipad = JBUI.insets(3, 3, 3, 3)
     renderer.border = null
     if (number != null) {
       renderer.append("$number: ", SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
@@ -38,7 +38,7 @@ class LocationNode(private val number: Int?, val location: Location, val associa
     renderer.append(issueCoordinates(), SimpleTextAttributes.GRAY_ATTRIBUTES)
     renderer.append(" ")
     val message = location.message
-    if (!message.isNullOrEmpty() && "..." != message) {
+    if (message != null && message.isNotEmpty() && "..." != message) {
       renderer.append(message, SimpleTextAttributes.REGULAR_ATTRIBUTES)
     }
     if (!location.exists()) {
@@ -47,7 +47,6 @@ class LocationNode(private val number: Int?, val location: Location, val associa
     else if (!location.codeMatches()) {
       renderer.append(" (local code not matching)", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
     }
-    renderer.toolTipText = "Double click to open location"
   }
 
   private fun issueCoordinates(): String {
@@ -71,6 +70,4 @@ class LocationNode(private val number: Int?, val location: Location, val associa
   override fun hashCode(): Int {
     return Objects.hash(number, location.range?.startOffset, location.range?.endOffset, location.message)
   }
-
-  override fun toString() = location.message ?: ""
 }

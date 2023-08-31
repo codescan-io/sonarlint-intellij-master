@@ -1,40 +1,29 @@
-SonarLint IntelliJ Plugin
+CodeScan IntelliJ Plugin
 =========================
 
-[![Build Status](https://api.cirrus-ci.com/github/SonarSource/sonarlint-intellij.svg?branch=master)](https://cirrus-ci.com/github/SonarSource/sonarlint-intellij)
-[![Quality Gate](https://next.sonarqube.com/sonarqube/api/project_badges/measure?project=org.sonarsource.sonarlint.intellij%3Asonarlint-intellij&metric=alert_status)](https://next.sonarqube.com/sonarqube/dashboard?id=org.sonarsource.sonarlint.intellij%3Asonarlint-intellij)
+[![Build Status](https://dev.azure.com/sonarsource/DotNetTeam%20Project/_apis/build/status/sonarlint/CodeScan%20IntelliJ?branchName=master)](https://dev.azure.com/sonarsource/DotNetTeam%20Project/_build/latest?definitionId=76&branchName=master) [![Quality Gate](https://next.sonarqube.com/sonarqube/api/project_badges/measure?project=org.sonarsource.sonarlint.intellij%3Acodescan-intellij&metric=alert_status
+)](https://next.sonarqube.com/sonarqube/dashboard?id=org.sonarsource.sonarlint.intellij%3Acodescan-intellij)
 
-SonarLint is an IDE extension that helps you detect and fix quality issues as you write code.
-Like a spell checker, SonarLint squiggles flaws so they can be fixed before committing code.
+CodeScan is an IDE extension that helps you detect and fix quality issues as you write code.
+Like a spell checker, CodeScan squiggles flaws so they can be fixed before committing code.
 
 Useful links
 ------------
 
-- [SonarLint website](https://www.sonarlint.org)
-- [Features](https://www.sonarlint.org/features/)
-- List of static code analysis rules per language:
-    - [Java](https://rules.sonarsource.com/java)
-    - [JavaScript](https://rules.sonarsource.com/javascript)
-    - [TypeScript](https://rules.sonarsource.com/typescript)
-    - [Python](https://rules.sonarsource.com/python)
-    - [Kotlin](https://rules.sonarsource.com/kotlin)
-    - [Ruby](https://rules.sonarsource.com/ruby)
-    - [PHP](https://rules.sonarsource.com/php)
-    - [HTML](https://rules.sonarsource.com/html)
-    - [Go](https://rules.sonarsource.com/go)
-- [SonarLint community](https://community.sonarsource.com/c/help/sl)
+- [CodeScan website](https://www.codescan.io)
+
 
 How to install
 --------------
 
-You can install SonarLint from the [JetBrains Plugin Repository](https://plugins.jetbrains.com/plugin/7973-sonarlint), directly available in the IDE preferences.
+You can install CodeScan from the [JetBrains Plugin Repository](https://plugins.jetbrains.com/plugin/16087-codescan), directly available in the IDE preferences.
 
-Node.js >= 14.20 is required to perform JavaScript or TypeScript analysis (Node.js >= 16 is recommended).
+Node.js >= 8.x is required to perform JavaScript or TypeScript analysis.
 
 Have Question or Feedback?
 --------------------------
 
-For SonarLint support questions ("How do I?", "I got this error, why?", ...), please first read the [FAQ](https://community.sonarsource.com/t/frequently-asked-questions/7204) and then head to the [SonarSource forum](https://community.sonarsource.com/c/help/sl). There are chances that a question similar to yours has already been answered. 
+For CodeScan support questions ("How do I?", "I got this error, why?", ...), please first read the [FAQ](https://community.sonarsource.com/t/frequently-asked-questions/7204) and then head to the [SonarSource forum](https://community.sonarsource.com/c/help/sl). There are chances that a question similar to yours has already been answered. 
 
 Be aware that this forum is a community, so the standard pleasantries ("Hi", "Thanks", ...) are expected. And if you don't get an answer to your thread, you should sit on your hands for at least three days before bumping it. Operators are not standing by. :-)
 
@@ -65,39 +54,32 @@ For the complete list of tasks, see:
 How to run ITs
 ------------
 
-    ./gradlew :its:runIdeForUiTests &
-
-The above will start an IDE instance with the SonarLint plugin. Wait for the UI robot server to start, then run the ITs:
-
     ./gradlew :its:check
 
-Finally close the IDE.
+The above will start an IDE instance, wait for the UI robot server to start, run the ITs and finally close the IDE.
 
 To test against a specific version of IntelliJ, the `ijVersion` property can be used, e.g.:
 
-    ./gradlew :its:runIdeForUiTests  -PijVersion=IC-2019.3 &
+    ./gradlew :its:check -PijVersion=IC-2019.3
 
-To test against a specific IDE, the `runIdeDirectory` property can be used as such:
+In development mode, it can be handy to separately start the IDE and run the tests, as follows:
 
-    ./gradlew :its:runIdeForUiTests -PrunIdeDirectory=<IDE_PATH> &
+    ./gradlew :its:runIdeForUiTests
+    ./gradlew :its:test
 
-Please note that the IDE must be in foreground while tests are executed.
+The `:its:runIdeForUiTests` task is blocking. Also please note that the IDE must be in foreground while tests are executed.
 
 How to develop in IntelliJ
 --------------------------
 
 Import the project as a Gradle project.
 
-Note: whenever you change a Gradle setting (for example in `build.gradle.kts`),
+Note: whenever you change a Gradle setting (for example in `build.gradle`),
 don't forget to **Refresh all Gradle projects** in the **Gradle** toolbar.
 
 To run an IntelliJ instance with the plugin installed, execute the Gradle task `runIde` using the command line,
 or the **Gradle** toolbar in IntelliJ, under `Tasks/intellij`.
 The instance files are stored under `build/idea-sandbox`.
-
-To run against a specific IDE, the `runIdeDirectory` property can be used as such:
-
-    ./gradlew :runIde -PrunIdeDirectory=<IDE_PATH>
 
 Keep in mind that the `clean` task will wipe out the content of `build/idea-sandbox`,
 so you will need to repeat some setup steps for that instance, such as configuring the JDK.
@@ -110,11 +92,11 @@ As the `clean` task may be inconvenient, an easier workaround is to delete the j
 How to release
 --------------
 
-See [release pipeline at GitHub](https://github.com/SonarSource/sonarlint-intellij/actions/workflows/release.yml).
+See [release pipeline at Azure DevOps](https://dev.azure.com/sonarsource/DotNetTeam%20Project/_release?definitionId=10).
 
 License
 -------
 
-Copyright 2015-2023 SonarSource.
+Copyright 2015-2021 SonarSource.
 
 Licensed under the [GNU Lesser General Public License, Version 3.0](http://www.gnu.org/licenses/lgpl.txt)

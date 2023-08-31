@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA ITs
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,56 +20,53 @@
 package org.sonarlint.intellij.its.tests
 
 import com.intellij.remoterobot.fixtures.ActionButtonFixture.Companion.byTooltipText
-import com.intellij.remoterobot.fixtures.ContainerFixture
 import com.intellij.remoterobot.fixtures.JButtonFixture.Companion.byText
-import com.intellij.remoterobot.search.locators.byXpath
 import com.intellij.remoterobot.utils.keyboard
-import com.intellij.remoterobot.utils.waitFor
 import com.sonar.orchestrator.Orchestrator
+import com.sonar.orchestrator.build.SonarScanner
+import com.sonar.orchestrator.container.Server
 import com.sonar.orchestrator.locator.FileLocation
 import com.sonar.orchestrator.locator.MavenLocation
+import org.junit.Assume
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.condition.DisabledIf
 import org.sonarlint.intellij.its.BaseUiTest
 import org.sonarlint.intellij.its.fixtures.clickWhenEnabled
 import org.sonarlint.intellij.its.fixtures.dialog
-import org.sonarlint.intellij.its.fixtures.idea
-import org.sonarlint.intellij.its.fixtures.jPasswordField
+import org.sonarlint.intellij.its.fixtures.isCLion
 import org.sonarlint.intellij.its.fixtures.jRadioButtons
+import org.sonarlint.intellij.its.fixtures.jTextField
 import org.sonarlint.intellij.its.fixtures.jbTable
 import org.sonarlint.intellij.its.fixtures.jbTextField
 import org.sonarlint.intellij.its.fixtures.jbTextFields
-import org.sonarlint.intellij.its.utils.OrchestratorUtils.Companion.defaultBuilderEnv
-import org.sonarlint.intellij.its.utils.OrchestratorUtils.Companion.executeBuildWithSonarScanner
-import org.sonarlint.intellij.its.utils.OrchestratorUtils.Companion.generateToken
-import org.sonarlint.intellij.its.utils.OrchestratorUtils.Companion.newAdminWsClientWithUser
+import org.sonarlint.intellij.its.utils.ItUtils.SONAR_VERSION
+import org.sonarqube.ws.client.HttpConnector
+import org.sonarqube.ws.client.WsClient
+import org.sonarqube.ws.client.WsClientFactories
 import org.sonarqube.ws.client.issues.DoTransitionRequest
 import org.sonarqube.ws.client.issues.SearchRequest
 import org.sonarqube.ws.client.settings.SetRequest
-import java.time.Duration.ofSeconds
+import org.sonarqube.ws.client.users.CreateRequest
+import org.sonarqube.ws.client.usertokens.GenerateRequest
+import java.io.File
 
-@DisabledIf("isCLionOrGoLand")
 class BindingTest : BaseUiTest() {
+
+    @BeforeEach
+    fun requirements() {
+        Assume.assumeFalse(remoteRobot.isCLion())
+    }
 
     @Test
     fun should_use_configured_project_and_module_bindings_for_analysis() = uiTest {
         // scala should only be supported in connected mode
         openExistingProject("sample-scala", true)
-        verifyCurrentFileShowsCard("EmptyCard")
+        bindProjectAndModuleInFileSettings()
 
         openFile("HelloProject.scala")
-        verifyCurrentFileShowsCard("NotConnectedCard")
 
-        bindProjectAndModuleInFileSettings()
-        // Wait for re-analysis to happen
-        with(remoteRobot) {
-            idea {
-                waitBackgroundTasksFinished()
-            }
-        }
-        verifyCurrentFileShowsCard("ConnectedCard")
         verifyCurrentFileTabContainsMessages(
             "Found 1 issue in 1 file",
             "HelloProject.scala",
@@ -103,27 +100,23 @@ class BindingTest : BaseUiTest() {
                 button("Next").click()
             }
             dialog("New Connection: Authentication") {
-                jPasswordField().text = token
+                jTextField().text = token
                 button("Next").click()
             }
             dialog("New Connection: Configure Notifications") {
                 button("Next").click()
             }
             dialog("New Connection: Configuration completed") {
-                pressFinishOrCreate()
+                button("Finish").click()
             }
             tree {
-                clickPath("Tools", "SonarLint", "Project Settings")
+                clickPath("Tools", "CodeScan", "Project Settings")
             }
-            checkBox("Bind project to SonarQube / SonarCloud").select()
+            checkBox("Bind project to CodeScan").select()
             pressOk()
             errorMessage("Connection should not be empty")
 
-            comboBox("Connection:").click()
-            remoteRobot.find<ContainerFixture>(byXpath("//div[@class='CustomComboPopup']")).apply {
-                waitFor(ofSeconds(5)) { hasText("Orchestrator") }
-                findText("Orchestrator").click()
-            }
+            comboBox("Connection:").selectItem("Orchestrator")
             pressOk()
             errorMessage("Project key should not be empty")
 
@@ -138,7 +131,7 @@ class BindingTest : BaseUiTest() {
             pressOk()
             errorMessage("Project key for module 'sample-scala-module' should not be empty")
             buttons(byText("Search in list..."))[1].click()
-            dialog("Select SonarQube Project To Bind") {
+            dialog("Search Project in CodeScan") {
                 jList {
                     clickItem(MODULE_PROJECT_KEY, false)
                 }
@@ -152,12 +145,16 @@ class BindingTest : BaseUiTest() {
 
         lateinit var token: String
 
-        private val ORCHESTRATOR: Orchestrator = defaultBuilderEnv()
+        private val ORCHESTRATOR: Orchestrator = Orchestrator.builderEnv()
+            .defaultForceAuthentication()
+            .setSonarVersion(SONAR_VERSION)
             .addPlugin(MavenLocation.of("org.sonarsource.slang", "sonar-scala-plugin", "1.8.3.2219"))
             .restoreProfileAtStartup(FileLocation.ofClasspath("/scala-sonarlint-self-assignment.xml"))
             .restoreProfileAtStartup(FileLocation.ofClasspath("/scala-sonarlint-empty-method.xml"))
             .build()
 
+        private const val SONARLINT_USER = "sonarlint"
+        private const val SONARLINT_PWD = "sonarlintpwd"
         private const val PROJECT_KEY = "sample-scala"
         private const val MODULE_PROJECT_KEY = "sample-scala-mod"
 
@@ -166,7 +163,9 @@ class BindingTest : BaseUiTest() {
         fun prepare() {
             ORCHESTRATOR.start()
 
-            val adminWsClient = newAdminWsClientWithUser(ORCHESTRATOR.server)
+            val adminWsClient = newAdminWsClient()
+            adminWsClient.users()
+                .create(CreateRequest().setLogin(SONARLINT_USER).setPassword(SONARLINT_PWD).setName("SonarLint"))
 
             ORCHESTRATOR.server.provisionProject(PROJECT_KEY, "Sample Scala")
             ORCHESTRATOR.server.associateProjectToQualityProfile(PROJECT_KEY, "scala", "SonarLint IT Scala")
@@ -179,10 +178,23 @@ class BindingTest : BaseUiTest() {
             excludeFileRequest.values = listOf("src/Excluded.scala")
             adminWsClient.settings().set(excludeFileRequest)
 
-            executeBuildWithSonarScanner("projects/sample-scala/", ORCHESTRATOR, PROJECT_KEY);
-            executeBuildWithSonarScanner("projects/sample-scala/mod/", ORCHESTRATOR, MODULE_PROJECT_KEY);
+            ORCHESTRATOR.executeBuild(
+                SonarScanner.create(File("projects/sample-scala/"))
+                    .setProperty("sonar.login", SONARLINT_USER)
+                    .setProperty("sonar.password", SONARLINT_PWD)
+                    .setProperty("sonar.projectKey", PROJECT_KEY)
+            )
+            ORCHESTRATOR.executeBuild(
+                SonarScanner.create(File("projects/sample-scala/mod/"))
+                    .setProperty("sonar.login", SONARLINT_USER)
+                    .setProperty("sonar.password", SONARLINT_PWD)
+                    .setProperty("sonar.projectKey", MODULE_PROJECT_KEY)
+            )
 
-            token = generateToken(adminWsClient)
+            val generateRequest = GenerateRequest()
+            generateRequest.name = "TestUser"
+            token = adminWsClient.userTokens().generate(generateRequest).token
+
 
             val searchRequest = SearchRequest()
             searchRequest.s = "FILE_LINE"
@@ -190,6 +202,16 @@ class BindingTest : BaseUiTest() {
             val response = adminWsClient.issues().search(searchRequest)
             val firstIssueKey = response.issuesList[0].key
             adminWsClient.issues().doTransition(DoTransitionRequest().setIssue(firstIssueKey).setTransition("wontfix"))
+        }
+
+        private fun newAdminWsClient(): WsClient {
+            val server = ORCHESTRATOR.server
+            return WsClientFactories.getDefault().newClient(
+                HttpConnector.newBuilder()
+                    .url(server.url)
+                    .credentials(Server.ADMIN_LOGIN, Server.ADMIN_PASSWORD)
+                    .build()
+            )
         }
 
         @AfterAll

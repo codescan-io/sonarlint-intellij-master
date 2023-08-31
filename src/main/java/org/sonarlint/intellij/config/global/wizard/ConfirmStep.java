@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@ import org.jetbrains.annotations.Nullable;
 
 public class ConfirmStep extends AbstractWizardStepEx {
   private static final String TEXT1 = "Connection successfully created.";
-  private static final String TEXT2 = "Click finish to save your changes.";
+  private static final String TEXT2 = "Click finish to save your changes and schedule an update of all project bindings.";
   private final WizardModel model;
   private final boolean editing;
   private JPanel panel;

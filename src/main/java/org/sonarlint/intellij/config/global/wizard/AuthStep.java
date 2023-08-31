@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -24,12 +24,8 @@ import com.intellij.ide.wizard.AbstractWizardStepEx;
 import com.intellij.ide.wizard.CommitStepCancelledException;
 import com.intellij.ide.wizard.CommitStepException;
 import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.impl.ProgressResult;
-import com.intellij.openapi.progress.impl.ProgressRunner;
-import com.intellij.openapi.progress.util.ProgressWindow;
+import com.intellij.openapi.ui.ComboBox;
 import com.intellij.openapi.ui.Messages;
-import com.intellij.openapi.util.Disposer;
-import com.intellij.openapi.wm.WindowManager;
 import com.intellij.ui.DocumentAdapter;
 import java.awt.CardLayout;
 import java.awt.event.ItemEvent;
@@ -37,7 +33,6 @@ import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
-import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
@@ -45,14 +40,10 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.global.ServerConnection;
-import org.sonarlint.intellij.core.BackendService;
 import org.sonarlint.intellij.tasks.ConnectionTestTask;
 import org.sonarlint.intellij.util.GlobalLogOutput;
-import org.sonarlint.intellij.util.ProgressUtils;
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.auth.HelpGenerateUserTokenResponse;
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.validate.ValidateConnectionResponse;
+import org.sonarsource.sonarlint.core.client.api.connected.ValidationResult;
 
 public class AuthStep extends AbstractWizardStepEx {
   private static final String LOGIN_ITEM = "Login / Password";
@@ -60,19 +51,19 @@ public class AuthStep extends AbstractWizardStepEx {
   private final WizardModel model;
 
   private JPanel panel;
-  private JComboBox<String> authComboBox;
-  private JPasswordField tokenField;
+  private JComboBox authComboBox;
+  private JTextField tokenField;
   private JTextField loginField;
   private JPasswordField passwordField;
   private JPanel cardPanel;
   private JButton openTokenCreationPageButton;
-  private final ErrorPainter errorPainter;
+  private ErrorPainter errorPainter;
 
   public AuthStep(WizardModel model) {
     super("Authentication");
     this.model = model;
 
-    var comboBoxModel = new DefaultComboBoxModel<String>();
+    DefaultComboBoxModel comboBoxModel = new DefaultComboBoxModel();
     comboBoxModel.addElement(TOKEN_ITEM);
     comboBoxModel.addElement(LOGIN_ITEM);
     authComboBox.setModel(comboBoxModel);
@@ -105,7 +96,6 @@ public class AuthStep extends AbstractWizardStepEx {
     errorPainter.installOn(panel, this);
   }
 
-
   @Override
   public void _init() {
     if (model.getServerType() == WizardModel.ServerType.SONARCLOUD) {
@@ -127,16 +117,15 @@ public class AuthStep extends AbstractWizardStepEx {
     } else {
       passwordField.setText(null);
     }
-    openTokenCreationPageButton.setText("Create token");
   }
 
   private void save() {
-    if (LOGIN_ITEM.equals(authComboBox.getSelectedItem())) {
+    if (authComboBox.getSelectedItem().equals(LOGIN_ITEM)) {
       model.setToken(null);
       model.setLogin(loginField.getText());
       model.setPassword(passwordField.getPassword());
     } else {
-      model.setToken(String.valueOf(tokenField.getPassword()));
+      model.setToken(tokenField.getText());
       model.setLogin(null);
       model.setPassword(null);
     }
@@ -173,7 +162,7 @@ public class AuthStep extends AbstractWizardStepEx {
 
   @Override
   public boolean isComplete() {
-    if (LOGIN_ITEM.equals(authComboBox.getSelectedItem())) {
+    if (authComboBox.getSelectedItem().equals(LOGIN_ITEM)) {
       boolean passValid = passwordField.getPassword().length > 0;
       boolean loginValid = !loginField.getText().isEmpty();
       errorPainter.setValid(passwordField, passValid);
@@ -181,7 +170,7 @@ public class AuthStep extends AbstractWizardStepEx {
       errorPainter.setValid(tokenField, true);
       return passValid && loginValid;
     } else {
-      boolean tokenValid = tokenField.getPassword().length > 0;
+      boolean tokenValid = !tokenField.getText().isEmpty();
       errorPainter.setValid(tokenField, tokenValid);
       errorPainter.setValid(loginField, true);
       errorPainter.setValid(passwordField, true);
@@ -203,7 +192,7 @@ public class AuthStep extends AbstractWizardStepEx {
     try {
       model.queryOrganizations();
     } catch (Exception e) {
-      var msg = "Failed to query organizations. Please check the configuration and try again.";
+      String msg = "Failed to query organizations. Please check the configuration and try again.";
       if (e.getMessage() != null) {
         msg = msg + " Error: " + e.getMessage();
       }
@@ -215,7 +204,7 @@ public class AuthStep extends AbstractWizardStepEx {
     try {
       model.queryIfNotificationsSupported();
     } catch (Exception e) {
-      var msg = "Failed to contact the server. Please check the configuration and try again.";
+      String msg = "Failed to contact the server. Please check the configuration and try again.";
       if (e.getMessage() != null) {
         msg = msg + " Error: " + e.getMessage();
       }
@@ -226,8 +215,8 @@ public class AuthStep extends AbstractWizardStepEx {
   private void checkConnection() throws CommitStepException {
     ServerConnection tmpServer = model.createConnectionWithoutOrganization();
     ConnectionTestTask test = new ConnectionTestTask(tmpServer);
-    var msg = "Failed to connect to the server. Please check the configuration.";
-    ValidateConnectionResponse result;
+    String msg = "Failed to connect to the server. Please check the configuration.";
+    ValidationResult result;
     try {
       result = ProgressManager.getInstance().run(test);
     } catch (Exception e) {
@@ -239,8 +228,8 @@ public class AuthStep extends AbstractWizardStepEx {
     }
     if (result == null) {
       throw new CommitStepCancelledException();
-    } else if (!result.isSuccess()) {
-      throw new CommitStepException(msg + " Cause: " + result.getMessage());
+    } else if (!result.success()) {
+      throw new CommitStepException(msg + " Cause: " + result.message());
     }
   }
 
@@ -253,44 +242,24 @@ public class AuthStep extends AbstractWizardStepEx {
     return tokenField;
   }
 
-  private void openTokenCreationPage() {
-    var serverUrl = model.getServerUrl();
-    if (!BrowserUtil.isAbsoluteURL(serverUrl)) {
-      Messages.showErrorDialog(panel, "Can't launch browser for URL: " + serverUrl, "Invalid Server URL");
-      return;
-    }
-    var progressWindow = new ProgressWindow(true, false, null, panel, "Cancel");
-    progressWindow.setTitle("Generating token...");
-    Disposer.register(this, progressWindow);
-    try {
-      ProgressResult<HelpGenerateUserTokenResponse> progressResult = new ProgressRunner<>(pi -> {
-        var future = SonarLintUtils.getService(BackendService.class).helpGenerateUserToken(serverUrl, model.getServerType() == WizardModel.ServerType.SONARCLOUD);
-        return ProgressUtils.waitForFuture(pi, future);
-      })
-        .sync()
-        .onThread(ProgressRunner.ThreadToUse.POOLED)
-        .withProgress(progressWindow)
-        .modal()
-        .submitAndGet();
-      var result = progressResult.getResult();
-      if (result != null) {
-        var token = result.getToken();
-        if (token != null) {
-          handleReceivedToken(token);
-        }
-      }
-    } catch (Exception e) {
-      Messages.showErrorDialog(panel, e.getMessage(), "Unable to Generate Token");
-    }
+  private void createUIComponents() {
+    authComboBox = new ComboBox();
   }
 
-
-  private void handleReceivedToken(String userToken) {
-    tokenField.setText(userToken);
-    JFrame visibleFrame = WindowManager.getInstance().findVisibleFrame();
-    if (visibleFrame != null) {
-      visibleFrame.toFront();
+  private void openTokenCreationPage() {
+    if (!BrowserUtil.isAbsoluteURL(model.getServerUrl())) {
+      Messages.showErrorDialog(panel, "Can't launch browser for URL: " + model.getServerUrl(), "Invalid Server URL");
+      return;
     }
-    fireGoNext();
+
+    StringBuilder url = new StringBuilder(256);
+    url.append(model.getServerUrl());
+
+    if (!model.getServerUrl().endsWith("/")) {
+      url.append("/");
+    }
+
+    url.append("account/security");
+    BrowserUtil.browse(url.toString());
   }
 }

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,10 +19,13 @@
  */
 package org.sonarlint.intellij.ui
 
-import com.intellij.ide.ProjectGroupActionGroup
-import com.intellij.ide.RecentProjectListActionProvider
-import com.intellij.ide.ReopenProjectAction
+import com.intellij.ide.*
+import com.intellij.ide.impl.ProjectUtil
+import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.ex.ActionUtil
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.io.FileUtil
@@ -45,6 +48,7 @@ import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.KeyboardFocusManager
+import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -66,13 +70,20 @@ import kotlin.math.min
 const val TITLE = "Pick Opened or Recent Project"
 val preferredScrollableViewportSize = JBUI.size(350, 250)
 
-open class SonarLintRecentProjectPanel(private val parent: ProjectSelectionDialog) : JPanel(BorderLayout()) {
+open class SonarLintRecentProjectPanel(private val onProjectSelected: (Project) -> Unit) : JPanel(BorderLayout()) {
 
     private val projectsList: JBList<AnAction>
 
-    private fun performSelectedAction(selection: AnAction){
-        val projectPath = (selection as ReopenProjectAction).projectPath
-        parent.setSelectedProject(projectPath)
+    private fun performSelectedAction(event: InputEvent, selection: AnAction): AnAction {
+        val actionEvent = AnActionEvent
+            .createFromInputEvent(event, ActionPlaces.POPUP, selection.templatePresentation,
+                DataManager.getInstance().getDataContext(projectsList), false, false)
+        ActionUtil.performActionDumbAwareWithCallbacks(selection, actionEvent, actionEvent.dataContext)
+
+        val recentProjectManager = RecentProjectsManager.getInstance() as RecentProjectsManagerBase
+        val openedProject = ProjectUtil.getOpenProjects().firstOrNull { recentProjectManager.getProjectPath(it) == (selection as ReopenProjectAction).projectPath }
+        openedProject?.let { onProjectSelected(it) }
+        return selection
     }
 
     private fun addMouseMotionListener() {
@@ -160,7 +171,7 @@ open class SonarLintRecentProjectPanel(private val parent: ProjectSelectionDialo
 
         private fun getSubtitle(action: ReopenProjectAction): String? {
             var fullText = action.projectPath
-            if (fullText.isNullOrEmpty()) return " "
+            if (fullText == null || fullText.isEmpty()) return " "
             fullText = FileUtil.getLocationRelativeToUserHome(PathUtil.toSystemDependentName(fullText), false)
             return fullText
         }
@@ -192,19 +203,20 @@ open class SonarLintRecentProjectPanel(private val parent: ProjectSelectionDialo
                     if (cellBounds.contains(event.point)) {
                         val selection = projectsList.selectedValue
                         if (selection != null) {
-                            performSelectedAction(selection)
+                            performSelectedAction(event, selection)
                         }
                     }
                 }
                 return true
             }
         }.installOn(projectsList)
-        projectsList.registerKeyboardAction({ _ ->
+        projectsList.registerKeyboardAction({ e ->
             val selectedValues = projectsList.selectedValuesList
             if (selectedValues != null) {
                 for (selectedAction in selectedValues) {
                     if (selectedAction != null) {
-                        performSelectedAction(selectedAction)
+                        val event: InputEvent = KeyEvent(projectsList, KeyEvent.KEY_PRESSED, e.getWhen(), e.modifiers, KeyEvent.VK_ENTER, '\r')
+                        performSelectedAction(event, selectedAction)
                     }
                 }
             }
@@ -245,7 +257,7 @@ open class SonarLintRecentProjectPanel(private val parent: ProjectSelectionDialo
         add(createTitle(), BorderLayout.NORTH)
     }
 
-    private fun createTitle(): JPanel {
+    protected fun createTitle(): JPanel {
         val title: JPanel = object : JPanel() {
             override fun getPreferredSize(): Dimension {
                 return Dimension(super.getPreferredSize().width, JBUI.scale(28))

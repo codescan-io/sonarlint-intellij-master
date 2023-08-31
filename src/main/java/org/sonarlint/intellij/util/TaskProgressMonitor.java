@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,13 +22,11 @@ package org.sonarlint.intellij.util;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
-
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.sonarsource.sonarlint.core.client.api.common.ProgressMonitor;
 
-import org.sonarsource.sonarlint.core.commons.progress.ClientProgressMonitor;
-
-public class TaskProgressMonitor implements ClientProgressMonitor {
+public class TaskProgressMonitor extends ProgressMonitor {
   private final ProgressIndicator indicator;
   private final ProgressManager progressManager;
   private final Project project;
@@ -72,9 +70,6 @@ public class TaskProgressMonitor implements ClientProgressMonitor {
    */
   @Override
   public void setFraction(float fraction) {
-    if (indicator.isIndeterminate()) {
-      indicator.setIndeterminate(false);
-    }
     indicator.setFraction(fraction);
   }
 

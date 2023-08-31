@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -33,13 +33,15 @@ import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.notifications.AnalysisRequirementNotifications;
 import org.sonarlint.intellij.util.ProjectLogOutput;
 import org.sonarlint.intellij.util.SonarLintAppUtils;
-import org.sonarsource.sonarlint.core.analysis.api.AnalysisResults;
-import org.sonarsource.sonarlint.core.analysis.api.ClientInputFile;
 import org.sonarsource.sonarlint.core.client.api.common.PluginDetails;
+import org.sonarsource.sonarlint.core.client.api.common.ProgressMonitor;
+import org.sonarsource.sonarlint.core.client.api.common.analysis.AnalysisResults;
+import org.sonarsource.sonarlint.core.client.api.common.analysis.ClientInputFile;
 import org.sonarsource.sonarlint.core.client.api.common.analysis.IssueListener;
 import org.sonarsource.sonarlint.core.client.api.connected.ConnectedAnalysisConfiguration;
+import org.sonarsource.sonarlint.core.client.api.connected.ConnectedRuleDetails;
 import org.sonarsource.sonarlint.core.client.api.connected.ConnectedSonarLintEngine;
-import org.sonarsource.sonarlint.core.commons.progress.ClientProgressMonitor;
+import org.sonarsource.sonarlint.core.client.api.connected.ProjectBinding;
 
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 
@@ -58,26 +60,26 @@ class ConnectedSonarLintFacade extends SonarLintFacade {
 
   @Override
   protected AnalysisResults analyze(Module module, Path baseDir, Path workDir, Collection<ClientInputFile> inputFiles, Map<String, String> props,
-    IssueListener issueListener, ClientProgressMonitor progressMonitor) {
-    var config = ConnectedAnalysisConfiguration.builder()
+    IssueListener issueListener, ProgressMonitor progressMonitor) {
+    ConnectedAnalysisConfiguration config = ConnectedAnalysisConfiguration.builder()
       .setBaseDir(baseDir)
       .addInputFiles(inputFiles)
       .setProjectKey(projectKey)
       .putAllExtraProperties(props)
       .setModuleKey(module)
       .build();
-    var console = getService(project, SonarLintConsole.class);
+    SonarLintConsole console = getService(project, SonarLintConsole.class);
     console.debug("Starting analysis with configuration:\n" + config);
 
-    final var analysisResults = engine.analyze(config, issueListener, new ProjectLogOutput(project), progressMonitor);
+    final AnalysisResults analysisResults = engine.analyze(config, issueListener, new ProjectLogOutput(project), progressMonitor);
     AnalysisRequirementNotifications.notifyOnceForSkippedPlugins(analysisResults, engine.getPluginDetails(), project);
     return analysisResults;
   }
 
   @Override
   public Collection<VirtualFile> getExcluded(Module module, Collection<VirtualFile> files, Predicate<VirtualFile> testPredicate) {
-    var bindingManager = getService(module, ModuleBindingManager.class);
-    var binding = bindingManager.getBinding();
+    ModuleBindingManager bindingManager = getService(module, ModuleBindingManager.class);
+    ProjectBinding binding = bindingManager.getBinding();
     if (binding == null) {
       // should never happen since the project should be bound!
       return Collections.emptyList();
@@ -92,4 +94,21 @@ class ConnectedSonarLintFacade extends SonarLintFacade {
     return engine.getPluginDetails();
   }
 
+  @Override
+  public ConnectedRuleDetails getActiveRuleDetails(String ruleKey) {
+    return engine.getActiveRuleDetails(ruleKey, projectKey);
+  }
+
+  @Override
+  public String getDescription(String ruleKey) {
+    ConnectedRuleDetails details = getActiveRuleDetails(ruleKey);
+    if (details == null) {
+      return null;
+    }
+    String extendedDescription = details.getExtendedDescription();
+    if (extendedDescription.isEmpty()) {
+      return details.getHtmlDescription();
+    }
+    return details.getHtmlDescription() + "<br/><br/>" + extendedDescription;
+  }
 }

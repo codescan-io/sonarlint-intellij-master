@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,9 +23,9 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.vfs.VirtualFile;
-import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import java.util.Collections;
+import org.junit.Before;
+import org.junit.Test;
 import org.sonarlint.intellij.AbstractSonarLintLightTests;
 
 import static com.intellij.openapi.actionSystem.ActionPlaces.EDITOR_POPUP;
@@ -33,15 +33,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class ExcludeFileActionLightTests extends AbstractSonarLintLightTests {
+public class ExcludeFileActionLightTests extends AbstractSonarLintLightTests {
   private final ExcludeFileAction action = new ExcludeFileAction();
   private final AnActionEvent e = mock(AnActionEvent.class);
   private final Presentation presentation = new Presentation();
 
 
 
-  @BeforeEach
-  void setup() {
+  @Before
+  public void setup() {
     when(e.getProject()).thenReturn(getProject());
     when(e.getPresentation()).thenReturn(presentation);
     when(e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY)).thenReturn(new VirtualFile[] {myFixture.copyFileToProject("foo.php", "foo.php")});
@@ -49,15 +49,15 @@ class ExcludeFileActionLightTests extends AbstractSonarLintLightTests {
   }
 
   @Test
-  void add_exclusion() {
+  public void add_exclusion() {
     action.actionPerformed(e);
 
     assertThat(getProjectSettings().getFileExclusions()).containsOnly("FILE:foo.php");
   }
 
   @Test
-  void dont_add_exclusion_if_already_exists() {
-    getProjectSettings().setFileExclusions(List.of("FILE:foo.php"));
+  public void dont_add_exclusion_if_already_exists() {
+    getProjectSettings().setFileExclusions(Collections.singletonList("FILE:foo.php"));
 
     action.actionPerformed(e);
 
@@ -65,7 +65,7 @@ class ExcludeFileActionLightTests extends AbstractSonarLintLightTests {
   }
 
   @Test
-  void reject_project() {
+  public void reject_project() {
     when(e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY)).thenReturn(new VirtualFile[] {getProject().getBaseDir()});
 
     action.actionPerformed(e);
@@ -73,7 +73,7 @@ class ExcludeFileActionLightTests extends AbstractSonarLintLightTests {
   }
 
   @Test
-  void enable_action() {
+  public void enable_action() {
     action.update(e);
     assertThat(presentation.isVisible()).isTrue();
     assertThat(presentation.isEnabled()).isTrue();

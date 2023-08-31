@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,11 +21,11 @@ package org.sonarlint.intellij.java;
 
 import java.util.Set;
 import org.sonarlint.intellij.common.LanguageActivator;
-import org.sonarsource.sonarlint.core.commons.Language;
+import org.sonarsource.sonarlint.core.client.api.common.Language;
 
 public class JavaLanguageActivator implements LanguageActivator {
   @Override
-  public void amendLanguages(Set<Language> enabledLanguages, boolean isConnected) {
+  public void amendLanguages(Set<Language> enabledLanguages) {
     enabledLanguages.add(Language.JAVA);
   }
 }

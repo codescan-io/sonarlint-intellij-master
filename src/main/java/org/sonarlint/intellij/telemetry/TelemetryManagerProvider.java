@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,27 +21,26 @@ package org.sonarlint.intellij.telemetry;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.intellij.openapi.application.PathManager;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
+
 import org.sonarlint.intellij.SonarLintPlugin;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarlint.intellij.core.BackendService;
+import org.sonarlint.intellij.http.ApacheHttpClient;
 import org.sonarsource.sonarlint.core.telemetry.TelemetryHttpClient;
 import org.sonarsource.sonarlint.core.telemetry.TelemetryManager;
 import org.sonarsource.sonarlint.core.telemetry.TelemetryPathManager;
 
-import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
-
 public class TelemetryManagerProvider {
-  public static final String TELEMETRY_PRODUCT_KEY = "idea";
-  private static final String PRODUCT = "SonarLint IntelliJ";
+  private static final String TELEMETRY_PRODUCT_KEY = "idea";
+  private static final String PRODUCT = "CodeScan IntelliJ";
 
   private static final String OLD_STORAGE_FILENAME = "sonarlint_usage";
 
   public TelemetryManager get() {
-    var plugin = getService(SonarLintPlugin.class);
-    var client = new TelemetryHttpClient(PRODUCT, plugin.getVersion(), SonarLintUtils.getIdeVersionForTelemetry(), null, System.getProperty("os.arch"),
-      getService(BackendService.class).getHttpClientNoAuth());
+    SonarLintPlugin plugin = SonarLintUtils.getService(SonarLintPlugin.class);
+    TelemetryHttpClient client = new TelemetryHttpClient(PRODUCT, plugin.getVersion(), SonarLintUtils.getIdeVersionForTelemetry(), ApacheHttpClient.getDefault());
     return new TelemetryManager(getStorageFilePath(), client, new TelemetryClientAttributeProviderImpl());
   }
 

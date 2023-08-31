@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,36 +21,36 @@ package org.sonarlint.intellij.tasks;
 
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
+
+import java.util.Optional;
+
 import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
-import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.global.ServerConnection;
-import org.sonarlint.intellij.core.BackendService;
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.OrganizationDto;
-
-import static org.sonarlint.intellij.util.ProgressUtils.waitForFuture;
+import org.sonarlint.intellij.util.TaskProgressMonitor;
+import org.sonarsource.sonarlint.core.serverapi.organization.ServerOrganization;
 
 public class GetOrganizationTask extends Task.Modal {
   private final ServerConnection server;
   private final String organizationKey;
 
   private Exception exception;
-  private OrganizationDto organization;
+  private Optional<ServerOrganization> organization = Optional.empty();
 
   public GetOrganizationTask(ServerConnection server, String organizationKey) {
-    super(null, "Fetch Organization From SonarCloud", true);
+    super(null, "Fetch Organization From CodeScanCloud", true);
     this.server = server;
     this.organizationKey = organizationKey;
   }
 
   @Override
   public void run(@NotNull ProgressIndicator indicator) {
-    indicator.setText("Connecting to SonarCloud...");
+    indicator.setText("Connecting to CodeScanCloud...");
     indicator.setIndeterminate(false);
 
     try {
       indicator.setText("Searching organization");
-      organization = waitForFuture(indicator, SonarLintUtils.getService(BackendService.class).getOrganization(server, organizationKey)).getOrganization();
+      organization = server.api().organization().getOrganization(organizationKey, new TaskProgressMonitor(indicator, myProject));
     } catch (Exception e) {
       SonarLintConsole.get(myProject).error("Failed to fetch organizations", e);
       exception = e;
@@ -61,7 +61,7 @@ public class GetOrganizationTask extends Task.Modal {
     return exception;
   }
 
-  public OrganizationDto organization() {
+  public Optional<ServerOrganization> organization() {
     return organization;
   }
 }

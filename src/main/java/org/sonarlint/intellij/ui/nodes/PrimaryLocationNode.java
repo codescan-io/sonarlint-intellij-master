@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,12 +19,13 @@
  */
 package org.sonarlint.intellij.ui.nodes;
 
+import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.util.ui.JBUI;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
-import org.sonarlint.intellij.finding.Flow;
+import org.sonarlint.intellij.issue.Flow;
 import org.sonarlint.intellij.ui.tree.TreeCellRenderer;
 
 public class PrimaryLocationNode extends AbstractNode {
@@ -63,7 +64,7 @@ public class PrimaryLocationNode extends AbstractNode {
   }
 
   @Override public void render(TreeCellRenderer renderer) {
-    renderer.setIpad(JBUI.insets(3));
+    renderer.setIpad(JBUI.insets(3, 3, 3, 3));
     renderer.setBorder(null);
     renderer.append(issueCoordinates(), bold ? SimpleTextAttributes.GRAYED_BOLD_ATTRIBUTES : SimpleTextAttributes.GRAY_ATTRIBUTES);
     if (number != null) {
@@ -84,17 +85,9 @@ public class PrimaryLocationNode extends AbstractNode {
       return "(-, -) ";
     }
 
-    var doc = rangeMarker.getDocument();
-    var line = doc.getLineNumber(rangeMarker.getStartOffset());
-    var offset = rangeMarker.getStartOffset() - doc.getLineStartOffset(line);
+    Document doc = rangeMarker.getDocument();
+    int line = doc.getLineNumber(rangeMarker.getStartOffset());
+    int offset = rangeMarker.getStartOffset() - doc.getLineStartOffset(line);
     return String.format("(%d, %d) ", line + 1, offset);
-  }
-
-  @Override
-  public String toString() {
-    if (message != null && !message.isEmpty() && !"...".equals(message)) {
-      return message;
-    }
-    return "";
   }
 }

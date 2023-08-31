@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -144,10 +144,6 @@ public final class SonarLintGlobalSettings {
     initializeRulesByKey();
   }
 
-  public void setRulesByKey(Map<String, Rule> rules) {
-    this.rulesByKey = new HashMap<>(rules);
-  }
-
   public boolean isAutoTrigger() {
     return autoTrigger;
   }
@@ -171,19 +167,9 @@ public final class SonarLintGlobalSettings {
   }
 
   public void setServerConnections(List<ServerConnection> servers) {
-    this.servers = servers.stream()
+    this.servers = Collections.unmodifiableList(servers.stream()
       .filter(s -> !SonarLintUtils.isBlank(s.getName()))
-      .collect(Collectors.toUnmodifiableList());
-  }
-
-  public Optional<ServerConnection> getServerConnectionByName(String name) {
-    return servers.stream()
-      .filter(s -> name.equals(s.getName()))
-      .findFirst();
-  }
-
-  public boolean connectionExists(String connectionName) {
-    return getServerConnectionByName(connectionName).isPresent();
+      .collect(Collectors.toList()));
   }
 
   public void addServerConnection(ServerConnection connection) {
@@ -203,7 +189,7 @@ public final class SonarLintGlobalSettings {
   }
 
   public void setFileExclusions(List<String> fileExclusions) {
-    this.fileExclusions = List.copyOf(fileExclusions);
+    this.fileExclusions = Collections.unmodifiableList(new ArrayList<>(fileExclusions));
   }
 
   /**

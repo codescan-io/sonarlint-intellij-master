@@ -1,6 +1,6 @@
 /*
  * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,19 +20,17 @@
 package org.sonarlint.intellij.clion;
 
 import java.util.Set;
+
 import org.sonarlint.intellij.common.LanguageActivator;
-import org.sonarsource.sonarlint.core.commons.Language;
+import org.sonarsource.sonarlint.core.client.api.common.Language;
 
 public class CFamilyLanguageActivator implements LanguageActivator {
   @Override
-  public void amendLanguages(Set<Language> enabledLanguages, boolean isConnected) {
-    boolean isPLSQLEnabled = enabledLanguages.contains(Language.PLSQL);
+  public void amendLanguages(Set<Language> enabledLanguages) {
+    // Only C/C++ for now in CLion
     enabledLanguages.clear();
     enabledLanguages.add(Language.C);
     enabledLanguages.add(Language.CPP);
     enabledLanguages.add(Language.SECRETS);
-    if (isPLSQLEnabled) {
-      enabledLanguages.add(Language.PLSQL);
-    }
   }
 }

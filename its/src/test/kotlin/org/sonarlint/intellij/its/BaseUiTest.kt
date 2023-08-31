@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA ITs
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,6 @@ import org.assertj.core.api.Assertions
 import org.assertj.swing.timing.Pause
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.extension.ExtendWith
-import org.junit.jupiter.api.fail
 import org.sonarlint.intellij.its.fixtures.DialogFixture
 import org.sonarlint.intellij.its.fixtures.IdeaFrame
 import org.sonarlint.intellij.its.fixtures.PreferencesDialog
@@ -36,9 +35,6 @@ import org.sonarlint.intellij.its.fixtures.dialog
 import org.sonarlint.intellij.its.fixtures.editor
 import org.sonarlint.intellij.its.fixtures.idea
 import org.sonarlint.intellij.its.fixtures.isCLion
-import org.sonarlint.intellij.its.fixtures.isGoLand
-import org.sonarlint.intellij.its.fixtures.isGoPlugin
-import org.sonarlint.intellij.its.fixtures.isSQLPlugin
 import org.sonarlint.intellij.its.fixtures.openProjectFileBrowserDialog
 import org.sonarlint.intellij.its.fixtures.preferencesDialog
 import org.sonarlint.intellij.its.fixtures.tool.window.TabContentFixture
@@ -46,8 +42,7 @@ import org.sonarlint.intellij.its.fixtures.tool.window.toolWindow
 import org.sonarlint.intellij.its.fixtures.waitUntilLoaded
 import org.sonarlint.intellij.its.fixtures.welcomeFrame
 import org.sonarlint.intellij.its.utils.StepsLogger
-import org.sonarlint.intellij.its.utils.ThreadDumpOnFailure
-import org.sonarlint.intellij.its.utils.VisualTreeDumpOnFailure
+import org.sonarlint.intellij.its.utils.VisualTreeDump
 import org.sonarlint.intellij.its.utils.optionalStep
 import java.awt.Point
 import java.io.File
@@ -55,8 +50,7 @@ import java.time.Duration
 
 const val robotUrl = "http://localhost:8082"
 
-@ExtendWith(VisualTreeDumpOnFailure::class)
-@ExtendWith(ThreadDumpOnFailure::class)
+@ExtendWith(VisualTreeDump::class)
 open class BaseUiTest {
 
     companion object {
@@ -66,37 +60,7 @@ open class BaseUiTest {
             StepsLogger.init()
             remoteRobot = RemoteRobot(robotUrl)
         }
-
-        @JvmStatic
-        fun isCLionOrGoLand(): Boolean {
-            return remoteRobot.isCLion() || remoteRobot.isGoLand()
-        }
-
-        @JvmStatic
-        fun isCLion(): Boolean {
-            return remoteRobot.isCLion()
-        }
-
-        /**
-         *  This only checks for the GoLand IDE, if you want to check for the Go language support in general (via the
-         *  Go plugin), use [BaseUiTest.isGoPlugin]!
-         */
-        @JvmStatic
-        fun isGoLand(): Boolean {
-            return remoteRobot.isGoLand()
-        }
-
-        /**
-         *  This one checks for the Go language support in general (via the Go plugin), if you want to check for the
-         *  GoLand IDE, use [BaseUiTest.isGoLand]!
-         */
-        @JvmStatic
-        fun isGoPlugin(): Boolean = remoteRobot.isGoPlugin()
-
-        @JvmStatic
-        fun isSQLPlugin(): Boolean = remoteRobot.isSQLPlugin()
     }
-
 
     fun uiTest(test: RemoteRobot.() -> Unit) {
         try {
@@ -119,33 +83,7 @@ open class BaseUiTest {
                     }
                 }
             }
-            failTestIfUncaughtExceptions()
         }
-    }
-
-    private fun failTestIfUncaughtExceptions() {
-        val uncaughtExceptions = getUncaughtExceptions()
-        val shouldFailTest = uncaughtExceptions.any { e -> e.contains("sonarlint", true) || e.contains("sonarsource", true) }
-        uncaughtExceptions.forEach { e -> println("Uncaught error during the test: $e") }
-        clearExceptions()
-        if (shouldFailTest) {
-            fail("There were uncaught exceptions during the test, see logs")
-        }
-    }
-
-    private fun getUncaughtExceptions(): List<String> {
-        return remoteRobot.callJs(
-            """
-        const result = new ArrayList()
-        com.intellij.diagnostic.MessagePool.getInstance().getFatalErrors(true, true)
-            .forEach((error) => result.add("message=" + error.getMessage() + ", stacktrace=" + error.getThrowableText()))
-        result
-    """
-        )
-    }
-
-    private fun clearExceptions() {
-        remoteRobot.runJs("com.intellij.diagnostic.MessagePool.getInstance().clearErrors()")
     }
 
     private fun sonarlintLogPanel(remoteRobot: RemoteRobot, function: TabContentFixture.() -> Unit = {}) {
@@ -202,11 +140,9 @@ open class BaseUiTest {
             idea {
                 toolWindow("SonarLint") {
                     ensureOpen()
-                    tabTitleContains("Current File") { select() }
-                    content("CurrentFilePanel") {
-                        expectedMessages.forEach {
-                            Assertions.assertThat(hasText(it)).`as`("Failed to find current file text '$it'").isTrue()
-                        }
+                    tabTitleContains("Current file") { select() }
+                    content("SonarLintIssuesPanel") {
+                        expectedMessages.forEach { Assertions.assertThat(hasText(it)).isTrue() }
                     }
                 }
             }
@@ -218,8 +154,8 @@ open class BaseUiTest {
             idea {
                 toolWindow("SonarLint") {
                     ensureOpen()
-                    tabTitleContains("Current File") { select() }
-                    content("CurrentFilePanel") {
+                    tabTitleContains("Current file") { select() }
+                    content("SonarLintIssuesPanel") {
                         findText(issueMessage).click()
                     }
                 }
@@ -231,25 +167,9 @@ open class BaseUiTest {
         with(remoteRobot) {
             idea {
                 toolWindow("SonarLint") {
-                    ensureOpen()
-                    content("CurrentFilePanel") {
-                        waitFor(Duration.ofSeconds(10), errorMessage = "Unable to find '$expectedMessage' in: ${findAllText()}") {
-                            hasText(
-                                expectedMessage
-                            )
-                        }
+                    content("SonarLintIssuesPanel") {
+                        Assertions.assertThat(hasText(expectedMessage)).isTrue()
                     }
-                }
-            }
-        }
-    }
-
-    protected fun verifyCurrentFileShowsCard(expectedClass: String) {
-        with(remoteRobot) {
-            idea {
-                toolWindow("SonarLint") {
-                    ensureOpen()
-                    Assertions.assertThat(findCard(expectedClass)).isNotNull
                 }
             }
         }
@@ -296,12 +216,9 @@ open class BaseUiTest {
             tree {
                 waitUntilLoaded()
                 // little trick to check if the search has been applied
-                waitFor(Duration.ofSeconds(10), Duration.ofSeconds(1)) { collectRows().size in 1..10 }
+                waitFor(Duration.ofSeconds(10), Duration.ofSeconds(1)) { collectRows().size in 1..8 }
                 clickPath("Tools", "SonarLint")
             }
-
-            // let the SonarLint view settle (sometimes the UI thread blocks for a few seconds)
-            Pause.pause(4000)
 
             function(this)
         }
@@ -310,7 +227,7 @@ open class BaseUiTest {
     private fun clearConnections() {
         sonarLintGlobalSettings {
             val removeButton = actionButton(byTooltipText("Remove"))
-            jList(JListFixture.byType()) {
+            jList(JListFixture.byType(), Duration.ofSeconds(20)) {
                 while (collectItems().isNotEmpty()) {
                     removeButton.clickWhenEnabled()
                     optionalStep {
@@ -348,19 +265,6 @@ open class BaseUiTest {
         }
     }
 
-    protected fun clickPowerSaveMode() {
-        with(remoteRobot) {
-            optionalIdeaFrame(this)?.apply {
-                actionMenu("File") {
-                    open()
-                    item("Power Save Mode") {
-                        click()
-                    }
-                }
-            }
-        }
-    }
-
     protected fun openExistingProject(projectName: String, isMaven: Boolean = false) {
         copyProjectFiles(projectName)
         with(remoteRobot) {
@@ -371,28 +275,24 @@ open class BaseUiTest {
             openProjectFileBrowserDialog {
                 selectProjectFile(projectName, isMaven)
             }
-            if (!remoteRobot.isCLion()) {
+            if (isCLion()) {
                 optionalStep {
-                    // from 2020.3.4+
+                    // from 2021.1+
+                    dialog("Trust CMake Project?", Duration.ofSeconds(5)) {
+                        button("Trust Project").click()
+                    }
+                }
+            } else {
+                optionalStep {
+                    // from 2021.1+
                     dialog("Trust and Open Maven Project?", Duration.ofSeconds(5)) {
                         button("Trust Project").click()
                     }
                 }
             }
             idea {
-                waitBackgroundTasksFinished()
-            }
-            if (remoteRobot.isCLion()) {
-                optionalStep {
-                    dialog("Open Project Wizard") {
-                        button("OK").click()
-                    }
-                }
-            }
-            idea {
-                // corresponding system property has been introduced around middle of 2020
-                // removable at some point when raising minimal version
                 closeTipOfTheDay()
+                waitBackgroundTasksFinished()
             }
         }
     }

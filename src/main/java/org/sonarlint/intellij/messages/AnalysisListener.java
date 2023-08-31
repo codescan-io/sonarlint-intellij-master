@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,21 +19,20 @@
  */
 package org.sonarlint.intellij.messages;
 
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.messages.Topic;
-import java.util.Collection;
+import org.sonarlint.intellij.analysis.AnalysisRequest;
 
 /**
  * Notifies about analysis tasks starting. It will be called for any analysis task, regardless of the trigger, if it is background or not, etc.
  */
 public interface AnalysisListener {
-  Topic<AnalysisListener> TOPIC = Topic.create("SonarLint analysis start", AnalysisListener.class);
+  Topic<AnalysisListener> TOPIC = Topic.create("CodeScan analysis start", AnalysisListener.class);
 
-  void started(Collection<VirtualFile> files);
+  void started(AnalysisRequest analysisRequest);
 
   abstract class Adapter implements AnalysisListener {
     @Override
-    public void started(Collection<VirtualFile> files) {
+    public void started(AnalysisRequest analysisRequest) {
       // can be optionally implemented
     }
   }

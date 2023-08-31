@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,7 +19,6 @@
  */
 package org.sonarlint.intellij.config;
 
-import com.intellij.openapi.diff.DiffColors;
 import com.intellij.openapi.editor.colors.TextAttributesKey;
 import org.sonarlint.intellij.util.SonarLintSeverity;
 
@@ -33,9 +32,6 @@ public class SonarLintTextAttributes {
   public static final TextAttributesKey INFO;
   public static final TextAttributesKey SELECTED;
 
-  public static final TextAttributesKey DIFF_ADDITION;
-  public static final TextAttributesKey DIFF_REMOVAL;
-
   static {
     /*
      * Defaults should be consistent with SonarLintSeverity
@@ -46,8 +42,6 @@ public class SonarLintTextAttributes {
     INFO = createTextAttributesKey("SONARLINT_INFO", SonarLintSeverity.INFO.defaultTextAttributes());
     BLOCKER = createTextAttributesKey("SONARLINT_BLOCKER", SonarLintSeverity.BLOCKER.defaultTextAttributes());
     SELECTED = createTextAttributesKey("SONARLINT_SELECTED");
-    DIFF_ADDITION = createTextAttributesKey("SONARLINT_DIFF_ADDITION", DiffColors.DIFF_INSERTED);
-    DIFF_REMOVAL = createTextAttributesKey("SONARLINT_DIFF_REMOVAL", DiffColors.DIFF_DELETED);
   }
 
   private SonarLintTextAttributes() {

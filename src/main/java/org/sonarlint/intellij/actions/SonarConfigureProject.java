@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,6 @@ import org.sonarlint.intellij.analysis.AnalysisStatus;
 import org.sonarlint.intellij.config.project.SonarLintProjectConfigurable;
 
 public class SonarConfigureProject extends AbstractSonarAction {
-
   @Override
   protected boolean isEnabled(AnActionEvent e, Project project, AnalysisStatus status) {
     return !status.isRunning();
@@ -35,9 +34,8 @@ public class SonarConfigureProject extends AbstractSonarAction {
   @Override
   public void actionPerformed(AnActionEvent e) {
     if (e.getProject() != null) {
-      var configurable = new SonarLintProjectConfigurable(e.getProject());
+      SonarLintProjectConfigurable configurable = new SonarLintProjectConfigurable(e.getProject());
       ShowSettingsUtil.getInstance().editConfigurable(e.getProject(), configurable);
     }
   }
-
 }

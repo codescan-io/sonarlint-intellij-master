@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -30,15 +30,16 @@ import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.PathUtil;
+import org.jetbrains.annotations.Nullable;
+
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
-import org.jetbrains.annotations.Nullable;
 
-import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
+import static com.intellij.openapi.application.ApplicationManager.getApplication;
 
 public class SonarLintAppUtils {
 
@@ -48,11 +49,11 @@ public class SonarLintAppUtils {
 
   @CheckForNull
   public static Module findModuleForFile(VirtualFile file, Project project) {
-    return computeReadActionSafely(file, project, () -> {
-      if (!project.isOpen() || project.isDisposed()) {
+    return getApplication().<Module>runReadAction(() -> {
+      if (!project.isOpen()) {
         return null;
       }
-      return ProjectFileIndex.getInstance(project).getModuleForFile(file, false);
+      return ProjectFileIndex.SERVICE.getInstance(project).getModuleForFile(file, false);
     });
   }
 
@@ -62,13 +63,12 @@ public class SonarLintAppUtils {
   }
 
   public static List<VirtualFile> retainOpenFiles(Project project, List<VirtualFile> files) {
-    var openFiles = computeReadActionSafely(project, () -> {
+    return getApplication().<List<VirtualFile>>runReadAction(() -> {
       if (!project.isOpen()) {
-        return Collections.<VirtualFile>emptyList();
+        return Collections.emptyList();
       }
       return files.stream().filter(f -> FileEditorManager.getInstance(project).isFileOpen(f)).collect(Collectors.toList());
     });
-    return openFiles != null ? openFiles : Collections.emptyList();
   }
 
   /**
@@ -77,7 +77,7 @@ public class SonarLintAppUtils {
    */
   @CheckForNull
   public static String getRelativePathForAnalysis(Project project, VirtualFile virtualFile) {
-    var module = findModuleForFile(virtualFile, project);
+    Module module = findModuleForFile(virtualFile, project);
     if (module == null) {
       return null;
     }
@@ -89,17 +89,17 @@ public class SonarLintAppUtils {
    */
   @CheckForNull
   public static String getRelativePathForAnalysis(Module module, VirtualFile virtualFile) {
-    var relativePathToProject = getPathRelativeToProjectBaseDir(module.getProject(), virtualFile);
+    String relativePathToProject = getPathRelativeToProjectBaseDir(module.getProject(), virtualFile);
     if (relativePathToProject != null) {
       return relativePathToProject;
     }
 
-    var relativePathToModule = getPathRelativeToModuleBaseDir(module, virtualFile);
+    String relativePathToModule = getPathRelativeToModuleBaseDir(module, virtualFile);
     if (relativePathToModule != null) {
       return relativePathToModule;
     }
 
-    var strictRelativePathToContentRoot = getPathRelativeToContentRoot(module, virtualFile);
+    String strictRelativePathToContentRoot = getPathRelativeToContentRoot(module, virtualFile);
     if (strictRelativePathToContentRoot != null) {
       return strictRelativePathToContentRoot;
     }
@@ -109,11 +109,11 @@ public class SonarLintAppUtils {
 
   @Nullable
   private static String getPathRelativeToCommonAncestorWithProjectBaseDir(Project project, VirtualFile virtualFile) {
-    final var projectDir = ProjectUtil.guessProjectDir(project);
+    final VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
     if (projectDir == null) {
       return null;
     }
-    var commonAncestor = VfsUtilCore.getCommonAncestor(projectDir, virtualFile);
+    VirtualFile commonAncestor = VfsUtilCore.getCommonAncestor(projectDir, virtualFile);
     if (commonAncestor != null) {
       return VfsUtilCore.getRelativePath(virtualFile, commonAncestor);
     }
@@ -122,7 +122,7 @@ public class SonarLintAppUtils {
 
   @CheckForNull
   private static String getPathRelativeToProjectBaseDir(Project project, VirtualFile file) {
-    final var projectDir = ProjectUtil.guessProjectDir(project);
+    final VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
     if (projectDir == null) {
       return null;
     }
@@ -130,37 +130,27 @@ public class SonarLintAppUtils {
   }
 
   /**
-   *  Path will always contain forward slashes. Resolving the module path uses the official alternative to
-   *  {@link com.intellij.openapi.module.Module#getModuleFilePath} which is marked as internally!
-   *
-   *  INFO: Package level access for the light / heavy testing as manipulating
-   *  {@link com.intellij.testFramework.fixtures.BasePlatformTestCase} for
-   *  {@link SonarLintAppUtils#getRelativePathForAnalysis} to not return from
-   *  {@link SonarLintAppUtils#getPathRelativeToProjectBaseDir} every time would be way too time-consuming!
+   * Path will always contain forward slashes.
    */
   @CheckForNull
-  static String getPathRelativeToModuleBaseDir(Module module, VirtualFile file) {
-    var filePath = Paths.get(file.getPath());
-    var moduleContentRoots = Arrays.stream(ModuleRootManager.getInstance(module).getContentRoots())
-            .filter(contentRoot -> contentRoot.getPath().trim().length() > 0)
-            .toArray(VirtualFile[]::new);
-
-    // There can be multiple content roots (based on the IntelliJ SDK), e.g. for a Gradle project the project directory
-    // and every sourceSet (main, test, ...) or based on the .idea/modules.xml configuration.
-    for (VirtualFile contentRoot: moduleContentRoots) {
-      var contentRootDir = Paths.get(contentRoot.getPath());
-      if (filePath.startsWith(contentRootDir)) {
-        return PathUtil.toSystemIndependentName(contentRootDir.relativize(filePath).toString());
-      }
+  private static String getPathRelativeToModuleBaseDir(Module module, VirtualFile file) {
+    String moduleFilePath = module.getModuleFilePath();
+    if ("".equals(moduleFilePath)) {
+      // Non persistent module
+      return null;
     }
-
-    return null;
+    Path baseDir = Paths.get(moduleFilePath).getParent();
+    Path filePath = Paths.get(file.getPath());
+    if (!filePath.startsWith(baseDir)) {
+      return null;
+    }
+    return PathUtil.toSystemIndependentName(baseDir.relativize(filePath).toString());
   }
 
   @CheckForNull
   private static String getPathRelativeToContentRoot(Module module, VirtualFile file) {
-    var moduleRootManager = ModuleRootManager.getInstance(module);
-    for (var root : moduleRootManager.getContentRoots()) {
+    ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(module);
+    for (VirtualFile root : moduleRootManager.getContentRoots()) {
       if (VfsUtilCore.isAncestor(root, file, true)) {
         return VfsUtilCore.getRelativePath(file, root);
       }

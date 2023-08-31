@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -39,11 +39,9 @@ class OpenConfigurableAction extends NotificationAction {
 
   @Override
   public final void actionPerformed(@NotNull AnActionEvent e, @NotNull Notification notification) {
-    var closeNotification = true;
     if (!project.isDisposed()) {
-      closeNotification = ShowSettingsUtil.getInstance().editConfigurable(project, configurable);
-    }
-    if (closeNotification) {
+      ShowSettingsUtil.getInstance().editConfigurable(project, configurable);
+    } else {
       notification.expire();
     }
   }

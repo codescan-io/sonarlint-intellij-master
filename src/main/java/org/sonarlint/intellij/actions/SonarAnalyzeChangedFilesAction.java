@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,11 +23,17 @@ import com.intellij.openapi.actionSystem.ActionPlaces;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vcs.changes.ChangeListManager;
+import com.intellij.openapi.vfs.VirtualFile;
+
+import java.util.List;
 import javax.swing.Icon;
+
 import org.jetbrains.annotations.Nullable;
-import org.sonarlint.intellij.analysis.AnalysisSubmitter;
+import org.sonarlint.intellij.analysis.AnalysisCallback;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.trigger.SonarLintSubmitter;
+import org.sonarlint.intellij.trigger.TriggerType;
 
 public class SonarAnalyzeChangedFilesAction extends AbstractSonarAction {
   public SonarAnalyzeChangedFilesAction() {
@@ -42,22 +48,27 @@ public class SonarAnalyzeChangedFilesAction extends AbstractSonarAction {
     if (status.isRunning()) {
       return false;
     }
-    var changeListManager = ChangeListManager.getInstance(project);
+    ChangeListManager changeListManager = ChangeListManager.getInstance(project);
     return !changeListManager.getAffectedFiles().isEmpty();
   }
 
   @Override
-  protected boolean isVisible(AnActionEvent e) {
-    return !ActionPlaces.PROJECT_VIEW_POPUP.equals(e.getPlace());
+  protected boolean isVisible(String place) {
+    return !ActionPlaces.PROJECT_VIEW_POPUP.equals(place);
   }
 
   @Override public void actionPerformed(AnActionEvent e) {
-    var project = e.getProject();
+    Project project = e.getProject();
 
     if (project == null || ActionPlaces.PROJECT_VIEW_POPUP.equals(e.getPlace())) {
       return;
     }
 
-    SonarLintUtils.getService(project, AnalysisSubmitter.class).analyzeVcsChangedFiles();
+    SonarLintSubmitter submitter = SonarLintUtils.getService(project, SonarLintSubmitter.class);
+    ChangeListManager changeListManager = ChangeListManager.getInstance(project);
+
+    List<VirtualFile> affectedFiles = changeListManager.getAffectedFiles();
+    AnalysisCallback callback = new ShowAnalysisResultsCallable(project, affectedFiles, "SCM changed files");
+    submitter.submitFiles(affectedFiles, TriggerType.CHANGED_FILES, callback, false);
   }
 }

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,7 +21,7 @@ package org.sonarlint.intellij.ui.vulnerabilities
 
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.ui.JBColor
-import com.intellij.ui.components.AnActionLink
+import com.intellij.ui.components.labels.ActionLink
 import com.intellij.util.ui.JBUI
 import java.awt.FlowLayout
 import javax.swing.Icon
@@ -36,6 +36,6 @@ class StripePanel(text: String, icon: Icon) : JPanel(FlowLayout(FlowLayout.CENTE
     }
 
     fun addAction(linkText: String, action: AnAction) {
-        add(AnActionLink(linkText, action))
+        add(ActionLink(linkText, action))
     }
 }

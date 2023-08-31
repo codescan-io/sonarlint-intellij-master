@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,37 +20,34 @@
 package org.sonarlint.intellij.ui.nodes;
 
 import com.intellij.util.ui.UIUtil;
+import java.util.Enumeration;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.MutableTreeNode;
 import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.ui.tree.TreeCellRenderer;
 
 public abstract class AbstractNode extends DefaultMutableTreeNode {
-  protected int findingCount;
+  protected int issueCount;
   protected int fileCount;
 
   public abstract void render(TreeCellRenderer renderer);
 
-  public boolean hasChildren() {
-    return getChildCount() != 0;
-  }
-
-  public int getFindingCount() {
-    if (findingCount < 0) {
-      findingCount = 0;
-      var children = super.children();
+  public int getIssueCount() {
+    if (issueCount < 0) {
+      issueCount = 0;
+      Enumeration children = super.children();
 
       while (children.hasMoreElements()) {
-        var node = (AbstractNode) children.nextElement();
+        AbstractNode node = (AbstractNode) children.nextElement();
         if (node == null) {
           continue;
         }
 
-        findingCount += node.getFindingCount();
+        issueCount += node.getIssueCount();
       }
     }
 
-    return findingCount;
+    return issueCount;
   }
 
   @Override
@@ -79,7 +76,7 @@ public abstract class AbstractNode extends DefaultMutableTreeNode {
 
   public void setDirty() {
     fileCount = -1;
-    findingCount = -1;
+    issueCount = -1;
     if (super.getParent() != null) {
       ((AbstractNode) super.getParent()).setDirty();
     }
@@ -87,7 +84,7 @@ public abstract class AbstractNode extends DefaultMutableTreeNode {
 
   @NotNull
   protected static String spaceAndThinSpace() {
-    var thinSpace = UIUtil.getLabelFont().canDisplay('\u2009') ? String.valueOf('\u2009') : " ";
+    String thinSpace = UIUtil.getLabelFont().canDisplay('\u2009') ? String.valueOf('\u2009') : " ";
     return " " + thinSpace;
   }
 

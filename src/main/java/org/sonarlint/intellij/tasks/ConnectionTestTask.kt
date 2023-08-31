@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,27 +19,31 @@
  */
 package org.sonarlint.intellij.tasks
 
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
-import org.sonarlint.intellij.common.util.SonarLintUtils
 import org.sonarlint.intellij.config.global.ServerConnection
-import org.sonarlint.intellij.core.BackendService
-import org.sonarlint.intellij.util.ProgressUtils.waitForFuture
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.validate.ValidateConnectionResponse
+import org.sonarsource.sonarlint.core.client.api.connected.ConnectionValidator
+import org.sonarsource.sonarlint.core.client.api.connected.ValidationResult
+import org.sonarsource.sonarlint.core.serverapi.ServerApiHelper
+import java.util.concurrent.CompletableFuture
 
 class ConnectionTestTask(private val server: ServerConnection) :
-    Task.WithResult<ValidateConnectionResponse?, Exception>(
-        null, "Test Connection to " + if (server.isSonarCloud) "SonarCloud" else "SonarQube", true
-    ) {
+    Task.WithResult<ValidationResult?, Exception>(null, "Test Connection to " + if (server.isCodeScanCloud) "CodeScanCloud" else "CodeScan", true) {
 
-    override fun compute(indicator: ProgressIndicator): ValidateConnectionResponse? {
+    private lateinit var futureResult: CompletableFuture<ValidationResult>
+
+    override fun compute(indicator: ProgressIndicator): ValidationResult? {
         indicator.text = "Connecting to " + server.hostUrl + "..."
         indicator.isIndeterminate = true
-        return try {
-            waitForFuture(indicator, SonarLintUtils.getService(BackendService::class.java).validateConnection(server))
-        } catch (e: ProcessCanceledException) {
-            null
+        val connectionValidator = ConnectionValidator(ServerApiHelper(server.endpointParams, server.httpClient))
+        futureResult = connectionValidator.validateConnection()
+        while (!futureResult.isDone) {
+            Thread.sleep(500)
+            if (indicator.isCanceled) {
+                futureResult.cancel(true)
+                return null
+            }
         }
+        return futureResult.get()
     }
 }

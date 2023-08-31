@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -43,10 +43,6 @@ public interface SonarLintConsole {
 
   void clear();
 
-  /**
-   * The console view is created once from the EDT, to avoid having synchronization in the implementation and possible deadlocks.
-   * As a consequence, messages will need to be retained while the view is not set, and then flushed into the view
-   */
-  void setConsoleView(ConsoleView consoleView);
+  ConsoleView getConsoleView();
 
 }

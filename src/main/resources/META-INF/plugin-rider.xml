@@ -1,7 +1,7 @@
 <!--
 
-    SonarLint for IntelliJ IDEA
-    Copyright (C) 2015-2023 SonarSource
+    CodeScan for IntelliJ IDEA
+    Copyright (C) 2015-2021 SonarSource
     sonarlint@sonarsource.com
 
     This program is free software; you can redistribute it and/or
@@ -23,5 +23,10 @@
     <extensions defaultExtensionNs="org.sonarlint.idea">
         <analysisConfiguration implementation="org.sonarlint.intellij.rider.RiderAnalysisConfigurator"/>
         <languageActivator implementation="org.sonarlint.intellij.rider.CsharpLanguageActivator"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- BE CAREFUL to not register the annotator twice for the same language (taking into account inheritance) or the annotation will appear multiple times -->
+        <externalAnnotator language="C#" implementationClass="org.sonarlint.intellij.editor.SonarExternalAnnotator"/>
     </extensions>
 </idea-plugin>

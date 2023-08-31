@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,8 +20,8 @@
 package org.sonarlint.intellij.ui.nodes;
 
 import org.jetbrains.annotations.Nullable;
-import org.sonarlint.intellij.finding.Flow;
-import org.sonarlint.intellij.finding.Location;
+import org.sonarlint.intellij.issue.Flow;
+import org.sonarlint.intellij.issue.Location;
 
 public class FlowSecondaryLocationNode extends PrimaryLocationNode {
   private final Location secondaryLocation;

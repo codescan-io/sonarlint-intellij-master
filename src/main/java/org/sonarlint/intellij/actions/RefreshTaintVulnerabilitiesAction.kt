@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,17 +21,26 @@ package org.sonarlint.intellij.actions
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import org.sonarlint.intellij.analysis.AnalysisStatus
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.core.ProjectBindingManager
-import org.sonarlint.intellij.finding.issue.vulnerabilities.TaintVulnerabilitiesPresenter
+import org.sonarlint.intellij.issue.vulnerabilities.TaintVulnerabilitiesPresenter
 
 class RefreshTaintVulnerabilitiesAction(text: String = "Refresh") : AbstractSonarAction(text, "Refresh taint vulnerabilities for open files", AllIcons.Actions.Refresh) {
   override fun isEnabled(e: AnActionEvent, project: Project, status: AnalysisStatus) = getService(project, ProjectBindingManager::class.java).isBindingValid
 
   override fun actionPerformed(e: AnActionEvent) {
     val project = e.project ?: return
-    getService(project, TaintVulnerabilitiesPresenter::class.java).refreshTaintVulnerabilitiesForOpenFilesAsync()
+
+    ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Refreshing taint vulnerabilities...", false, ALWAYS_BACKGROUND) {
+
+      override fun run(indicator: ProgressIndicator) {
+        getService(project, TaintVulnerabilitiesPresenter::class.java).refreshTaintVulnerabilitiesForOpenFiles(project)
+      }
+    })
   }
 }

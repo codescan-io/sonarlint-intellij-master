@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,24 +19,26 @@
  */
 package org.sonarlint.intellij.config.global;
 
+import com.google.common.base.Objects;
+import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.PasswordUtil;
 import com.intellij.util.xmlb.annotations.OptionTag;
 import com.intellij.util.xmlb.annotations.Tag;
-import java.util.Objects;
+
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.swing.Icon;
-import org.sonarlint.intellij.SonarLintIcons;
+
 import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarlint.intellij.core.BackendService;
-import org.sonarlint.intellij.core.server.ServerLinks;
-import org.sonarlint.intellij.core.server.SonarCloudLinks;
-import org.sonarlint.intellij.core.server.SonarQubeLinks;
+import org.sonarlint.intellij.http.ApacheHttpClient;
 import org.sonarsource.sonarlint.core.serverapi.EndpointParams;
+import org.sonarsource.sonarlint.core.serverapi.HttpClient;
 import org.sonarsource.sonarlint.core.serverapi.ServerApi;
 
-import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static icons.SonarLintIcons.ICON_SONARCLOUD_16;
+import static icons.SonarLintIcons.ICON_SONARQUBE_16;
+import static org.sonarlint.intellij.common.util.SonarLintUtils.isBlank;
 
 /**
  * This class is serialized in XML when SonarLintGlobalSettings is saved by IntelliJ.
@@ -90,21 +92,21 @@ public class ServerConnection {
     if (!(o instanceof ServerConnection)) {
       return false;
     }
-    var other = (ServerConnection) o;
+    ServerConnection other = (ServerConnection) o;
 
-    return Objects.equals(getHostUrl(), other.getHostUrl()) &&
-      Objects.equals(getPassword(), other.getPassword()) &&
-      Objects.equals(getToken(), other.getToken()) &&
-      Objects.equals(getLogin(), other.getLogin()) &&
-      Objects.equals(getName(), other.getName()) &&
-      Objects.equals(getOrganizationKey(), other.getOrganizationKey()) &&
-      Objects.equals(enableProxy(), other.enableProxy()) &&
-      Objects.equals(isDisableNotifications(), other.isDisableNotifications());
+    return Comparing.equal(getHostUrl(), other.getHostUrl()) &&
+      Comparing.equal(getPassword(), other.getPassword()) &&
+      Comparing.equal(getToken(), other.getToken()) &&
+      Comparing.equal(getLogin(), other.getLogin()) &&
+      Comparing.equal(getName(), other.getName()) &&
+      Comparing.equal(getOrganizationKey(), other.getOrganizationKey()) &&
+      Comparing.equal(enableProxy(), other.enableProxy()) &&
+      Comparing.equal(isDisableNotifications(), other.isDisableNotifications());
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(getHostUrl(), getPassword(), getToken(), getLogin(), getOrganizationKey(), getName(), enableProxy, disableNotifications);
+    return Objects.hashCode(getHostUrl(), getPassword(), getToken(), getLogin(), getOrganizationKey(), getName(), enableProxy, disableNotifications);
   }
 
   public boolean isDisableNotifications() {
@@ -136,20 +138,17 @@ public class ServerConnection {
       return null;
     }
   }
-  public boolean isSonarCloud() {
-    return SonarLintUtils.isSonarCloudAlias(hostUrl);
-  }
 
-  public boolean isSonarQube() {
-    return !isSonarCloud();
+  public boolean isCodeScanCloud() {
+    return SonarLintUtils.isCodeScanCloudAlias(hostUrl);
   }
 
   public String getProductName() {
-    return isSonarCloud() ? "SonarCloud" : "SonarQube";
+    return "CodeScan";
   }
 
   public Icon getProductIcon() {
-    return isSonarCloud() ? SonarLintIcons.ICON_SONARCLOUD_16 : SonarLintIcons.ICON_SONARQUBE_16;
+    return isCodeScanCloud() ? ICON_SONARCLOUD_16 : ICON_SONARQUBE_16;
   }
 
   public boolean enableProxy() {
@@ -173,11 +172,16 @@ public class ServerConnection {
   }
 
   public EndpointParams getEndpointParams() {
-    return new EndpointParams(getHostUrl(), isSonarCloud(), getOrganizationKey());
+    return new EndpointParams(getHostUrl(), isCodeScanCloud(), getOrganizationKey());
+  }
+
+  public HttpClient getHttpClient() {
+    String userToken = getToken();
+    return ApacheHttpClient.getDefault().withCredentials(isBlank(userToken) ? getLogin() : userToken, getPassword());
   }
 
   public ServerApi api() {
-    return new ServerApi(getEndpointParams(), getService(BackendService.class).getHttpClient(name));
+    return new ServerApi(getEndpointParams(), getHttpClient());
   }
 
   @Override
@@ -187,10 +191,6 @@ public class ServerConnection {
 
   public static Builder newBuilder() {
     return new Builder();
-  }
-
-  public ServerLinks links() {
-    return isSonarCloud() ? SonarCloudLinks.INSTANCE : new SonarQubeLinks(hostUrl);
   }
 
   public static class Builder {

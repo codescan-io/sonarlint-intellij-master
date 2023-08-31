@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,7 +22,7 @@ package org.sonarlint.intellij.ui.nodes;
 import com.intellij.openapi.wm.impl.welcomeScreen.BottomLineBorder;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.util.ui.JBUI;
-import org.sonarlint.intellij.finding.Flow;
+import org.sonarlint.intellij.issue.Flow;
 import org.sonarlint.intellij.ui.tree.TreeCellRenderer;
 
 public class FlowNode extends AbstractNode {
@@ -40,13 +40,8 @@ public class FlowNode extends AbstractNode {
 
   @Override
   public void render(TreeCellRenderer renderer) {
-    renderer.setIpad(JBUI.insets(3));
+    renderer.setIpad(JBUI.insets(3, 3, 3, 3));
     renderer.setBorder(new BottomLineBorder());
     renderer.append(label, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES, true);
-  }
-
-  @Override
-  public String toString() {
-    return label;
   }
 }

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,7 +22,6 @@ package org.sonarlint.intellij.editor
 import com.intellij.codeInsight.intention.IntentionAction
 import com.intellij.codeInsight.intention.PriorityAction
 import com.intellij.icons.AllIcons
-import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Iconable
@@ -31,27 +30,22 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiFile
 import com.intellij.psi.codeStyle.CodeStyleManager
 import org.sonarlint.intellij.common.util.SonarLintUtils
-import org.sonarlint.intellij.finding.QuickFix
+import org.sonarlint.intellij.issue.QuickFix
 import org.sonarlint.intellij.telemetry.SonarLintTelemetry
 
 class ApplyQuickFixIntentionAction(private val fix: QuickFix, private val ruleKey: String) : IntentionAction, PriorityAction, Iconable {
-    override fun getText() = "SonarLint: " + fix.message
-    override fun getFamilyName() = "SonarLint quick fix"
+    override fun getText() = "CodeScan: " + fix.message
+    override fun getFamilyName() = "CodeScan quick fix"
     override fun startInWriteAction() = true
     override fun getIcon(flags: Int) = AllIcons.Actions.IntentionBulb
     override fun getPriority() = PriorityAction.Priority.TOP
     override fun isAvailable(project: Project, editor: Editor, file: PsiFile) = fix.isApplicable()
 
     override fun invoke(project: Project, editor: Editor, file: PsiFile) {
-        if (!fix.isApplicable()) {
-            // the editor could have changed between the isAvailable and invoke calls
-            return
-        }
         fix.applied = true
         SonarLintUtils.getService(SonarLintTelemetry::class.java).addQuickFixAppliedForRule(ruleKey)
         // TODO Handle edits in other files!
-        val topLevelFile = InjectedLanguageManager.getInstance(file.project).getTopLevelFile(file)
-        val currentFileEdits = fix.virtualFileEdits.filter { it.target == topLevelFile.virtualFile }.flatMap { it.edits }
+        val currentFileEdits = fix.virtualFileEdits.filter { it.target == file.virtualFile }.flatMap { it.edits }
         currentFileEdits.forEach { (rangeMarker, newText) ->
             editor.document.replaceString(rangeMarker.startOffset, rangeMarker.endOffset, normalizeLineEndingsToLineFeeds(newText))
         }

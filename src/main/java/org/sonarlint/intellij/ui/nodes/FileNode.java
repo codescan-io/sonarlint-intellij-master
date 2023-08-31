@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,34 +21,19 @@ package org.sonarlint.intellij.ui.nodes;
 
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.SimpleTextAttributes;
-import java.util.Iterator;
+
 import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Predicate;
 import javax.swing.Icon;
-import javax.swing.tree.TreeNode;
-import org.sonarlint.intellij.finding.Finding;
+
 import org.sonarlint.intellij.ui.tree.TreeCellRenderer;
 
 import static org.sonarlint.intellij.common.util.SonarLintUtils.pluralize;
 
 public class FileNode extends AbstractNode {
   private final VirtualFile file;
-  private final boolean isSecurityHotspot;
 
-  public FileNode(VirtualFile file, boolean isSecurityHotspot) {
+  public FileNode(VirtualFile file) {
     this.file = file;
-    this.isSecurityHotspot = isSecurityHotspot;
-  }
-
-  public Optional<FindingNode> findChildren(Predicate<Finding> predicate) {
-    for (Iterator<TreeNode> it = children().asIterator(); it.hasNext(); ) {
-      var findingNode = (FindingNode) it.next();
-      if (predicate.test(findingNode.getFinding())) {
-        return Optional.of(findingNode);
-      }
-    }
-    return Optional.empty();
   }
 
   public VirtualFile file() {
@@ -56,7 +41,7 @@ public class FileNode extends AbstractNode {
   }
 
   @Override
-  public int getFindingCount() {
+  public int getIssueCount() {
     return super.getChildCount();
   }
 
@@ -67,11 +52,8 @@ public class FileNode extends AbstractNode {
   @Override
   public void render(TreeCellRenderer renderer) {
     renderer.setIcon(getIcon());
-    renderer.setIconToolTip(file.getFileType().getDisplayName() + " file");
     renderer.append(file.getName());
-    renderer.append(spaceAndThinSpace() + "(" + getFindingCount() + pluralize(isSecurityHotspot ? " Security Hotspot" : " issue", getFindingCount()) + ")",
-      SimpleTextAttributes.GRAYED_BOLD_ATTRIBUTES);
-    renderer.setToolTipText("Double click to list file " + pluralize(isSecurityHotspot ? " Security Hotspot" : " issue", getFindingCount()));
+    renderer.append(spaceAndThinSpace() + "(" + getIssueCount() + pluralize(" issue", getIssueCount()) + ")", SimpleTextAttributes.GRAYED_BOLD_ATTRIBUTES);
   }
 
   @Override
@@ -82,17 +64,12 @@ public class FileNode extends AbstractNode {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    var fileNode = (FileNode) o;
+    FileNode fileNode = (FileNode) o;
     return Objects.equals(file, fileNode.file);
   }
 
   @Override
   public int hashCode() {
     return Objects.hash(file);
-  }
-
-  @Override
-  public String toString() {
-    return file.getName();
   }
 }

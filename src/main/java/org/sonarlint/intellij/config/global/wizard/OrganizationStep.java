@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,6 +27,7 @@ import com.intellij.ui.ColoredListCellRenderer;
 import com.intellij.ui.ListSpeedSearch;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.components.JBList;
+import com.intellij.util.Function;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import javax.swing.DefaultListModel;
@@ -38,16 +39,16 @@ import javax.swing.ListSelectionModel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.tasks.GetOrganizationTask;
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.OrganizationDto;
+import org.sonarsource.sonarlint.core.serverapi.organization.ServerOrganization;
 
 import static javax.swing.JList.VERTICAL;
 
 public class OrganizationStep extends AbstractWizardStepEx {
   private final WizardModel model;
-  private JList<OrganizationDto> orgList;
+  private JList<ServerOrganization> orgList;
   private JPanel panel;
   private JButton selectOtherOrganizationButton;
-  private DefaultListModel<OrganizationDto> listModel;
+  private DefaultListModel<ServerOrganization> listModel;
 
   public OrganizationStep(WizardModel model) {
     super("Organization");
@@ -66,18 +67,18 @@ public class OrganizationStep extends AbstractWizardStepEx {
 
   private void enterCustomOrganizationKey() {
     while (true) {
-      var organizationKey = Messages.showInputDialog(panel, "Please enter the organization key", "Add Another Organization", null);
+      String organizationKey = Messages.showInputDialog(panel, "Please enter the organization key", "Add Another Organization", null);
       if (StringUtil.isNotEmpty(organizationKey)) {
         boolean found = selectOrganizationIfExists(organizationKey);
         if (found) {
           break;
         }
 
-        var task = new GetOrganizationTask(model.createConnectionWithoutOrganization(), organizationKey);
+        GetOrganizationTask task = new GetOrganizationTask(model.createConnectionWithoutOrganization(), organizationKey);
         ProgressManager.getInstance().run(task);
 
-        if (task.organization() != null) {
-          listModel.add(0, task.organization());
+        if (task.organization().isPresent()) {
+          listModel.add(0, task.organization().get());
           orgList.setSelectedIndex(0);
           orgList.ensureIndexIsVisible(0);
           break;
@@ -93,7 +94,7 @@ public class OrganizationStep extends AbstractWizardStepEx {
   }
 
   private void save() {
-    var org = orgList.getSelectedValue();
+    ServerOrganization org = orgList.getSelectedValue();
     if (org != null) {
       model.setOrganizationKey(org.getKey());
     } else {
@@ -117,8 +118,8 @@ public class OrganizationStep extends AbstractWizardStepEx {
   }
 
   private boolean selectOrganizationIfExists(String organizationKey) {
-    for (var i = 0; i < listModel.getSize(); i++) {
-      var org = listModel.getElementAt(i);
+    for (int i = 0; i < listModel.getSize(); i++) {
+      ServerOrganization org = listModel.getElementAt(i);
       if (organizationKey.equals(org.getKey())) {
         orgList.setSelectedIndex(i);
         orgList.ensureIndexIsVisible(i);
@@ -144,8 +145,9 @@ public class OrganizationStep extends AbstractWizardStepEx {
   }
 
   @Override public boolean isComplete() {
-    // even if skipped in the SQ context, this step is still checked for completion
-    return !model.isSonarCloud() || orgList.getSelectedValue() != null;
+    // if this step is skipped because there is only one organization, we still need to return true so that the wizard
+    // can finish
+    return model.getOrganizationList().size() <= 1 || orgList.getSelectedValue() != null;
   }
 
   @Override public void commit(CommitType commitType) {
@@ -163,18 +165,18 @@ public class OrganizationStep extends AbstractWizardStepEx {
   }
 
   private void createUIComponents() {
-    var list = new JBList<OrganizationDto>();
+    JBList<ServerOrganization> list = new JBList<>();
     list.setLayoutOrientation(VERTICAL);
     list.setVisibleRowCount(8);
     list.setEnabled(true);
     list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
     list.setCellRenderer(new ListRenderer());
-    new ListSpeedSearch<>(list, o -> o.getName() + " " + o.getKey());
+    new ListSpeedSearch<>(list, (Function<ServerOrganization, String>) o -> o.getName() + " " + o.getKey());
     orgList = list;
   }
 
-  private static class ListRenderer extends ColoredListCellRenderer<OrganizationDto> {
-    @Override protected void customizeCellRenderer(JList list, @Nullable OrganizationDto value, int index, boolean selected, boolean hasFocus) {
+  private static class ListRenderer extends ColoredListCellRenderer<ServerOrganization> {
+    @Override protected void customizeCellRenderer(JList list, @Nullable ServerOrganization value, int index, boolean selected, boolean hasFocus) {
       if (value == null) {
         return;
       }

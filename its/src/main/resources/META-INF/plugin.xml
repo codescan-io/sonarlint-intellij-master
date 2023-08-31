@@ -1,7 +1,7 @@
 <!--
 
-    SonarLint for IntelliJ IDEA
-    Copyright (C) 2015-2023 SonarSource
+    CodeScan for IntelliJ IDEA ITs
+    Copyright (C) 2015-2021 SonarSource
     sonarlint@sonarsource.com
 
     This program is free software; you can redistribute it and/or
@@ -26,7 +26,7 @@
   <vendor url="https://sonarsource.com">SonarSource</vendor>
   <description>Fake Plugin To Run SonarLint UI tests with multiple flavors</description>
 
-  <idea-version since-build="213.5744.223"/>
+  <idea-version since-build="181.3007.14"/>
 
   <depends>com.intellij.modules.lang</depends>
 </idea-plugin>

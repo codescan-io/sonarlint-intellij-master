@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -31,13 +31,12 @@ import javax.annotation.Nullable;
 import javax.swing.JComponent;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.concurrency.Promise;
-import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable;
 import org.sonarlint.intellij.core.ProjectBindingManager;
 import org.sonarlint.intellij.messages.GlobalConfigurationListener;
-import org.sonarlint.intellij.messages.ProjectConfigurationListener;
 import org.sonarlint.intellij.notifications.SonarLintProjectNotifications;
+import org.sonarlint.intellij.trigger.SonarLintSubmitter;
 import org.sonarlint.intellij.trigger.TriggerType;
 
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
@@ -91,13 +90,11 @@ public class SonarLintProjectConfigurable implements Configurable, Configurable.
   @Override
   public void apply() throws ConfigurationException {
     if (panel != null) {
-      var projectSettings = getSettingsFor(project);
+      SonarLintProjectSettings projectSettings = getSettingsFor(project);
       boolean exclusionsModified = panel.areExclusionsModified(projectSettings);
       panel.save(project, projectSettings);
-      project.getMessageBus().syncPublisher(ProjectConfigurationListener.TOPIC).changed(projectSettings);
-
       if (exclusionsModified) {
-        getService(project, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.CONFIG_CHANGE);
+        getService(project, SonarLintSubmitter.class).submitOpenFilesAuto(TriggerType.CONFIG_CHANGE);
       }
     }
   }
@@ -110,7 +107,7 @@ public class SonarLintProjectConfigurable implements Configurable, Configurable.
 
     getServersFromApplicationConfigurable()
       .onProcessed(sonarQubeServers -> {
-        var projectSettings = getSettingsFor(project);
+        SonarLintProjectSettings projectSettings = getSettingsFor(project);
         panel.load(sonarQubeServers != null ? sonarQubeServers : getGlobalSettings().getServerConnections(),
           projectSettings,
           getService(project, ProjectBindingManager.class).getModuleOverrides());
@@ -120,9 +117,9 @@ public class SonarLintProjectConfigurable implements Configurable, Configurable.
   private static Promise<List<ServerConnection>> getServersFromApplicationConfigurable() {
     return DataManager.getInstance().getDataContextFromFocusAsync()
       .then(dataContext -> {
-        var allSettings = Settings.KEY.getData(dataContext);
+        Settings allSettings = Settings.KEY.getData(dataContext);
         if (allSettings != null) {
-          final var globalConfigurable = allSettings.find(SonarLintGlobalConfigurable.class);
+          final SonarLintGlobalConfigurable globalConfigurable = allSettings.find(SonarLintGlobalConfigurable.class);
           if (globalConfigurable != null) {
             return globalConfigurable.getCurrentConnections();
           }

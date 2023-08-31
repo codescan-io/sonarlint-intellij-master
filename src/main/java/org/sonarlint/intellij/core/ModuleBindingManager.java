@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,37 +19,48 @@
  */
 package org.sonarlint.intellij.core;
 
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.platform.ModuleAttachProcessor;
+import com.intellij.serviceContainer.NonInjectable;
+
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 import javax.annotation.CheckForNull;
-import org.sonarlint.intellij.common.ui.SonarLintConsole;
+
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.config.module.SonarLintModuleSettings;
+import org.sonarlint.intellij.config.project.SonarLintProjectSettings;
 import org.sonarlint.intellij.util.SonarLintAppUtils;
 import org.sonarsource.sonarlint.core.client.api.common.SonarLintEngine;
 import org.sonarsource.sonarlint.core.client.api.connected.ConnectedSonarLintEngine;
-import org.sonarsource.sonarlint.core.serverconnection.ProjectBinding;
+import org.sonarsource.sonarlint.core.client.api.connected.ProjectBinding;
 
-import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
-import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static java.util.Objects.requireNonNull;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 
 public class ModuleBindingManager {
   private final Module module;
+  Supplier<SonarLintEngineManager> engineManagerSupplier;
 
   public ModuleBindingManager(Module module) {
+    this(module, () -> SonarLintUtils.getService(SonarLintEngineManager.class));
+  }
+
+  @NonInjectable
+  public ModuleBindingManager(Module module, Supplier<SonarLintEngineManager> engineManagerSupplier) {
     this.module = module;
+    this.engineManagerSupplier = engineManagerSupplier;
   }
 
   @CheckForNull
   public ProjectBinding getBinding() {
-    var projectKey = resolveProjectKey();
+    String projectKey = resolveProjectKey();
     if (projectKey != null) {
-      var moduleSettings = getSettingsFor(module);
+      SonarLintModuleSettings moduleSettings = getSettingsFor(module);
       return new ProjectBinding(projectKey, moduleSettings.getSqPathPrefix(), moduleSettings.getIdePathPrefix());
     }
     return null;
@@ -58,24 +69,15 @@ public class ModuleBindingManager {
   @CheckForNull
   public String resolveProjectKey() {
     if (isBindingOverrideAllowed()) {
-      var moduleSettings = getSettingsFor(module);
+      SonarLintModuleSettings moduleSettings = getSettingsFor(module);
       if (moduleSettings.isProjectBindingOverridden()) {
         return moduleSettings.getProjectKey();
       }
     }
-    var projectSettings = getSettingsFor(module.getProject());
-    var defaultProjectKey = projectSettings.getProjectKey();
+    SonarLintProjectSettings projectSettings = getSettingsFor(module.getProject());
+    String defaultProjectKey = projectSettings.getProjectKey();
     if (projectSettings.isBound()) {
       return defaultProjectKey;
-    }
-    return null;
-  }
-
-  @CheckForNull
-  public String getConfiguredProjectKey() {
-    var moduleSettings = getSettingsFor(module);
-    if (moduleSettings.isProjectBindingOverridden()) {
-      return moduleSettings.getProjectKey();
     }
     return null;
   }
@@ -87,12 +89,9 @@ public class ModuleBindingManager {
    * <li>the current module is not the primary project</li>
    */
   public boolean isBindingOverrideAllowed() {
-    return (SonarLintUtils.isModuleLevelBindingEnabled()
-      && hasProjectMoreThanOneModule()
-      && isNotPrimaryProject())
-      ||
-      // If binding was once overridden on a module, we want to keep using it, even if the project is now back to one module
-      hasOneModuleAlreadyOverridden();
+    return SonarLintUtils.isModuleLevelBindingEnabled()
+            && hasProjectMoreThanOneModule()
+            && isNotPrimaryProject();
   }
 
   /**
@@ -107,32 +106,25 @@ public class ModuleBindingManager {
     return ModuleManager.getInstance(module.getProject()).getModules().length > 1;
   }
 
-  private boolean hasOneModuleAlreadyOverridden() {
-    return Arrays.stream(ModuleManager.getInstance(module.getProject()).getModules()).anyMatch(m -> getSettingsFor(m).isProjectBindingOverridden());
-  }
-
   public void updatePathPrefixes(ConnectedSonarLintEngine engine) {
-    var projectKey = resolveProjectKey();
+    String projectKey = resolveProjectKey();
     if (projectKey == null) {
       throw new IllegalStateException("Project is not bound");
     }
-    var moduleFiles = collectPathsForModule();
-    if (moduleFiles == null) {
-      return;
-    }
-    var projectBinding = engine.calculatePathPrefixes(projectKey, moduleFiles);
-    var settings = getSettingsFor(module);
+    List<String> moduleFiles = collectPathsForModule();
+    ProjectBinding projectBinding = engine.calculatePathPrefixes(projectKey, moduleFiles);
+    SonarLintModuleSettings settings = getSettingsFor(module);
     settings.setIdePathPrefix(projectBinding.idePathPrefix());
-    settings.setSqPathPrefix(projectBinding.serverPathPrefix());
+    settings.setSqPathPrefix(projectBinding.sqPathPrefix());
   }
 
   private List<String> collectPathsForModule() {
-    return computeReadActionSafely(module.getProject(), () -> {
-      var paths = new ArrayList<String>();
-      var moduleRootManager = ModuleRootManager.getInstance(module);
+    return ApplicationManager.getApplication().<List<String>>runReadAction(() -> {
+      List<String> paths = new ArrayList<>();
+      ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(module);
       moduleRootManager.getFileIndex().iterateContent(virtualFile -> {
         if (!virtualFile.isDirectory()) {
-          var path = SonarLintAppUtils.getRelativePathForAnalysis(module, virtualFile);
+          String path = SonarLintAppUtils.getRelativePathForAnalysis(module, virtualFile);
           if (path != null) {
             paths.add(path);
           }
@@ -145,23 +137,18 @@ public class ModuleBindingManager {
 
   @CheckForNull
   public SonarLintEngine getEngineIfStarted() {
-    var engineManager = getService(EngineManager.class);
-    var moduleSettings = getSettingsFor(module);
-    var projectSettings = getSettingsFor(module.getProject());
+    SonarLintEngineManager engineManager = this.engineManagerSupplier.get();
+    SonarLintModuleSettings moduleSettings = getSettingsFor(module);
+    SonarLintProjectSettings projectSettings = getSettingsFor(module.getProject());
     if (moduleSettings.isProjectBindingOverridden() || projectSettings.isBound()) {
-      var connectionId = projectSettings.getConnectionName();
-      if (connectionId == null) {
-        SonarLintConsole.get(module.getProject()).error("Inconsistency in settings, the module or project is bound but there is no connection");
-      } else {
-        return engineManager.getConnectedEngineIfStarted(connectionId);
-      }
+      String connectionId = projectSettings.getConnectionName();
+      return engineManager.getConnectedEngineIfStarted(requireNonNull(connectionId));
     }
     return engineManager.getStandaloneEngineIfStarted();
   }
 
   public void unbind() {
     getSettingsFor(module).clearBindingOverride();
-    getService(BackendService.class).moduleUnbound(module);
   }
 
 }

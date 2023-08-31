@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -33,7 +33,6 @@ import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.core.ProjectBindingManager;
 
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
-import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 
 public class SonarLintProjectSettingsPanel implements Disposable {
   private final SonarLintProjectPropertiesPanel propsPanel;
@@ -48,7 +47,7 @@ public class SonarLintProjectSettingsPanel implements Disposable {
     propsPanel = new SonarLintProjectPropertiesPanel();
     exclusionsPanel = new ProjectExclusionsPanel(project);
     root = new JPanel(new BorderLayout());
-    var tabs = new JBTabbedPane();
+    JBTabbedPane tabs = new JBTabbedPane();
 
     rootBindPane = new JPanel(new BorderLayout());
     rootBindPane.add(bindPanel.create(project), BorderLayout.NORTH);
@@ -56,9 +55,9 @@ public class SonarLintProjectSettingsPanel implements Disposable {
     rootPropertiesPane = new JPanel(new BorderLayout());
     rootPropertiesPane.add(propsPanel.create(), BorderLayout.CENTER);
 
-    tabs.insertTab("Bind to SonarQube / SonarCloud", null, rootBindPane, "Configure the binding to a SonarQube server or SonarCloud", 0);
+    tabs.insertTab("Bind to CodeScan / CodeScanCloud", null, rootBindPane, "Configure the binding to a CodeScan server or CodeScanCloud", 0);
     tabs.insertTab("File Exclusions", null, exclusionsPanel.getComponent(), "Configure which files to exclude from analysis", 1);
-    tabs.insertTab("Analysis Properties", null, rootPropertiesPane, "Configure analysis properties", 2);
+    tabs.insertTab("Analysis properties", null, rootPropertiesPane, "Configure analysis properties", 2);
 
     root.add(tabs, BorderLayout.CENTER);
   }
@@ -74,22 +73,19 @@ public class SonarLintProjectSettingsPanel implements Disposable {
   }
 
   public void save(Project project, SonarLintProjectSettings projectSettings) throws ConfigurationException {
-    var selectedProjectKey = bindPanel.getSelectedProjectKey();
-    var selectedConnection = bindPanel.getSelectedConnection();
-    var bindingEnabled = bindPanel.isBindingEnabled();
-    var moduleBindings = bindPanel.getModuleBindings();
+    String selectedProjectKey = bindPanel.getSelectedProjectKey();
+    ServerConnection selectedConnection = bindPanel.getSelectedConnection();
+    boolean bindingEnabled = bindPanel.isBindingEnabled();
+    List<ModuleBindingPanel.ModuleBinding> moduleBindings = bindPanel.getModuleBindings();
     if (bindingEnabled) {
       if (selectedConnection == null) {
         throw new ConfigurationException("Connection should not be empty");
       }
-      if (!getGlobalSettings().connectionExists(selectedConnection.getName())) {
-        throw new ConfigurationException("Connection should be saved first");
-      }
       if (selectedProjectKey == null || selectedProjectKey.isBlank()) {
         throw new ConfigurationException("Project key should not be empty");
       }
-      for (var binding : moduleBindings) {
-        var moduleProjectKey = binding.getSonarProjectKey();
+      for (ModuleBindingPanel.ModuleBinding binding : moduleBindings) {
+        String moduleProjectKey = binding.getSonarProjectKey();
         if (moduleProjectKey == null || moduleProjectKey.isBlank()) {
           throw new ConfigurationException("Project key for module '" + binding.getModule().getName() + "' should not be empty");
         }
@@ -98,9 +94,9 @@ public class SonarLintProjectSettingsPanel implements Disposable {
     projectSettings.setAdditionalProperties(propsPanel.getProperties());
     exclusionsPanel.save(projectSettings);
 
-    var bindingManager = getService(project, ProjectBindingManager.class);
+    ProjectBindingManager bindingManager = getService(project, ProjectBindingManager.class);
     if (bindingEnabled) {
-      var moduleBindingsMap = moduleBindings
+      Map<Module, String> moduleBindingsMap = moduleBindings
         .stream().collect(Collectors.toMap(ModuleBindingPanel.ModuleBinding::getModule, ModuleBindingPanel.ModuleBinding::getSonarProjectKey));
       bindingManager.bindTo(selectedConnection, selectedProjectKey, moduleBindingsMap);
     } else {

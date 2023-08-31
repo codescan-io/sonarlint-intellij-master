@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,11 +26,13 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Iconable;
 import com.intellij.psi.PsiFile;
+
 import javax.swing.Icon;
+
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
-import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.trigger.SonarLintSubmitter;
 import org.sonarlint.intellij.trigger.TriggerType;
 
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
@@ -44,11 +46,11 @@ public class DisableRuleIntentionAction implements IntentionAction, LowPriorityA
   }
 
   @Nls @NotNull @Override public String getText() {
-    return "SonarLint: Disable rule '" + ruleKey + "'";
+    return "Disable CodeScan rule '" + ruleKey + "'";
   }
 
   @Nls @NotNull @Override public String getFamilyName() {
-    return "SonarLint disable rule";
+    return "CodeScan disable rule";
   }
 
   @Override public boolean isAvailable(@NotNull Project project, Editor editor, PsiFile file) {
@@ -57,7 +59,8 @@ public class DisableRuleIntentionAction implements IntentionAction, LowPriorityA
 
   @Override public void invoke(@NotNull Project project, Editor editor, PsiFile file) {
     getGlobalSettings().disableRule(ruleKey);
-    SonarLintUtils.getService(project, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.BINDING_UPDATE);
+    SonarLintSubmitter submitter = SonarLintUtils.getService(project, SonarLintSubmitter.class);
+    submitter.submitOpenFilesAuto(TriggerType.BINDING_UPDATE);
   }
 
   @Override public boolean startInWriteAction() {

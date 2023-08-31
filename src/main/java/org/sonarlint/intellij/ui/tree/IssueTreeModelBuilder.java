@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,52 +20,41 @@
 package org.sonarlint.intellij.ui.tree;
 
 import com.google.common.collect.ComparisonChain;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Ordering;
+import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.vfs.VirtualFile;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.swing.tree.DefaultTreeModel;
-import org.sonarlint.intellij.finding.issue.LiveIssue;
+import javax.swing.tree.TreeNode;
+import org.sonarlint.intellij.issue.LiveIssue;
 import org.sonarlint.intellij.ui.nodes.AbstractNode;
 import org.sonarlint.intellij.ui.nodes.FileNode;
 import org.sonarlint.intellij.ui.nodes.IssueNode;
 import org.sonarlint.intellij.ui.nodes.SummaryNode;
-import org.sonarsource.sonarlint.core.commons.ImpactSeverity;
-import org.sonarsource.sonarlint.core.commons.IssueSeverity;
-
-import static org.sonarsource.sonarlint.core.commons.ImpactSeverity.HIGH;
-import static org.sonarsource.sonarlint.core.commons.ImpactSeverity.LOW;
-import static org.sonarsource.sonarlint.core.commons.ImpactSeverity.MEDIUM;
-import static org.sonarsource.sonarlint.core.commons.IssueSeverity.BLOCKER;
-import static org.sonarsource.sonarlint.core.commons.IssueSeverity.CRITICAL;
-import static org.sonarsource.sonarlint.core.commons.IssueSeverity.INFO;
-import static org.sonarsource.sonarlint.core.commons.IssueSeverity.MAJOR;
-import static org.sonarsource.sonarlint.core.commons.IssueSeverity.MINOR;
 
 /**
  * Responsible for maintaining the tree model and send change events when needed.
  * Should be optimize to minimize the recreation of portions of the tree.
  */
-public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
-  private static final List<IssueSeverity> SEVERITY_ORDER = List.of(BLOCKER, CRITICAL, MAJOR, MINOR, INFO);
-  private static final List<ImpactSeverity> IMPACT_ORDER = List.of(HIGH, MEDIUM, LOW);
+public class IssueTreeModelBuilder {
+  private static final List<String> SEVERITY_ORDER = ImmutableList.of("BLOCKER", "CRITICAL", "MAJOR", "MINOR", "INFO");
   private static final Comparator<LiveIssue> ISSUE_COMPARATOR = new IssueComparator();
 
-  private final FindingTreeIndex index;
+  private final IssueTreeIndex index;
   private DefaultTreeModel model;
   private SummaryNode summary;
 
   public IssueTreeModelBuilder() {
-    this.index = new FindingTreeIndex();
+    this.index = new IssueTreeIndex();
   }
 
   /**
@@ -79,29 +68,32 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
   }
 
   public int numberIssues() {
-    return summary.getFindingCount();
+    return summary.getIssueCount();
   }
 
   private SummaryNode getFilesParent() {
     return summary;
   }
 
-  public void clear() {
-    updateModel(Collections.emptyMap(), "No analysis done");
-  }
-
   public void updateModel(Map<VirtualFile, Collection<LiveIssue>> map, String emptyText) {
     summary.setEmptyText(emptyText);
 
-    var toRemove = index.getAllFiles().stream().filter(f -> !map.containsKey(f)).collect(Collectors.toList());
+    List<VirtualFile> toRemove = index.getAllFiles().stream().filter(f -> !map.containsKey(f)).collect(Collectors.toList());
 
     toRemove.forEach(this::removeFile);
 
-    for (var e : map.entrySet()) {
+    for (Map.Entry<VirtualFile, Collection<LiveIssue>> e : map.entrySet()) {
       setFileIssues(e.getKey(), e.getValue());
     }
 
     model.nodeChanged(summary);
+  }
+
+  public void updateEmptyText(String emptyText) {
+    summary.setEmptyText(emptyText);
+    if (summary.isLeaf()) {
+      model.nodeChanged(summary);
+    }
   }
 
   private void setFileIssues(VirtualFile file, Iterable<LiveIssue> issues) {
@@ -110,26 +102,26 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
       return;
     }
 
-    var filtered = filter(issues);
+    List<LiveIssue> filtered = filter(issues);
     if (filtered.isEmpty()) {
       removeFile(file);
       return;
     }
 
-    var newFile = false;
-    var fNode = index.getFileNode(file);
+    boolean newFile = false;
+    FileNode fNode = index.getFileNode(file);
     if (fNode == null) {
       newFile = true;
-      fNode = new FileNode(file, false);
+      fNode = new FileNode(file);
       index.setFileNode(fNode);
     }
 
     setIssues(fNode, filtered);
 
     if (newFile) {
-      var parent = getFilesParent();
-      var idx = parent.insertFileNode(fNode, new FileNodeComparator());
-      var newIdx = new int[]{idx};
+      SummaryNode parent = getFilesParent();
+      int idx = parent.insertFileNode(fNode, new FileNodeComparator());
+      int[] newIdx = {idx};
       model.nodesWereInserted(parent, newIdx);
       model.nodeChanged(parent);
     } else {
@@ -138,30 +130,26 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
   }
 
   private void removeFile(VirtualFile file) {
-    var node = index.getFileNode(file);
+    FileNode node = index.getFileNode(file);
 
     if (node != null) {
-      removeFileNode(node);
+      index.remove(node.file());
+      model.removeNodeFromParent(node);
     }
-  }
-
-  private void removeFileNode(FileNode node) {
-    index.remove(node.file());
-    model.removeNodeFromParent(node);
   }
 
   private static void setIssues(FileNode node, Iterable<LiveIssue> issuePointers) {
     node.removeAllChildren();
 
     // 15ms for 500 issues -> to improve?
-    var issues = new TreeSet<>(ISSUE_COMPARATOR);
+    TreeSet<LiveIssue> set = new TreeSet<>(ISSUE_COMPARATOR);
 
-    for (var issue : issuePointers) {
-      issues.add(issue);
+    for (LiveIssue issue : issuePointers) {
+      set.add(issue);
     }
 
-    for (var issue : issues) {
-      var iNode = new IssueNode(issue);
+    for (LiveIssue issue : set) {
+      IssueNode iNode = new IssueNode(issue);
       node.add(iNode);
     }
   }
@@ -180,19 +168,6 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
     return file.isValid();
   }
 
-  public void remove(LiveIssue issue) {
-    var fileNode = index.getFileNode(issue.psiFile().getVirtualFile());
-    if (fileNode != null) {
-      fileNode.findChildren(child -> Objects.equals(issue.uid(), ((LiveIssue) child).uid()))
-        .ifPresent(issueNode -> {
-          model.removeNodeFromParent(issueNode);
-          if (!fileNode.hasChildren()) {
-            removeFileNode(fileNode);
-          }
-        });
-    }
-  }
-
   private static class FileNodeComparator implements Comparator<FileNode> {
     @Override public int compare(FileNode o1, FileNode o2) {
       int c = o1.file().getName().compareTo(o2.file().getName());
@@ -206,37 +181,28 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
 
   static class IssueComparator implements Comparator<LiveIssue> {
     @Override public int compare(@Nonnull LiveIssue o1, @Nonnull LiveIssue o2) {
-      var introductionDateOrdering = Ordering.natural().reverse().nullsLast();
-      var dateCompare = introductionDateOrdering.compare(o1.getIntroductionDate(), o2.getIntroductionDate());
+      Ordering<Long> creationDateOrdering = Ordering.natural().reverse().nullsLast();
+      int dateCompare = creationDateOrdering.compare(o1.getCreationDate(), o2.getCreationDate());
 
       if (dateCompare != 0) {
         return dateCompare;
       }
 
-      if (o1.getCleanCodeAttribute() != null && !o1.getImpacts().isEmpty()
-        && o2.getCleanCodeAttribute() != null && !o2.getImpacts().isEmpty()) {
-        var highestQualityImpactO1 = Collections.max(o1.getImpacts().entrySet(), Map.Entry.comparingByValue(Comparator.comparing(Enum::ordinal))).getValue();
-        var highestQualityImpactO2 = Collections.max(o2.getImpacts().entrySet(), Map.Entry.comparingByValue(Comparator.comparing(Enum::ordinal))).getValue();
-        var impactCompare = Ordering.explicit(IMPACT_ORDER).compare(highestQualityImpactO1, highestQualityImpactO2);
-        if (impactCompare != 0) {
-          return impactCompare;
-        }
-      } else {
-        var severityCompare = Ordering.explicit(SEVERITY_ORDER).compare(o1.getUserSeverity(), o2.getUserSeverity());
-        if (severityCompare != 0) {
-          return severityCompare;
-        }
+      int severityCompare = Ordering.explicit(SEVERITY_ORDER).compare(o1.getSeverity(), o2.getSeverity());
+
+      if (severityCompare != 0) {
+        return severityCompare;
       }
 
-      var r1 = o1.getRange();
-      var r2 = o2.getRange();
+      RangeMarker r1 = o1.getRange();
+      RangeMarker r2 = o2.getRange();
 
-      var rangeStart1 = (r1 == null) ? -1 : r1.getStartOffset();
-      var rangeStart2 = (r2 == null) ? -1 : r2.getStartOffset();
+      int rangeStart1 = (r1 == null) ? -1 : r1.getStartOffset();
+      int rangeStart2 = (r2 == null) ? -1 : r2.getStartOffset();
 
       return ComparisonChain.start()
         .compare(rangeStart1, rangeStart2)
-        .compare(o1.getRuleKey(), o2.getRuleKey())
+        .compare(o1.getRuleName(), o2.getRuleName())
         .compare(o1.uid(), o2.uid())
         .result();
     }
@@ -248,7 +214,7 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
       return firstIssueDown(startNode);
     }
 
-    var next = getNextNode(startNode);
+    Object next = getNextNode(startNode);
 
     if (next == null) {
       // no next node in the entire tree
@@ -259,12 +225,12 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
       return (IssueNode) next;
     }
 
-    return firstIssueDown(next);
+    return firstIssueDown((AbstractNode) next);
   }
 
   @CheckForNull
   public IssueNode getPreviousIssue(AbstractNode startNode) {
-    var next = getPreviousNode(startNode);
+    Object next = getPreviousNode(startNode);
 
     if (next == null) {
       // no next node in the entire tree
@@ -275,7 +241,7 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
       return (IssueNode) next;
     }
 
-    return lastIssueDown(next);
+    return lastIssueDown((AbstractNode) next);
   }
 
   /**
@@ -288,7 +254,7 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
     }
 
     if (node.getChildCount() > 0) {
-      var firstChild = node.getFirstChild();
+      TreeNode firstChild = node.getFirstChild();
       return firstIssueDown((AbstractNode) firstChild);
     }
 
@@ -304,12 +270,45 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
       return (IssueNode) node;
     }
 
-    var lastChild = node.getLastChild();
+    TreeNode lastChild = node.getLastChild();
 
     if (lastChild == null) {
       return null;
     }
 
     return lastIssueDown((AbstractNode) lastChild);
+  }
+
+  @CheckForNull
+  private static AbstractNode getPreviousNode(AbstractNode startNode) {
+    AbstractNode parent = (AbstractNode) startNode.getParent();
+
+    if (parent == null) {
+      return null;
+    }
+    TreeNode previous = parent.getChildBefore(startNode);
+    if (previous == null) {
+      return getPreviousNode(parent);
+    }
+
+    return (AbstractNode) previous;
+  }
+
+  /**
+   * Next node, either the sibling if it exists, or the sibling of the parent
+   */
+  @CheckForNull
+  private static AbstractNode getNextNode(AbstractNode startNode) {
+    AbstractNode parent = (AbstractNode) startNode.getParent();
+
+    if (parent == null) {
+      return null;
+    }
+    TreeNode after = parent.getChildAfter(startNode);
+    if (after == null) {
+      return getNextNode(parent);
+    }
+
+    return (AbstractNode) after;
   }
 }

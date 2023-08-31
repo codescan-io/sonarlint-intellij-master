@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,17 +23,16 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.util.BackgroundTaskUtil
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectCoreUtil
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.vfs.VirtualFile
 import org.sonar.api.batch.fs.InputFile
 import org.sonarlint.intellij.analysis.SonarLintAnalyzer
-import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.computeReadActionSafely
-import org.sonarlint.intellij.util.VirtualFileUtils
-import org.sonarsource.sonarlint.core.analysis.api.ClientInputFile
-import org.sonarsource.sonarlint.core.analysis.api.ClientModuleFileSystem
+import org.sonarsource.sonarlint.core.client.api.common.ClientFileSystem
+import org.sonarsource.sonarlint.core.client.api.common.analysis.ClientInputFile
 import java.util.stream.Stream
 
-internal class ModuleFileSystem(private val project: Project, private val module: Module) : ClientModuleFileSystem {
+internal class ModuleFileSystem(private val project: Project, private val module: Module) : ClientFileSystem {
     override fun files(language: String, type: InputFile.Type): Stream<ClientInputFile> {
         return files()
             .filter { f -> f.relativePath().endsWith(language) }
@@ -43,23 +42,18 @@ internal class ModuleFileSystem(private val project: Project, private val module
     override fun files(): Stream<ClientInputFile> {
         val files: MutableList<ClientInputFile> = ArrayList()
         val sonarLintAnalyzer = project.getService(SonarLintAnalyzer::class.java)
-        BackgroundTaskUtil.runUnderDisposeAwareIndicator(project) {
+        BackgroundTaskUtil.runUnderDisposeAwareIndicator(project, {
             ModuleRootManager.getInstance(module).fileIndex.iterateContent { fileOrDir: VirtualFile ->
                 ProgressManager.checkCanceled()
-
-                // Analysis can only be done on actual files which contain text and not binary data
-                if (VirtualFileUtils.isNonBinaryFile(fileOrDir)) {
-                    val element = computeReadActionSafely(module.project) {
-                        sonarLintAnalyzer.createClientInputFile(module, fileOrDir, null)
-                    }
+                if (!fileOrDir.isDirectory && !ProjectCoreUtil.isProjectOrWorkspaceFile(fileOrDir, fileOrDir.fileType)) {
+                    val element = sonarLintAnalyzer.createClientInputFile(module, fileOrDir, null)
                     if (element != null) {
                         files.add(element)
                     }
                 }
-
                 true
             }
-        }
+        })
         return files.stream()
     }
 }

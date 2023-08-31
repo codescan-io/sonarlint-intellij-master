@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,12 +19,13 @@
  */
 package org.sonarlint.intellij.ui
 
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 
 open class ProjectSelectionDialog : DialogWrapper(true) {
-    private var selectedProject: String? = null
+    var selectedProject: Project? = null
 
-    open fun selectProject(): String? {
+    open fun selectProject(): Project? {
         init()
         title = "Select a project"
         show()
@@ -33,15 +34,10 @@ open class ProjectSelectionDialog : DialogWrapper(true) {
 
     override fun createActions() = arrayOf(cancelAction)
 
-    override fun createCenterPanel() = SelectProjectPanel(this)
+    override fun createCenterPanel() = SelectProjectPanel(::onProjectSelected)
 
-    fun setSelectedProject(project: String) {
+    private fun onProjectSelected(project: Project) {
         selectedProject = project
         close(OK_EXIT_CODE)
-    }
-
-    override fun doCancelAction() {
-        selectedProject = null
-        super.doCancelAction()
     }
 }

@@ -1,6 +1,6 @@
 /*
  * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,8 +21,6 @@ package org.sonarlint.intellij.clion;
 
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiManager;
-import com.jetbrains.cidr.lang.psi.OCPsiFile;
 import org.sonarlint.intellij.common.analysis.ExcludeResult;
 import org.sonarlint.intellij.common.analysis.FileExclusionContributor;
 
@@ -30,11 +28,7 @@ public class CFamilyFileExclusionContributor implements FileExclusionContributor
 
   @Override
   public ExcludeResult shouldExclude(Module module, VirtualFile fileToAnalyze) {
-    var psiFile = PsiManager.getInstance(module.getProject()).findFile(fileToAnalyze);
-    if (!(psiFile instanceof OCPsiFile)) {
-      return ExcludeResult.notExcluded();
-    }
-    var configurationResult = new AnalyzerConfiguration(module.getProject()).getConfiguration(fileToAnalyze);
+    AnalyzerConfiguration.ConfigurationResult configurationResult = new AnalyzerConfiguration(module.getProject()).getConfiguration(fileToAnalyze);
     if (configurationResult.hasConfiguration()) {
       return ExcludeResult.notExcluded();
     }

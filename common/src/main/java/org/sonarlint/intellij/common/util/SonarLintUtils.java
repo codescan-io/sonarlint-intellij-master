@@ -1,6 +1,6 @@
 /*
  * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,72 +21,106 @@ package org.sonarlint.intellij.common.util;
 
 import com.intellij.lang.Language;
 import com.intellij.openapi.application.ApplicationInfo;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
+import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleServiceManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.ContentEntry;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.SourceFolder;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
+import com.intellij.util.PlatformUtils;
+
+import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.Transparency;
-import java.util.List;
-import java.util.Set;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
+import org.jetbrains.jps.model.java.JavaResourceRootProperties;
+import org.jetbrains.jps.model.java.JavaSourceRootProperties;
 
 public class SonarLintUtils {
-
+  private static final String CODESCAN_HEALTH_ENDPOINT = "/_codescan/actuator/health";
+  private static final String CODESCAN_HEALTH_JSON_RESPONSE = "{\"status\":\"UP\"}";
   private static final Logger LOG = Logger.getInstance(SonarLintUtils.class);
-  public static final String DEFAULT_SONARCLOUD_URL = "https://sonarcloud.io";
-  public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_SONARCLOUD_URL);
-  private static final Set<String> SONARCLOUD_ALIAS = Set.copyOf(List.of("https://sonarqube.com", "https://www.sonarqube.com",
-    "https://www.sonarcloud.io", DEFAULT_SONARCLOUD_URL, SONARCLOUD_URL));
 
   private SonarLintUtils() {
     // Utility class
   }
 
   public static <T> T getService(Class<T> clazz) {
-    var t = ApplicationManager.getApplication().getService(clazz);
-    logAndThrowIfServiceNotFound(t, clazz.getName());
+    T t = ServiceManager.getService(clazz);
+    if (t == null) {
+      LOG.error("Could not find service: " + clazz.getName());
+      throw new IllegalArgumentException("Class not found: " + clazz.getName());
+    }
 
     return t;
   }
 
   public static <T> T getService(@NotNull Project project, Class<T> clazz) {
-    var t = project.getService(clazz);
-    logAndThrowIfServiceNotFound(t, clazz.getName());
+    T t = ServiceManager.getService(project, clazz);
+    if (t == null) {
+      LOG.error("Could not find service: " + clazz.getName());
+      throw new IllegalArgumentException("Class not found: " + clazz.getName());
+    }
 
     return t;
   }
 
   public static <T> T getService(@NotNull Module module, Class<T> clazz) {
-    var t = ModuleServiceManager.getService(module, clazz);
-    logAndThrowIfServiceNotFound(t, clazz.getName());
+    T t = ModuleServiceManager.getService(module, clazz);
+    if (t == null) {
+      LOG.error("Could not find service: " + clazz.getName());
+      throw new IllegalArgumentException("Class not found: " + clazz.getName());
+    }
 
     return t;
   }
 
-  private static <T> void logAndThrowIfServiceNotFound(T t, String name) {
-    if (t == null) {
-      LOG.error("Could not find service: " + name);
-      throw new IllegalArgumentException("Class not found: " + name);
+  public static boolean isCodeScanCloudAlias(@Nullable String url) {
+    if (url.contains("codescan.io")) {
+      return true;
     }
-  }
-
-  public static boolean isSonarCloudAlias(@Nullable String url) {
-    return url != null && SONARCLOUD_ALIAS.contains(url);
+    HttpClient httpClient = HttpClient.newHttpClient();
+    HttpRequest httpRequest = HttpRequest.newBuilder()
+            .uri(URI.create(url + CODESCAN_HEALTH_ENDPOINT))
+            .build();
+    try {
+      HttpResponse<String> httpResponse = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+      int statusCode = httpResponse.statusCode();
+      if (statusCode == 200 && CODESCAN_HEALTH_JSON_RESPONSE.equals(httpResponse.body())) {
+        return true;
+      } else {
+        LOG.debug("isCodeScanCloudAlias health check request for host: {} failed with status code: {}.", url,
+                statusCode);
+        return false;
+      }
+    } catch (IOException | InterruptedException e) {
+      LOG.error("isCodeScanCloudAlias health check request for host: {} gave an exception.", e, url);
+      return false;
+    }
   }
 
   public static boolean isEmpty(@Nullable String str) {
@@ -101,7 +135,7 @@ public class SonarLintUtils {
     return withTrailingSlash(aString).equals(withTrailingSlash(anotherString));
   }
 
-  public static String withTrailingSlash(String str) {
+  private static String withTrailingSlash(String str) {
     if (!str.endsWith("/")) {
       return str + '/';
     }
@@ -112,13 +146,13 @@ public class SonarLintUtils {
     if (icon instanceof ImageIcon) {
       return ((ImageIcon) icon).getImage();
     } else {
-      var w = icon.getIconWidth();
-      var h = icon.getIconHeight();
-      var ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-      var gd = ge.getDefaultScreenDevice();
-      var gc = gd.getDefaultConfiguration();
-      var image = gc.createCompatibleImage(w, h, Transparency.TRANSLUCENT);
-      var g = image.createGraphics();
+      int w = icon.getIconWidth();
+      int h = icon.getIconHeight();
+      GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+      GraphicsDevice gd = ge.getDefaultScreenDevice();
+      GraphicsConfiguration gc = gd.getDefaultConfiguration();
+      BufferedImage image = gc.createCompatibleImage(w, h, Transparency.TRANSLUCENT);
+      Graphics2D g = image.createGraphics();
       icon.paintIcon(null, g, 0, 0);
       g.dispose();
       return image;
@@ -135,12 +169,12 @@ public class SonarLintUtils {
     if (project.isDisposed()) {
       return null;
     }
-    var editorManager = FileEditorManager.getInstance(project);
+    FileEditorManager editorManager = FileEditorManager.getInstance(project);
 
-    var editor = editorManager.getSelectedTextEditor();
+    Editor editor = editorManager.getSelectedTextEditor();
     if (editor != null) {
-      var doc = editor.getDocument();
-      var docManager = FileDocumentManager.getInstance();
+      Document doc = editor.getDocument();
+      FileDocumentManager docManager = FileDocumentManager.getInstance();
       return docManager.getFile(doc);
     }
 
@@ -149,8 +183,8 @@ public class SonarLintUtils {
 
   public static boolean isGeneratedSource(SourceFolder sourceFolder) {
     // copied from JavaProjectRootsUtil. Don't use that class because it's not available in other flavors of Intellij
-    var properties = sourceFolder.getJpsElement().getProperties(JavaModuleSourceRootTypes.SOURCES);
-    var resourceProperties = sourceFolder.getJpsElement().getProperties(JavaModuleSourceRootTypes.RESOURCES);
+    JavaSourceRootProperties properties = sourceFolder.getJpsElement().getProperties(JavaModuleSourceRootTypes.SOURCES);
+    JavaResourceRootProperties resourceProperties = sourceFolder.getJpsElement().getProperties(JavaModuleSourceRootTypes.RESOURCES);
     return (properties != null && properties.isForGeneratedSources()) || (resourceProperties != null && resourceProperties.isForGeneratedSources());
   }
 
@@ -159,8 +193,8 @@ public class SonarLintUtils {
     if (source == null) {
       return null;
     }
-    for (var entry : ModuleRootManager.getInstance(module).getContentEntries()) {
-      for (var folder : entry.getSourceFolders()) {
+    for (ContentEntry entry : ModuleRootManager.getInstance(module).getContentEntries()) {
+      for (SourceFolder folder : entry.getSourceFolders()) {
         if (source.equals(folder.getFile())) {
           return folder;
         }
@@ -190,11 +224,11 @@ public class SonarLintUtils {
 
   @CheckForNull
   public static String getIdeVersionForTelemetry() {
-    String ideVersion;
+    String ideVersion = null;
     try {
-      var appInfo = getAppInfo();
+      ApplicationInfo appInfo = getAppInfo();
       ideVersion = appInfo.getVersionName() + " " + appInfo.getFullVersion();
-      var edition = ApplicationNamesInfo.getInstance().getEditionName();
+      String edition = ApplicationNamesInfo.getInstance().getEditionName();
       if (edition != null) {
         ideVersion += " (" + edition + ")";
       }
@@ -208,31 +242,12 @@ public class SonarLintUtils {
     return ApplicationInfo.getInstance();
   }
 
-  /** Alternative to {@link com.intellij.util.PlatformUtils#isCLion} */
-  public static boolean isCLion() {
-    return getAppInfo().getFullApplicationName().toLowerCase().contains("clion");
-  }
-
-  /** Alternative to {@link com.intellij.util.PlatformUtils#isGoIde} */
-  public static boolean isGoIde() {
-    return getAppInfo().getFullApplicationName().toLowerCase().contains("goland");
-  }
-
-  /** Alternative to {@link com.intellij.util.PlatformUtils#isRider} */
-  public static boolean isRider() {
-    return getAppInfo().getFullApplicationName().toLowerCase().contains("rider");
-  }
-
-  /** Alternative to {@link com.intellij.util.PlatformUtils#isAppCode} */
-  public static boolean isAppCode() {
-    return getAppInfo().getFullApplicationName().toLowerCase().contains("appcode");
-  }
-
   public static boolean isTaintVulnerabilitiesEnabled() {
-    return !isCLion() && !isGoIde();
+    // No Taint Vulnerabilities in C/C++ for the time being
+    return !PlatformUtils.isCLion();
   }
 
   public static boolean isModuleLevelBindingEnabled() {
-    return !isRider() && !isCLion() && !isAppCode();
+    return !PlatformUtils.isRider() && !PlatformUtils.isCLion() && !PlatformUtils.isAppCode();
   }
 }

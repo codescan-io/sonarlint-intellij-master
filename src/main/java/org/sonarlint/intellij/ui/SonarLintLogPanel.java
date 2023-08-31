@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,18 +19,21 @@
  */
 package org.sonarlint.intellij.ui;
 
-import com.intellij.execution.filters.TextConsoleBuilderFactory;
+import com.intellij.execution.ui.ConsoleView;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionToolbar;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.SimpleToolWindowPanel;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ex.ToolWindowEx;
 import com.intellij.tools.SimpleActionGroup;
 import com.intellij.util.messages.MessageBusConnection;
+
 import javax.swing.Box;
+
 import org.sonarlint.intellij.actions.ToolWindowLogAnalysisAction;
 import org.sonarlint.intellij.actions.ToolWindowVerboseModeAction;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
@@ -38,10 +41,8 @@ import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.messages.StatusListener;
 import org.sonarlint.intellij.util.SonarLintActions;
 
-import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
-
 public class SonarLintLogPanel extends SimpleToolWindowPanel {
-  private static final String ID = "SonarLint";
+  private static final String ID = "CodeScan";
 
   private final ToolWindow toolWindow;
   private final Project project;
@@ -59,14 +60,14 @@ public class SonarLintLogPanel extends SimpleToolWindowPanel {
 
     MessageBusConnection busConnection = project.getMessageBus().connect(project);
     busConnection.subscribe(StatusListener.SONARLINT_STATUS_TOPIC, newStatus ->
-      runOnUiThread(project, mainToolbar::updateActionsImmediately));
+      ApplicationManager.getApplication().invokeLater(mainToolbar::updateActionsImmediately));
   }
 
   private void addToolbar() {
-    var actionGroup = createActionGroup();
+    ActionGroup actionGroup = createActionGroup();
     mainToolbar = ActionManager.getInstance().createActionToolbar(ID, actionGroup, false);
     mainToolbar.setTargetComponent(this);
-    var toolBarBox = Box.createHorizontalBox();
+    Box toolBarBox = Box.createHorizontalBox();
     toolBarBox.add(mainToolbar.getComponent());
 
     super.setToolbar(toolBarBox);
@@ -74,23 +75,24 @@ public class SonarLintLogPanel extends SimpleToolWindowPanel {
   }
 
   private static ActionGroup createActionGroup() {
-    var sonarLintActions = SonarLintActions.getInstance();
-    var actionGroup = new SimpleActionGroup();
+    SonarLintActions sonarLintActions = SonarLintActions.getInstance();
+    SimpleActionGroup actionGroup = new SimpleActionGroup();
     actionGroup.add(sonarLintActions.configure());
     actionGroup.add(sonarLintActions.cleanConsole());
     return actionGroup;
   }
 
   private void addLogActions() {
-    var group = new DefaultActionGroup();
+    DefaultActionGroup group = new DefaultActionGroup();
     group.add(new ToolWindowLogAnalysisAction());
     group.add(new ToolWindowVerboseModeAction());
     ((ToolWindowEx) toolWindow).setAdditionalGearActions(group);
   }
 
   private void addConsole() {
-    var consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).getConsole();
-    SonarLintUtils.getService(project, SonarLintConsole.class).setConsoleView(consoleView);
-    super.setContent(consoleView.getComponent());
+    ConsoleView consoleView = SonarLintUtils.getService(project, SonarLintConsole.class).getConsoleView();
+    if (consoleView != null) {
+      super.setContent(consoleView.getComponent());
+    }
   }
 }

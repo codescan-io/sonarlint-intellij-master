@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,6 +19,7 @@
  */
 package org.sonarlint.intellij.config.global.rules;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -101,10 +102,10 @@ public class RulesFilterModel {
   }
 
   public boolean filter(RulesTreeNode.Rule rule) {
-    if (showOnlyEnabled && Boolean.FALSE.equals(rule.isActivated())) {
+    if (showOnlyEnabled && !rule.isActivated()) {
       return false;
     }
-    if (showOnlyDisabled && Boolean.TRUE.equals(rule.isActivated())) {
+    if (showOnlyDisabled && rule.isActivated()) {
       return false;
     }
     if (showOnlyChanged && !rule.isNonDefault()) {
@@ -115,14 +116,14 @@ public class RulesFilterModel {
       return true;
     }
 
-    return tokenizedText.stream().allMatch(t -> rule.getKey().equalsIgnoreCase(t) || rule.getName().toLowerCase(Locale.ENGLISH).contains(t));
+    return tokenizedText.stream().allMatch(t -> rule.getKey().equalsIgnoreCase(t) || rule.getName().toLowerCase(Locale.US).contains(t));
   }
 
   private static List<String> tokenize(@Nullable String str) {
     if (str == null || str.isEmpty()) {
       return Collections.emptyList();
     }
-    var lower = str.toLowerCase(Locale.ENGLISH);
-    return List.of(lower.split("\\s"));
+    String lower = str.toLowerCase(Locale.US);
+    return Arrays.asList(lower.split("\\s"));
   }
 }

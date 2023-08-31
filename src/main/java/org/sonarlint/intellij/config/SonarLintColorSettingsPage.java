@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@ import com.intellij.openapi.fileTypes.SyntaxHighlighter;
 import com.intellij.openapi.options.colors.AttributesDescriptor;
 import com.intellij.openapi.options.colors.ColorDescriptor;
 import com.intellij.openapi.options.colors.ColorSettingsPage;
-import org.sonarlint.intellij.SonarLintIcons;
+import icons.SonarLintIcons;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
@@ -71,7 +71,7 @@ public class SonarLintColorSettingsPage implements ColorSettingsPage {
   }
 
   @NotNull @Override public String getDemoText() {
-    var buffer = new StringBuilder();
+    StringBuilder buffer = new StringBuilder();
 
     for (AttributesDescriptor desc : DESCRIPTORS) {
       buffer
@@ -101,7 +101,7 @@ public class SonarLintColorSettingsPage implements ColorSettingsPage {
   }
 
   @NotNull @Override public String getDisplayName() {
-    return "SonarLint";
+    return "CodeScan";
   }
 
 }

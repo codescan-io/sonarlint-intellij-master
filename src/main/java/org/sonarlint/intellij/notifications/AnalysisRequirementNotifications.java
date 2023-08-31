@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,9 +19,9 @@
  */
 package org.sonarlint.intellij.notifications;
 
+import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationAction;
 import com.intellij.notification.NotificationGroup;
-import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationListener;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.project.Project;
@@ -29,20 +29,21 @@ import com.intellij.openapi.project.Project;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
-import org.sonarsource.sonarlint.core.analysis.api.AnalysisResults;
+import org.sonarsource.sonarlint.core.client.api.common.Language;
 import org.sonarsource.sonarlint.core.client.api.common.PluginDetails;
-import org.sonarsource.sonarlint.core.plugin.commons.SkipReason;
+import org.sonarsource.sonarlint.core.client.api.common.SkipReason;
+import org.sonarsource.sonarlint.core.client.api.common.analysis.AnalysisResults;
 
 import static java.util.stream.Collectors.toSet;
 
 public class AnalysisRequirementNotifications {
 
-  private static final NotificationGroup ANALYZER_REQUIREMENT_GROUP = NotificationGroupManager.getInstance()
-    .getNotificationGroup("SonarLint: Analyzer Requirement");
+  private static final NotificationGroup ANALYZER_REQUIREMENT_GROUP = NotificationGroup.balloonGroup("CodeScan: Analyzer Requirement");
 
   private static final Set<String> alreadyNotified = new HashSet<>();
 
@@ -55,30 +56,30 @@ public class AnalysisRequirementNotifications {
   }
 
   public static void notifyOnceForSkippedPlugins(AnalysisResults analysisResults, Collection<PluginDetails> allPlugins, Project project) {
-    var attemptedLanguages = analysisResults.languagePerFile().values()
+    Set<Language> attemptedLanguages = analysisResults.languagePerFile().values()
       .stream()
       .filter(Objects::nonNull)
       .collect(toSet());
     attemptedLanguages.forEach(l -> {
-      final var correspondingPlugin = allPlugins.stream().filter(p -> p.key().equals(l.getPluginKey())).findFirst();
+      final Optional<PluginDetails> correspondingPlugin = allPlugins.stream().filter(p -> p.key().equals(l.getPluginKey())).findFirst();
       correspondingPlugin.flatMap(PluginDetails::skipReason).ifPresent(skipReason -> {
         if (skipReason instanceof SkipReason.UnsatisfiedRuntimeRequirement) {
-          final var runtimeRequirement = (SkipReason.UnsatisfiedRuntimeRequirement) skipReason;
-          final var title = "<b>SonarLint failed to analyze " + l.getLabel() + " code</b>";
+          final SkipReason.UnsatisfiedRuntimeRequirement runtimeRequirement = (SkipReason.UnsatisfiedRuntimeRequirement) skipReason;
+          final String title = "<b>CodeScan failed to analyze " + l.getLabel() + " code</b>";
           if (runtimeRequirement.getRuntime() == SkipReason.UnsatisfiedRuntimeRequirement.RuntimeRequirement.JRE) {
-            var content = String.format(
-              "SonarLint requires Java runtime version %s or later to analyze %s code. Current version is %s.<br>" +
+            String content = String.format(
+              "CodeScan requires Java runtime version %s or later to analyze %s code. Current version is %s.<br>" +
                 "See <a href=\"https://intellij-support.jetbrains.com/hc/en-us/articles/206544879-Selecting-the-JDK-version-the-IDE-will-run-under\">" +
                 "how to select the JDK version the IDE will run under</a>.",
               runtimeRequirement.getMinVersion(), l.getLabel(), runtimeRequirement.getCurrentVersion());
             createNotificationOnce(project, title, content, new NotificationListener.UrlOpeningListener(true));
           } else if (runtimeRequirement.getRuntime() == SkipReason.UnsatisfiedRuntimeRequirement.RuntimeRequirement.NODEJS) {
-            var content = new StringBuilder(
-              String.format("SonarLint requires Node.js runtime version %s or later to analyze %s code.", runtimeRequirement.getMinVersion(), l.getLabel()));
+            StringBuilder content = new StringBuilder(
+              String.format("CodeScan requires Node.js runtime version %s or later to analyze %s code.", runtimeRequirement.getMinVersion(), l.getLabel()));
             if (runtimeRequirement.getCurrentVersion() != null) {
               content.append(String.format(" Current version is %s.", runtimeRequirement.getCurrentVersion()));
             }
-            content.append("<br>Please configure the Node.js path in the SonarLint settings.");
+            content.append("<br>Please configure the Node.js path in the CodeScan settings.");
             createNotificationOnce(project, title, content.toString(), null, new OpenGlobalSettingsAction(project));
           }
         }
@@ -88,17 +89,28 @@ public class AnalysisRequirementNotifications {
 
   private static void createNotificationOnce(Project project, String title, String content, @Nullable NotificationListener listener, NotificationAction... actions) {
     if (!alreadyNotified.contains(content)) {
-      var notification = ANALYZER_REQUIREMENT_GROUP.createNotification(
+      Notification notification = ANALYZER_REQUIREMENT_GROUP.createNotification(
         title,
         content,
-        NotificationType.WARNING);
-      if (listener != null) {
-        notification.setListener(listener);
-      }
+        NotificationType.WARNING, listener);
       notification.setImportant(true);
       Stream.of(actions).forEach(notification::addAction);
       notification.notify(project);
       alreadyNotified.add(content);
     }
   }
+
+  /**
+   * For old versions of SonarJS before the requirement was stored in the MANIFEST
+   */
+  public static void notifyNodeCommandException(Project project) {
+    Notification notification = ANALYZER_REQUIREMENT_GROUP.createNotification(
+      "<b>CodeScan - Node.js Required</b>",
+      "Node.js >= 8.x is required to perform JavaScript or TypeScript analysis. Check the CodeScan Log for details.",
+      NotificationType.WARNING, null);
+    notification.setImportant(true);
+    notification.notify(project);
+    notification.addAction(new OpenSonarLintLogAction(project));
+  }
+
 }

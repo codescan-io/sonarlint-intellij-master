@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA ITs
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -42,33 +42,34 @@ class IdeaFrame(remoteRobot: RemoteRobot, remoteComponent: RemoteComponent) : Co
   private val ideStatusBar
     get() = find(IdeStatusBarFixture::class.java)
 
-    private fun dumbAware(timeout: Duration = Duration.ofMinutes(5), function: () -> Unit) {
-        step("Wait for smart mode") {
-            waitFor(duration = timeout, interval = Duration.ofSeconds(1)) {
-                runCatching { isDumbMode().not() }.getOrDefault(false)
-            }
-            function()
-            step("..wait for smart mode again") {
-                waitFor(duration = timeout, interval = Duration.ofSeconds(1)) {
-                    isDumbMode().not()
-                }
-            }
+  @JvmOverloads
+  fun dumbAware(timeout: Duration = Duration.ofMinutes(5), function: () -> Unit) {
+    step("Wait for smart mode") {
+      waitFor(duration = timeout, interval = Duration.ofSeconds(1)) {
+        runCatching { isDumbMode().not() }.getOrDefault(false)
+      }
+      function()
+      step("..wait for smart mode again") {
+        waitFor(duration = timeout, interval = Duration.ofSeconds(1)) {
+          isDumbMode().not()
         }
+      }
     }
+  }
 
-    private fun isDumbMode(): Boolean {
-        return callJs("!component.project || com.intellij.openapi. project.DumbService.isDumb(component.project);", true)
-    }
+  private fun isDumbMode(): Boolean {
+    return callJs("!component.project || com.intellij.openapi. project.DumbService.isDumb(component.project);", true)
+  }
 
-    fun closeTipOfTheDay() {
-        dumbAware {
-            optionalStep {
-                dialog("Tip of the Day", Duration.ofSeconds(1)) {
-                    button("Close").click()
-                }
-            }
+  fun closeTipOfTheDay() {
+    dumbAware {
+      optionalStep {
+        dialog("Tip of the Day", Duration.ofSeconds(1)) {
+          button("Close").click()
         }
+      }
     }
+  }
 
   private fun isBackgroundTaskRunning(): Boolean {
     for (i in 0..1) {
@@ -106,10 +107,6 @@ class IdeaFrame(remoteRobot: RemoteRobot, remoteComponent: RemoteComponent) : Co
   fun actionMenu(label: String, function: ActionMenuFixture.() -> Unit): ActionMenuFixture {
     return findAll<ActionMenuFixture>(byXpath("menu $label", "//div[@class='ActionMenu' and @text='$label']"))[0].apply(function)
   }
-
-    fun actionMenuItem(label: String, function: ActionMenuItemFixture.() -> Unit = {}): ActionMenuItemFixture {
-        return findElement<ActionMenuItemFixture>(byXpath("menu item $label", "//div[@class='ActionMenuItem' and @text='$label']")).apply(function)
-    }
 
   fun actionHyperLink(accessiblename: String, function: ActionHyperLinkFixture.() -> Unit): ActionHyperLinkFixture {
     return findElement<ActionHyperLinkFixture>(byXpath("link $accessiblename", "//div[@accessiblename='$accessiblename' and @class='ActionHyperlinkLabel']")).apply(function)

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -24,8 +24,6 @@ import com.intellij.openapi.project.Project;
 import java.awt.GraphicsEnvironment;
 import javax.annotation.Nullable;
 import org.sonarsource.sonarlint.core.client.api.common.analysis.Issue;
-import org.sonarsource.sonarlint.core.commons.IssueSeverity;
-import org.sonarsource.sonarlint.core.commons.RuleType;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -40,17 +38,15 @@ public class SonarLintTestUtils {
   }
 
   public static AnActionEvent createAnActionEvent(@Nullable Project project) {
-    var event = mock(AnActionEvent.class);
+    AnActionEvent event = mock(AnActionEvent.class);
     when(event.getProject()).thenReturn(project);
     return event;
   }
 
   public static Issue createIssue(int id) {
-    var issue = mock(Issue.class);
+    Issue issue = mock(Issue.class);
     when(issue.getRuleKey()).thenReturn(Integer.toString(id));
     when(issue.getMessage()).thenReturn("issue " + id);
-    when(issue.getSeverity()).thenReturn(IssueSeverity.MAJOR);
-    when(issue.getType()).thenReturn(RuleType.BUG);
     return issue;
   }
 }

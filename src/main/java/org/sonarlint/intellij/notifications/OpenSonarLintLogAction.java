@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +25,8 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
+import com.intellij.ui.content.Content;
+import com.intellij.ui.content.ContentManager;
 import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.ui.SonarLintToolWindowFactory;
 
@@ -32,27 +34,27 @@ class OpenSonarLintLogAction extends NotificationAction {
   private final Project project;
 
   OpenSonarLintLogAction(Project project) {
-    super("Open SonarLint Log");
+    super("Open CodeScan Log");
     this.project = project;
   }
 
   @Override
   public void actionPerformed(@NotNull AnActionEvent e, @NotNull Notification notification) {
     notification.expire();
-    var toolWindow = getToolWindow();
+    ToolWindow toolWindow = getToolWindow();
     if (toolWindow != null) {
       toolWindow.show(() -> selectLogsTab(toolWindow));
     }
   }
 
   private ToolWindow getToolWindow() {
-    var toolWindowManager = ToolWindowManager.getInstance(project);
+    ToolWindowManager toolWindowManager = ToolWindowManager.getInstance(project);
     return toolWindowManager.getToolWindow(SonarLintToolWindowFactory.TOOL_WINDOW_ID);
   }
 
   private static void selectLogsTab(ToolWindow toolWindow) {
-    var contentManager = toolWindow.getContentManager();
-    var content = contentManager.findContent(SonarLintToolWindowFactory.LOG_TAB_TITLE);
+    ContentManager contentManager = toolWindow.getContentManager();
+    Content content = contentManager.findContent(SonarLintToolWindowFactory.TAB_LOGS);
     if (content != null) {
       contentManager.setSelectedContent(content);
     }

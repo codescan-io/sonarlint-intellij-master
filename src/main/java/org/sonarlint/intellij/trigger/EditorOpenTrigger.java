@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,17 +26,23 @@ import com.intellij.openapi.fileEditor.FileEditorManagerListener;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupActivity;
 import com.intellij.openapi.vfs.VirtualFile;
+import java.util.Arrays;
+import java.util.Collections;
 import org.jetbrains.annotations.NotNull;
-import org.sonarlint.intellij.analysis.AnalysisSubmitter;
-import org.sonarlint.intellij.core.ProjectBindingManager;
+import org.sonarlint.intellij.common.util.SonarLintUtils;
 
-import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 
 public class EditorOpenTrigger implements FileEditorManagerListener, StartupActivity {
 
+
   @Override
   public void fileOpened(@NotNull FileEditorManager source, @NotNull VirtualFile file) {
-    getService(source.getProject(), AnalysisSubmitter.class).autoAnalyzeFile(file, TriggerType.EDITOR_OPEN);
+    if (!getGlobalSettings().isAutoTrigger()) {
+      return;
+    }
+    SonarLintSubmitter submitter = SonarLintUtils.getService(source.getProject(), SonarLintSubmitter.class);
+    submitter.submitFiles(Collections.singleton(file), TriggerType.EDITOR_OPEN, true);
   }
 
   @Override
@@ -53,9 +59,12 @@ public class EditorOpenTrigger implements FileEditorManagerListener, StartupActi
   public void runActivity(@NotNull Project myProject) {
     if (!ApplicationManager.getApplication().isUnitTestMode()) {
       myProject.getMessageBus().connect(myProject).subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, this);
-      // skip analyzing open files at startup when connected, it will be triggered after the sync
-      if (!getService(myProject, ProjectBindingManager.class).isBindingValid()) {
-        getService(myProject, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.EDITOR_OPEN);
+      if (getGlobalSettings().isAutoTrigger()) {
+        VirtualFile[] openFiles = FileEditorManager.getInstance(myProject).getOpenFiles();
+        if (openFiles.length > 0) {
+          SonarLintSubmitter submitter = SonarLintUtils.getService(myProject, SonarLintSubmitter.class);
+          submitter.submitFiles(Arrays.asList(openFiles), TriggerType.EDITOR_OPEN, true);
+        }
       }
     }
   }

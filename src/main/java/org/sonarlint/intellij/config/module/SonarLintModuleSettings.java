@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,23 +19,13 @@
  */
 package org.sonarlint.intellij.config.module;
 
-import java.util.UUID;
 
-import static org.sonarlint.intellij.common.util.SonarLintUtils.isBlank;
+import org.sonarsource.sonarlint.core.util.StringUtils;
 
 public final class SonarLintModuleSettings {
-  private String uniqueId = UUID.randomUUID().toString();
   private String sqPathPrefix = "";
   private String idePathPrefix = "";
   private String projectKey = "";
-
-  public String getUniqueId() {
-    return uniqueId;
-  }
-
-  public void setUniqueId(String uniqueId) {
-    this.uniqueId = uniqueId;
-  }
 
   public String getProjectKey() {
     return projectKey;
@@ -46,7 +36,7 @@ public final class SonarLintModuleSettings {
   }
 
   public boolean isProjectBindingOverridden() {
-    return !isBlank(projectKey);
+    return !StringUtils.isBlank(projectKey);
   }
 
   public void clearBindingOverride() {

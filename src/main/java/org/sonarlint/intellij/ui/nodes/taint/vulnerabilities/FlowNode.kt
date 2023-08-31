@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,8 +21,8 @@ package org.sonarlint.intellij.ui.nodes.taint.vulnerabilities
 
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.util.ui.JBUI
-import org.sonarlint.intellij.finding.Flow
-import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability
+import org.sonarlint.intellij.issue.Flow
+import org.sonarlint.intellij.issue.vulnerabilities.LocalTaintVulnerability
 import org.sonarlint.intellij.ui.nodes.AbstractNode
 import org.sonarlint.intellij.ui.tree.TreeCellRenderer
 import java.util.Objects
@@ -30,9 +30,8 @@ import java.util.Objects
 class FlowNode(val flow: Flow, private val label: String, val issue: LocalTaintVulnerability) : AbstractNode() {
 
   override fun render(renderer: TreeCellRenderer) {
-    renderer.ipad = JBUI.insets(3)
+    renderer.ipad = JBUI.insets(3, 3, 3, 3)
     renderer.append(label, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES, true)
-    renderer.toolTipText = null
   }
 
   override fun equals(other: Any?): Boolean {
@@ -42,6 +41,4 @@ class FlowNode(val flow: Flow, private val label: String, val issue: LocalTaintV
   override fun hashCode(): Int {
     return Objects.hash(label)
   }
-
-  override fun toString() = label
 }

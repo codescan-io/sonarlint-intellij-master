@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,48 +20,55 @@
 package org.sonarlint.intellij.actions;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.DataKey;
 import com.intellij.openapi.project.Project;
-import org.sonarlint.intellij.analysis.AnalysisStatus;
-import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.issue.LiveIssue;
+import org.sonarlint.intellij.trigger.SonarLintSubmitter;
 import org.sonarlint.intellij.trigger.TriggerType;
 
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
-import static org.sonarlint.intellij.util.DataKeys.ISSUE_DATA_KEY;
 
-public class DisableRuleAction extends AbstractSonarAction {
+public class DisableRuleAction extends AnAction {
+  public static final DataKey<LiveIssue> ISSUE_DATA_KEY = DataKey.create("sonarlint_issue");
 
   public DisableRuleAction() {
-    super("Disable Rule", "Disable the SonarLint rule that activated this rule", AllIcons.Actions.Cancel);
+    super("Disable Rule", "Disable the CodeScan rule that activated this rule", AllIcons.Actions.Cancel);
   }
 
-  @Override
-  protected boolean isVisible(AnActionEvent e) {
-    var project = e.getProject();
-    var issue = e.getData(ISSUE_DATA_KEY);
-    return project != null && !getSettingsFor(project).isBindingEnabled() && issue != null;
-  }
-
-  @Override
-  protected boolean isEnabled(AnActionEvent e, Project project, AnalysisStatus status) {
-    var issue = e.getData(ISSUE_DATA_KEY);
-    return issue != null && !getGlobalSettings().isRuleExplicitlyDisabled(issue.getRuleKey());
-  }
-
-  @Override
-  public void actionPerformed(AnActionEvent e) {
-    var project = e.getProject();
+  @Override public void actionPerformed(AnActionEvent e) {
+    Project project = e.getProject();
     if (project == null) {
       return;
     }
 
-    var issue = e.getData(ISSUE_DATA_KEY);
+    LiveIssue issue = e.getData(ISSUE_DATA_KEY);
     if (issue != null) {
       disableRule(issue.getRuleKey());
-      SonarLintUtils.getService(project, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.BINDING_UPDATE);
+      SonarLintSubmitter submitter = SonarLintUtils.getService(project, SonarLintSubmitter.class);
+      submitter.submitOpenFilesAuto(TriggerType.BINDING_UPDATE);
     }
+  }
+
+  @Override
+  public void update(AnActionEvent e) {
+    Project project = e.getProject();
+    if (project == null) {
+      e.getPresentation().setEnabled(false);
+      e.getPresentation().setVisible(false);
+      return;
+    }
+
+    LiveIssue issue = e.getData(ISSUE_DATA_KEY);
+    boolean visible = !getSettingsFor(project).isBindingEnabled() && issue != null;
+    e.getPresentation().setVisible(visible);
+
+    boolean explicitlyDisabled = issue != null && getGlobalSettings().isRuleExplicitlyDisabled(issue.getRuleKey());
+    boolean enabled = visible && !explicitlyDisabled;
+    e.getPresentation().setEnabled(enabled);
   }
 
   private static void disableRule(String ruleKey) {

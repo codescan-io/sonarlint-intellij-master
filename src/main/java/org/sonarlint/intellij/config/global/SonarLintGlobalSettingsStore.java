@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -45,10 +45,6 @@ public final class SonarLintGlobalSettingsStore implements PersistentStateCompon
   public void loadState(SonarLintGlobalSettings settings) {
     this.settings = settings;
     initializeRulesByKey();
-  }
-
-  public void save(SonarLintGlobalSettings settings) {
-    this.settings = settings;
   }
 
   private void initializeRulesByKey() {

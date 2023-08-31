@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA ITs
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -46,7 +46,7 @@ fun ContainerFixture.jbTextField() = findElement<JTextFieldFixture>(byXpath("//d
 
 fun ContainerFixture.jbTable() = findElement<JBTableFixture>(byXpath("//div[@class='JBTable']"))
 
-fun CommonContainerFixture.jPasswordField() = textField(byXpath("//div[@class='JPasswordField']"))
+fun CommonContainerFixture.jTextField() = textField(byXpath("//div[@class='JTextField']"))
 
 fun ActionButtonFixture.clickWhenEnabled() {
   waitFor(Duration.ofSeconds(5)) {

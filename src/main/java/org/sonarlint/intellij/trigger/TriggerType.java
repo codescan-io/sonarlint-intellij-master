@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,31 +20,23 @@
 package org.sonarlint.intellij.trigger;
 
 public enum TriggerType {
-  EDITOR_OPEN("Editor open", true),
-  ACTION("Action", true),
-  ALL("All files", false),
-  CHANGED_FILES("Changed files", false),
-  COMPILATION("Compilation", false),
-  EDITOR_CHANGE("Editor change", false),
-  CHECK_IN("Pre-commit check", true),
-  CONFIG_CHANGE("Config change", true),
-  BINDING_UPDATE("Binding update", true),
-  OPEN_SECURITY_HOTSPOT("Open Security Hotspot", true),
-  SERVER_SENT_EVENT("Server-sent event", false);
+  EDITOR_OPEN("Editor open"),
+  ACTION("Action"),
+  ALL("All files"),
+  CHANGED_FILES("Changed files"),
+  COMPILATION("Compilation"),
+  EDITOR_CHANGE("Editor change"),
+  CHECK_IN("Pre-commit check"),
+  CONFIG_CHANGE("Config change"),
+  BINDING_UPDATE("Binding update");
 
   private final String name;
-  private final boolean shouldUpdateServerIssues;
 
-  TriggerType(String name, boolean shouldUpdateServerIssues) {
+  TriggerType(String name) {
     this.name = name;
-    this.shouldUpdateServerIssues = shouldUpdateServerIssues;
   }
 
   public String getName() {
     return name;
-  }
-
-  public boolean isShouldUpdateServerIssues() {
-    return shouldUpdateServerIssues;
   }
 }

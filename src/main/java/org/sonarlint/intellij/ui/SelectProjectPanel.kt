@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,6 +21,7 @@ package org.sonarlint.intellij.ui
 
 import com.intellij.ide.IdeBundle
 import com.intellij.ide.actions.OpenProjectFileChooserDescriptor
+import com.intellij.ide.impl.ProjectUtil
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.project.Project
@@ -33,7 +34,7 @@ import javax.swing.JLabel
 import javax.swing.JPanel
 
 
-class SelectProjectPanel(private val parent: ProjectSelectionDialog) : JPanel() {
+class SelectProjectPanel(private val onProjectSelected: (Project) -> Unit) : JPanel() {
 
     init {
         val openProjectButton = JButton("Open or import")
@@ -41,7 +42,7 @@ class SelectProjectPanel(private val parent: ProjectSelectionDialog) : JPanel() 
         layout = VerticalFlowLayout(VerticalFlowLayout.TOP, 5, 15, false, false)
         add(openProjectButton)
         add(JLabel("or"))
-        add(SonarLintRecentProjectPanel(parent))
+        add(SonarLintRecentProjectPanel(onProjectSelected))
 
         openProjectButton.addActionListener {
             val descriptor: FileChooserDescriptor = OpenProjectFileChooserDescriptor(false)
@@ -52,11 +53,17 @@ class SelectProjectPanel(private val parent: ProjectSelectionDialog) : JPanel() 
                     Messages.showInfoMessage(null as Project?, message, IdeBundle.message("title.cannot.open.project"))
                     return@chooseFile
                 }
-                parent.setSelectedProject(file.path)
+                val project = doOpenFile(file) ?: return@chooseFile
+                onProjectSelected(project)
             }
         }
 
     }
 
+    private fun doOpenFile(file: VirtualFile): Project? {
+        return if (file.isDirectory)
+            ProjectUtil.openOrImport(file.path, null, false)
+        else null
+    }
 }
 

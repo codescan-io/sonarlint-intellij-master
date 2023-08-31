@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,27 +21,18 @@ package org.sonarlint.intellij.ui.nodes;
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Vector;
 import java.util.stream.Collectors;
+import javax.swing.tree.TreeNode;
 import org.sonarlint.intellij.ui.tree.TreeCellRenderer;
 
 public class SummaryNode extends AbstractNode {
   private String emptyText;
-  private final boolean forSecurityHotspot;
 
   public SummaryNode() {
     super();
     this.emptyText = "No issues to display";
-    this.forSecurityHotspot = false;
-  }
-
-  public SummaryNode(boolean forSecurityHotspot) {
-    super();
-    if (forSecurityHotspot) {
-      this.emptyText = "No Security Hotspots to display";
-    } else {
-      this.emptyText = "No issues to display";
-    }
-    this.forSecurityHotspot = forSecurityHotspot;
   }
 
   public void setEmptyText(String emptyText) {
@@ -49,18 +40,14 @@ public class SummaryNode extends AbstractNode {
   }
 
   public String getText() {
-    var findings = getFindingCount();
-    var files = getChildCount();
+    int issues = getIssueCount();
+    int files = getChildCount();
 
-    if (findings == 0) {
+    if (issues == 0) {
       return emptyText;
     }
 
-    if (forSecurityHotspot) {
-      return String.format("Found %d %s in %d %s", findings, findings == 1 ? "Security Hotspot" : "Security Hotspots", files, files == 1 ? "file" : "files");
-    }
-
-    return String.format("Found %d %s in %d %s", findings, findings == 1 ? "issue" : "issues", files, files == 1 ? "file" : "files");
+    return String.format("Found %d %s in %d %s", issues, issues == 1 ? "issue" : "issues", files, files == 1 ? "file" : "files");
   }
 
   public int insertFileNode(FileNode newChild, Comparator<FileNode> comparator) {
@@ -69,42 +56,19 @@ public class SummaryNode extends AbstractNode {
       return 0;
     }
 
-    var nodes = children.stream().map(n -> (FileNode) n).collect(Collectors.<FileNode>toList());
-    var foundIndex = Collections.binarySearch(nodes, newChild, comparator);
-    if (foundIndex >= 0) {
+    // keep the cast for Java 8 compat
+    List<FileNode> nodes = ((Vector<TreeNode>)children).stream().map(FileNode.class::cast).collect(Collectors.<FileNode>toList());
+    int i = Collections.binarySearch(nodes, newChild, comparator);
+    if (i >= 0) {
       throw new IllegalArgumentException("Child already exists");
     }
 
-    int insertIdx = -foundIndex - 1;
+    int insertIdx = -i - 1;
     insert(newChild, insertIdx);
     return insertIdx;
   }
 
-  public int insertLiveSecurityHotspotNode(LiveSecurityHotspotNode newChild, Comparator<LiveSecurityHotspotNode> comparator) {
-    if (children == null) {
-      insert(newChild, 0);
-      return 0;
-    }
-
-    var nodes = children.stream().map(n -> (LiveSecurityHotspotNode) n).collect(Collectors.<LiveSecurityHotspotNode>toList());
-    var foundIndex = Collections.binarySearch(nodes, newChild, comparator);
-    if (foundIndex >= 0) {
-      throw new IllegalArgumentException("Child already exists");
-    }
-
-    int insertIdx = -foundIndex - 1;
-    insert(newChild, insertIdx);
-    return insertIdx;
-  }
-
-  @Override
-  public void render(TreeCellRenderer renderer) {
+  @Override public void render(TreeCellRenderer renderer) {
     renderer.append(getText());
-    renderer.setToolTipText(null);
-  }
-
-  @Override
-  public String toString() {
-    return getText();
   }
 }

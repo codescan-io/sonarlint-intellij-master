@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -28,7 +28,8 @@ import com.intellij.ui.HyperlinkLabel;
 import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.ui.components.JBLabel;
-import com.intellij.ui.components.JBScrollPane;
+import icons.SonarLintIcons;
+
 import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -38,9 +39,8 @@ import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.ScrollPaneConstants;
 import javax.swing.event.HyperlinkEvent;
-import org.sonarlint.intellij.SonarLintIcons;
+
 import org.sonarlint.intellij.SonarLintPlugin;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.ConfigurationPanel;
@@ -57,54 +57,53 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
   }
 
   private JComponent createSonarLintPanel() {
-    var sonarlintIcon = new JBLabel(SonarLintIcons.SONARLINT_32);
-    var plugin = SonarLintUtils.getService(SonarLintPlugin.class);
-    var title = new JBLabel("<html><b>SonarLint " + plugin.getVersion() + "</b></html>");
-    var linkLabel = new HyperlinkLabel("https://www.sonarlint.org");
-    linkLabel.addHyperlinkListener(e -> BrowserUtil.browse("https://www.sonarlint.org/intellij"));
-    var copyrightLabel = new JBLabel("<html>&copy; " + LocalDate.now().getYear() + " SonarSource</html>");
+    JBLabel sonarlintIcon = new JBLabel(SonarLintIcons.SONARLINT_32);
+    SonarLintPlugin plugin = SonarLintUtils.getService(SonarLintPlugin.class);
+    JBLabel title = new JBLabel("<html><b>CodeScan IntelliJ " + plugin.getVersion() + "</b></html>");
+    HyperlinkLabel linkLabel = new HyperlinkLabel("codescan.io");
+    linkLabel.addHyperlinkListener(e -> BrowserUtil.browse("https://www.codescan.io"));
+    JBLabel copyrightLabel = new JBLabel("<html>&copy; " + LocalDate.now().getYear() + " CodeScan</html>");
 
-    var infoPanel = new JPanel(new GridBagLayout());
-    var constraints = new GridBagConstraints();
-    constraints.gridx = 0;
-    constraints.gridy = 0;
-    constraints.ipadx = 10;
-    constraints.ipady = 5;
-    constraints.gridwidth = 2;
-    infoPanel.add(title, constraints);
-    constraints.gridx = 0;
-    constraints.gridy = 1;
-    constraints.ipady = 2;
-    constraints.gridwidth = 1;
-    constraints.gridheight = 2;
-    constraints.fill = GridBagConstraints.VERTICAL;
-    infoPanel.add(sonarlintIcon, constraints);
-    constraints.gridx = 1;
-    constraints.gridheight = 1;
-    constraints.fill = GridBagConstraints.NONE;
-    infoPanel.add(linkLabel, constraints);
-    constraints.gridy = 2;
-    constraints.fill = GridBagConstraints.NONE;
-    infoPanel.add(copyrightLabel, constraints);
+    JPanel infoPanel = new JPanel(new GridBagLayout());
+    GridBagConstraints c = new GridBagConstraints();
+    c.gridx = 0;
+    c.gridy = 0;
+    c.ipadx = 10;
+    c.ipady = 5;
+    c.gridwidth = 2;
+    infoPanel.add(title, c);
+    c.gridx = 0;
+    c.gridy = 1;
+    c.ipady = 2;
+    c.gridwidth = 1;
+    c.gridheight = 2;
+    c.fill = GridBagConstraints.VERTICAL;
+    infoPanel.add(sonarlintIcon, c);
+    c.gridx = 1;
+    c.gridheight = 1;
+    c.fill = GridBagConstraints.NONE;
+    infoPanel.add(linkLabel, c);
+    c.gridy = 2;
+    c.fill = GridBagConstraints.NONE;
+    infoPanel.add(copyrightLabel, c);
 
     return infoPanel;
   }
 
   private JComponent createTelemetryPanel() {
     // tooltip
-    final var link = new HyperlinkLabel("");
-    link.setTextWithHyperlink("See a <hyperlink>sample of the data</hyperlink>");
+    final HyperlinkLabel link = new HyperlinkLabel("");
+    link.setHyperlinkText("See a ", "sample of the data", "");
     link.addHyperlinkListener(new HyperlinkAdapter() {
       @Override
       protected void hyperlinkActivated(HyperlinkEvent e) {
-        final var label = new JLabel("<html><pre>{\n"
+        final JLabel label = new JLabel("<html><pre>{\n"
           + "    \"days_since_installation\": 120,\n"
           + "    \"days_of_use\": 40,\n"
           + "    \"sonarlint_version\": \"2.9\",\n"
-          + "    \"sonarlint_product\": \"SonarLint IntelliJ\",\n"
+          + "    \"sonarlint_product\": \"CodeScan IntelliJ\",\n"
           + "    \"ide_version\": \"IntelliJ IDEA 2020.1 (Community Edition)\",\n"
           + "    \"os\": \"Linux\",\n"
-          + "    \"arch\": \"amd64\",\n"
           + "    \"jre\": \"11.0.6\",\n"
           + "    \"nodejs\": \"11.12.0\",\n"
           + "    \"connected_mode_used\": true,\n"
@@ -124,13 +123,6 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
           + "        }\n"
           + "      },\n"
           + "      \"disabled\": false\n"
-          + "    },\n"
-          + "    \"hotspot\": {\n"
-          + "      \"open_in_browser_count\": 1,\n"
-          + "      \"status_changed_count\": 2\n"
-          + "    },\n"
-          + "    \"issue\": {\n"
-          + "      \"status_changed_count\": 3\n"
           + "    },\n"
           + "    \"show_hotspot\": {\n"
           + "      \"requests_count\": 3\n"
@@ -155,53 +147,48 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
           + "        \"java:S1656\",\n"
           + "        \"java:S1872\"\n"
           + "      ],\n"
-          + "    },\n"
-          + "    \"intellij\": {\n"
-          + "        \"jcefSupported\": true\n"
-          + "    }\n"
+          + "    }"
           + "}</pre></html>");
+        label.setBorder(HintUtil.createHintBorder());
+        label.setBackground(HintUtil.getInformationColor());
         label.setOpaque(true);
-        var scrollPane = new JBScrollPane(label);
-        scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.setBorder(HintUtil.createHintBorder());
-        scrollPane.setBackground(HintUtil.getInformationColor());
-        HintManager.getInstance().showHint(scrollPane, RelativePoint.getNorthWestOf(link), HintManager.HIDE_BY_ANY_KEY | HintManager.HIDE_BY_TEXT_CHANGE, -1);
+        HintManager.getInstance().showHint(label, RelativePoint.getNorthWestOf(link), HintManager.HIDE_BY_ANY_KEY | HintManager.HIDE_BY_TEXT_CHANGE, -1);
       }
     });
 
     // info
-    var info = new JBLabel("<html>By sharing anonymous SonarLint usage statistics, you help us understand how SonarLint is used so "
+    JBLabel info = new JBLabel("<html>By sharing anonymous CodeScan usage statistics, you help us understand how CodeScan is used so "
       + "we can improve the plugin to work even better for you. We don't collect source code, IP addresses, or any personally identifying "
       + "information. And we don't share the data with anyone else.</html>");
 
     // checkbox
-    enableTelemetryCheckBox = new JCheckBox("Share anonymous SonarLint statistics");
+    enableTelemetryCheckBox = new JCheckBox("Share anonymous CodeScan statistics");
     enableTelemetryCheckBox.setFocusable(false);
-    var tickOptions = new JPanel(new VerticalFlowLayout());
+    JPanel tickOptions = new JPanel(new VerticalFlowLayout());
     tickOptions.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
     tickOptions.add(enableTelemetryCheckBox);
 
     // all telemetry together
-    var infoPanel = new JPanel(new GridBagLayout());
+    JPanel infoPanel = new JPanel(new GridBagLayout());
     infoPanel.setBorder(IdeBorderFactory.createTitledBorder("Statistics"));
-    var constraints = new GridBagConstraints();
-    constraints.gridheight = 1;
-    constraints.gridx = 0;
-    constraints.gridy = 0;
-    constraints.anchor = GridBagConstraints.NORTH;
-    constraints.fill = GridBagConstraints.HORIZONTAL;
-    constraints.weightx = 1.0f;
+    GridBagConstraints c = new GridBagConstraints();
+    c.gridheight = 1;
+    c.gridx = 0;
+    c.gridy = 0;
+    c.anchor = GridBagConstraints.NORTH;
+    c.fill = GridBagConstraints.HORIZONTAL;
+    c.weightx = 1.0f;
 
-    infoPanel.add(info, constraints);
-    constraints.gridy = 1;
-    constraints.anchor = GridBagConstraints.WEST;
-    constraints.fill = GridBagConstraints.HORIZONTAL;
-    infoPanel.add(link, constraints);
-    constraints.gridy = 2;
-    constraints.weighty = 1.0f;
-    constraints.anchor = GridBagConstraints.WEST;
-    constraints.fill = GridBagConstraints.BOTH;
-    infoPanel.add(tickOptions, constraints);
+    infoPanel.add(info, c);
+    c.gridy = 1;
+    c.anchor = GridBagConstraints.WEST;
+    c.fill = GridBagConstraints.HORIZONTAL;
+    infoPanel.add(link, c);
+    c.gridy = 2;
+    c.weighty = 1.0f;
+    c.anchor = GridBagConstraints.WEST;
+    c.fill = GridBagConstraints.BOTH;
+    infoPanel.add(tickOptions, c);
 
     return infoPanel;
   }

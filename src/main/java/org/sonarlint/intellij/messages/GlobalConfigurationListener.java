@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -35,7 +35,7 @@ public interface GlobalConfigurationListener {
   /**
    * Called when settings are saved (clicking "Apply" or "Ok")
    */
-  void applied(SonarLintGlobalSettings previousSettings, SonarLintGlobalSettings newSettings);
+  void applied(SonarLintGlobalSettings settings);
 
   abstract class Adapter implements GlobalConfigurationListener {
     @Override
@@ -44,7 +44,7 @@ public interface GlobalConfigurationListener {
     }
 
     @Override
-    public void applied(SonarLintGlobalSettings previousSettings, SonarLintGlobalSettings newSettings) {
+    public void applied(SonarLintGlobalSettings settings) {
       // nothing done by default
     }
   }

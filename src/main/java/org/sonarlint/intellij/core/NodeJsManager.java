@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,29 +26,29 @@ import java.nio.file.Paths;
 import java.util.Objects;
 import javax.annotation.CheckForNull;
 
-import com.intellij.openapi.components.Service;
 import org.apache.commons.lang.StringUtils;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.Settings;
 import org.sonarlint.intellij.config.global.SonarLintGlobalSettings;
 import org.sonarlint.intellij.messages.GlobalConfigurationListener;
 import org.sonarsource.sonarlint.core.NodeJsHelper;
-import org.sonarsource.sonarlint.core.commons.Version;
+import org.sonarsource.sonarlint.core.client.api.common.Version;
 
-@Service(Service.Level.APP)
-public final class NodeJsManager {
+public class NodeJsManager {
+
   private boolean nodeInit = false;
   private Path nodeJsPath = null;
   private Version nodeJsVersion = null;
+  private String previousSettingValue = "";
 
   public NodeJsManager() {
     ApplicationManager.getApplication().getMessageBus().connect().subscribe(GlobalConfigurationListener.TOPIC, new GlobalConfigurationListener.Adapter() {
-      @Override public void applied(SonarLintGlobalSettings previousSettings, SonarLintGlobalSettings newSettings) {
-        if (!Objects.equals(newSettings.getNodejsPath(), previousSettings.getNodejsPath())) {
+      @Override public void applied(SonarLintGlobalSettings settings) {
+        if (!Objects.equals(settings.getNodejsPath(), previousSettingValue)) {
           clear();
           // Node.js path is passed at engine startup, so we have to restart them all to ensure the new value is taken into account
           // Don't wait for the engines to stop, to not freeze the UI
-          SonarLintUtils.getService(EngineManager.class).stopAllEngines(true);
+          SonarLintUtils.getService(SonarLintEngineManager.class).stopAllEngines(true);
         }
       }
     });
@@ -62,7 +62,7 @@ public final class NodeJsManager {
 
   private synchronized void initNodeIfNeeded() {
     if (!nodeInit) {
-      var helper = new NodeJsHelper();
+      NodeJsHelper helper = new NodeJsHelper();
       helper.detect(getNodeJsPathFromConfig());
       this.nodeInit = true;
       this.nodeJsPath = helper.getNodeJsPath();
@@ -81,8 +81,9 @@ public final class NodeJsManager {
   }
 
   @CheckForNull
-  private static Path getNodeJsPathFromConfig() {
-    final var nodejsPathStr = Settings.getGlobalSettings().getNodejsPath();
+  private Path getNodeJsPathFromConfig() {
+    final String nodejsPathStr = Settings.getGlobalSettings().getNodejsPath();
+    this.previousSettingValue = nodejsPathStr;
     if (StringUtils.isNotBlank(nodejsPathStr)) {
       try {
         return Paths.get(nodejsPathStr);

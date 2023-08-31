@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,49 +21,46 @@ package org.sonarlint.intellij.actions;
 
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.actionSystem.UpdateInBackground;
-import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
-import java.util.stream.Stream;
+
+import java.util.Arrays;
 import javax.swing.Icon;
+
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
 
-// UpdateInBackground is scheduled for removal and comes with a replacement in 2022.2. We have to use it for older versions
-public abstract class AbstractSonarAction extends AnAction implements DumbAware, UpdateInBackground {
-  protected AbstractSonarAction() {
+public abstract class AbstractSonarAction extends AnAction {
+  public AbstractSonarAction() {
     super();
   }
 
-  protected AbstractSonarAction(@Nullable String text) {
-    super(text);
-  }
-
-  protected AbstractSonarAction(@Nullable String text, @Nullable String description, @Nullable Icon icon) {
+  public AbstractSonarAction(@Nullable String text, @Nullable String description, @Nullable Icon icon) {
     super(text, description, icon);
   }
 
   @Override
-  public final void update(AnActionEvent e) {
-    var p = e.getProject();
-    if (p == null || !p.isInitialized() || p.isDisposed()) {
-      e.getPresentation().setEnabledAndVisible(false);
-      return;
-    }
-    var visible = isVisible(e);
-    e.getPresentation().setVisible(visible);
-    if (!visible) {
+  public void update(AnActionEvent e) {
+    Project p = e.getProject();
+
+    if (isVisible(e.getPlace())) {
+      e.getPresentation().setVisible(true);
+    } else {
+      e.getPresentation().setVisible(false);
       e.getPresentation().setEnabled(false);
       return;
     }
 
-    e.getPresentation().setEnabled(isEnabled(e, p, AnalysisStatus.get(p)));
-    updatePresentation(e, p);
+    if (p == null || !p.isInitialized() || p.isDisposed()) {
+      e.getPresentation().setEnabled(false);
+    } else {
+      AnalysisStatus status = AnalysisStatus.get(p);
+      e.getPresentation().setEnabled(isEnabled(e, p, status));
+    }
   }
 
   static boolean isRiderSlnOrCsproj(VirtualFile[] files) {
-    return Stream.of(files)
+    return Arrays.stream(files)
       .allMatch(f -> f.getName().endsWith(".sln") || f.getName().endsWith(".csproj"));
   }
 
@@ -73,15 +70,9 @@ public abstract class AbstractSonarAction extends AnAction implements DumbAware,
    *
    * @see com.intellij.openapi.actionSystem.ActionPlaces
    */
-  protected boolean isVisible(AnActionEvent e) {
+  protected boolean isVisible(String place) {
     return true;
   }
 
-  protected boolean isEnabled(AnActionEvent e, Project project, AnalysisStatus status) {
-    return true;
-  }
-
-  protected void updatePresentation(AnActionEvent e, Project project) {
-    // let subclasses change text and icon
-  }
+  protected abstract boolean isEnabled(AnActionEvent e, Project project, AnalysisStatus status);
 }

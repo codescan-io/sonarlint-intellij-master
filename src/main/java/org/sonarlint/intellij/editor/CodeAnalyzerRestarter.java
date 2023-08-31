@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,21 +20,26 @@
 package org.sonarlint.intellij.editor;
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
-import com.intellij.openapi.components.Service;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.serviceContainer.NonInjectable;
+import com.intellij.util.messages.MessageBus;
+import com.intellij.util.messages.MessageBusConnection;
+
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
-import java.util.stream.Stream;
+import java.util.Set;
 import javax.annotation.CheckForNull;
 
+import org.sonarlint.intellij.messages.IssueStoreListener;
 
-@Service(Service.Level.PROJECT)
-public final class CodeAnalyzerRestarter {
+public class CodeAnalyzerRestarter implements IssueStoreListener {
+  private final MessageBus messageBus;
   private final Project myProject;
   private final DaemonCodeAnalyzer codeAnalyzer;
 
@@ -46,30 +51,35 @@ public final class CodeAnalyzerRestarter {
   @NonInjectable
   CodeAnalyzerRestarter(Project project, DaemonCodeAnalyzer codeAnalyzer) {
     myProject = project;
+    this.messageBus = project.getMessageBus();
     this.codeAnalyzer = codeAnalyzer;
   }
 
+  public void init() {
+    MessageBusConnection busConnection = messageBus.connect(myProject);
+    busConnection.subscribe(IssueStoreListener.SONARLINT_ISSUE_STORE_TOPIC, this);
+  }
 
   public void refreshOpenFiles() {
     if (myProject.isDisposed()) {
       return;
     }
-    var fileEditorManager = FileEditorManager.getInstance(myProject);
+    FileEditorManager fileEditorManager = FileEditorManager.getInstance(myProject);
 
-    var openFiles = fileEditorManager.getOpenFiles();
-    Stream.of(openFiles)
+    VirtualFile[] openFiles = fileEditorManager.getOpenFiles();
+    Arrays.stream(openFiles)
       .map(this::getPsi)
       .filter(Objects::nonNull)
       .forEach(codeAnalyzer::restart);
   }
 
-  public void refreshFiles(Collection<VirtualFile> changedFiles) {
+  void refreshFiles(Collection<VirtualFile> changedFiles) {
     if (myProject.isDisposed()) {
       return;
     }
-    var fileEditorManager = FileEditorManager.getInstance(myProject);
-    var openFiles = fileEditorManager.getOpenFiles();
-    Stream.of(openFiles)
+    FileEditorManager fileEditorManager = FileEditorManager.getInstance(myProject);
+    VirtualFile[] openFiles = fileEditorManager.getOpenFiles();
+    Arrays.stream(openFiles)
       .filter(changedFiles::contains)
       .map(this::getPsi)
       .filter(Objects::nonNull)
@@ -82,5 +92,13 @@ public final class CodeAnalyzerRestarter {
       return null;
     }
     return PsiManager.getInstance(myProject).findFile(virtualFile);
+  }
+
+  @Override public void filesChanged(final Set<VirtualFile> changedFiles) {
+    ApplicationManager.getApplication().invokeLater(() -> refreshFiles(changedFiles));
+  }
+
+  @Override public void allChanged() {
+    ApplicationManager.getApplication().invokeLater(this::refreshOpenFiles);
   }
 }

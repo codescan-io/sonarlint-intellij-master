@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,44 +21,38 @@ package org.sonarlint.intellij;
 
 import com.intellij.lang.Language;
 import com.intellij.notification.Notification;
+import com.intellij.notification.NotificationsManager;
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
 import com.intellij.serviceContainer.ComponentManagerImpl;
-import com.intellij.testFramework.fixtures.BasePlatformTestCase;
-import java.lang.reflect.Method;
+import com.intellij.testFramework.fixtures.LightPlatformCodeInsightFixture4TestCase;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Stream;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.TestInfo;
-import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.After;
+import org.junit.Before;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
+import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.Settings;
 import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.config.global.SonarLintGlobalSettings;
 import org.sonarlint.intellij.config.module.SonarLintModuleSettings;
 import org.sonarlint.intellij.config.project.SonarLintProjectSettings;
-import org.sonarlint.intellij.core.EngineManager;
-import org.sonarlint.intellij.core.TestEngineManager;
+import org.sonarlint.intellij.messages.GlobalConfigurationListener;
 import org.sonarlint.intellij.messages.ProjectConfigurationListener;
 import org.sonarlint.intellij.ui.SonarLintConsoleTestImpl;
 
 import static com.intellij.notification.NotificationsManager.getNotificationsManager;
-import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 
-@ExtendWith(RunInEdtInterceptor.class)
-public abstract class AbstractSonarLintLightTests extends BasePlatformTestCase {
+public abstract class AbstractSonarLintLightTests extends LightPlatformCodeInsightFixture4TestCase {
 
   private Disposable disposable;
 
@@ -67,62 +61,36 @@ public abstract class AbstractSonarLintLightTests extends BasePlatformTestCase {
     return Paths.get("src/test/testData/" + this.getClass().getSimpleName()).toAbsolutePath().toString();
   }
 
-  @BeforeEach
-  final void beforeEachLightTest(TestInfo testInfo) throws Exception {
-    // explicitly call TestCase.setName as IntelliJ relies on it for the setup
-    setName(testInfo.getTestMethod().map(Method::getName).orElse("test"));
-    super.setUp();
+  @Before
+  public final void init() {
     disposable = Disposer.newDisposable();
+  }
+
+  @After
+  public final void restore() {
     getGlobalSettings().setRules(Collections.emptyList());
     getGlobalSettings().setServerConnections(Collections.emptyList());
     setGlobalLevelExclusions(Collections.emptyList());
-    getProjectSettings().setConnectionName(null);
     getProjectSettings().setProjectKey(null);
     getProjectSettings().setBindingEnabled(false);
-    getProjectSettings().setBindingSuggestionsEnabled(true);
     setProjectLevelExclusions(Collections.emptyList());
     getModuleSettings().setIdePathPrefix("");
     getModuleSettings().setSqPathPrefix("");
     getModuleSettings().clearBindingOverride();
-  }
-
-  @RegisterExtension
-  AfterTestExecutionCallback afterTestExecutionCallback = context -> {
-    Optional<Throwable> exception = context.getExecutionException();
-    var console = getConsole();
-    if (console instanceof SonarLintConsoleTestImpl && exception.isPresent()) {
-      var testConsole = (SonarLintConsoleTestImpl) console;
-      var testName = context.getDisplayName();
-      System.out.println("Test '" + testName + "' failed. Logs:");
-      testConsole.flushTo(System.out);
-      System.out.println("End of logs for test '" + testName + "'");
-    } else {
-      console.clear();
+    if (!getProject().isDisposed()) {
+      AnalysisStatus.get(getProject()).stopRun();
     }
-  };
-
-  @AfterEach
-  final void afterEachLightTest() throws Exception {
-    try {
-      getEngineManager().stopAllEngines(false);
-      if (!getProject().isDisposed()) {
-        AnalysisStatus.get(getProject()).stopRun();
-      }
-      Disposer.dispose(disposable);
-
-    } finally {
-      super.tearDown();
-    }
+    Disposer.dispose(disposable);
   }
 
   protected void clearNotifications() {
-    var mgr = getNotificationsManager();
-    Stream.of(mgr.getNotificationsOfType(Notification.class, getProject()))
+    NotificationsManager mgr = getNotificationsManager();
+    Arrays.stream(mgr.getNotificationsOfType(Notification.class, getProject()))
       .forEach(mgr::expire);
   }
 
   protected List<Notification> getProjectNotifications() {
-    return List.of(getNotificationsManager().getNotificationsOfType(Notification.class, getProject()));
+    return Arrays.asList(getNotificationsManager().getNotificationsOfType(Notification.class, getProject()));
   }
 
   protected <T> void replaceProjectService(Class<T> clazz, T newInstance) {
@@ -133,48 +101,44 @@ public abstract class AbstractSonarLintLightTests extends BasePlatformTestCase {
     ((ComponentManagerImpl) getModule()).replaceServiceInstance(clazz, newInstance, disposable);
   }
 
-  protected SonarLintGlobalSettings getGlobalSettings() {
+  public SonarLintGlobalSettings getGlobalSettings() {
     return Settings.getGlobalSettings();
   }
 
-  protected SonarLintProjectSettings getProjectSettings() {
+  public SonarLintProjectSettings getProjectSettings() {
     return getSettingsFor(getProject());
   }
 
-  protected SonarLintModuleSettings getModuleSettings() {
+  public SonarLintModuleSettings getModuleSettings() {
     return getSettingsFor(getModule());
   }
 
-  protected TestEngineManager getEngineManager() {
-    return (TestEngineManager) getService(EngineManager.class);
+  protected SonarLintConsoleTestImpl getConsole() {
+    return (SonarLintConsoleTestImpl) SonarLintUtils.getService(getProject(), SonarLintConsole.class);
   }
 
-  protected SonarLintConsole getConsole() {
-    return getService(getProject(), SonarLintConsole.class);
-  }
-
-  protected VirtualFile createTestFile(String fileName, Language language, String text) {
+  public VirtualFile createTestFile(String fileName, Language language, String text) {
     return createTestPsiFile(fileName, language, text).getVirtualFile();
   }
 
-  protected VirtualFile createAndOpenTestVirtualFile(String fileName, Language language, String text) {
-    var file = createTestFile(fileName, language, text);
+  public VirtualFile createAndOpenTestVirtualFile(String fileName, Language language, String text) {
+    VirtualFile file = createTestFile(fileName, language, text);
     FileEditorManager.getInstance(getProject()).openFile(file, false);
     return file;
   }
 
-  protected PsiFile createAndOpenTestPsiFile(String fileName, Language language, String text) {
-    var file = createTestPsiFile(fileName, language, text);
+  public PsiFile createAndOpenTestPsiFile(String fileName, Language language, String text) {
+    PsiFile file = createTestPsiFile(fileName, language, text);
     FileEditorManager.getInstance(getProject()).openFile(file.getVirtualFile(), false);
     return file;
   }
 
-  protected PsiFile createTestPsiFile(String fileName, Language language, String text) {
+  public PsiFile createTestPsiFile(String fileName, Language language, String text) {
     return PsiFileFactory.getInstance(getProject()).createFileFromText(fileName, language, text, true, true);
   }
 
   protected void connectProjectTo(String hostUrl, String connectionName, String projectKey) {
-    var connection = ServerConnection.newBuilder().setHostUrl(hostUrl).setName(connectionName).build();
+    ServerConnection connection = ServerConnection.newBuilder().setHostUrl(hostUrl).setName(connectionName).build();
     getGlobalSettings().addServerConnection(connection);
     getProjectSettings().bindTo(connection, projectKey);
   }
@@ -189,17 +153,17 @@ public abstract class AbstractSonarLintLightTests extends BasePlatformTestCase {
   }
 
   protected void setProjectLevelExclusions(List<String> exclusions) {
-    var projectSettings = getProjectSettings();
+    SonarLintProjectSettings projectSettings = getProjectSettings();
     projectSettings.setFileExclusions(exclusions);
     ProjectConfigurationListener projectListener = getProject().getMessageBus().syncPublisher(ProjectConfigurationListener.TOPIC);
     projectListener.changed(projectSettings);
   }
 
   protected void setGlobalLevelExclusions(List<String> exclusions) {
-    getGlobalSettings().setFileExclusions(exclusions);
-  }
-
-  protected String getProjectBackendId() {
-    return getProject().getProjectFilePath();
+    SonarLintGlobalSettings globalSettings = getGlobalSettings();
+    globalSettings.setFileExclusions(exclusions);
+    GlobalConfigurationListener globalConfigurationListener = ApplicationManager.getApplication()
+      .getMessageBus().syncPublisher(GlobalConfigurationListener.TOPIC);
+    globalConfigurationListener.applied(globalSettings);
   }
 }

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,11 +19,11 @@
  */
 package org.sonarlint.intellij.analysis;
 
-public interface AnalysisCallback {
-  default void onIntermediateResult(AnalysisIntermediateResult intermediateResult) {
-    // no op
-  }
+import com.intellij.openapi.vfs.VirtualFile;
+import java.util.Set;
 
-  void onSuccess(AnalysisResult analysisResult);
+public interface AnalysisCallback {
+  void onSuccess(Set<VirtualFile> failedVirtualFiles);
+
   void onError(Throwable e);
 }

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,20 +20,18 @@
 package org.sonarlint.intellij.config.project;
 
 import com.intellij.openapi.components.PersistentStateComponent;
-import com.intellij.openapi.components.Service;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.util.xmlb.XmlSerializerUtil;
 import com.intellij.util.xmlb.annotations.Tag;
 import java.time.Instant;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import javax.annotation.CheckForNull;
 import org.jetbrains.annotations.Nullable;
 
-@Service(Service.Level.PROJECT)
 @State(name = "SonarLintProjectState", storages = {@Storage("sonarlint-state.xml")})
-public final class SonarLintProjectState implements PersistentStateComponent<SonarLintProjectState> {
+public class SonarLintProjectState implements PersistentStateComponent<SonarLintProjectState> {
   // Xml serializer doesn't handle ZonedDateTime, so we keep milliseconds since epoch
   @Tag
   private Long lastEventPolling = null;
@@ -41,7 +39,7 @@ public final class SonarLintProjectState implements PersistentStateComponent<Son
   @CheckForNull
   public ZonedDateTime getLastEventPolling() {
     if (lastEventPolling != null) {
-      return ZonedDateTime.ofInstant(Instant.ofEpochMilli(lastEventPolling), ZoneId.systemDefault());
+      return ZonedDateTime.ofInstant(Instant.ofEpochMilli(lastEventPolling), ZoneOffset.systemDefault());
     }
     return null;
   }

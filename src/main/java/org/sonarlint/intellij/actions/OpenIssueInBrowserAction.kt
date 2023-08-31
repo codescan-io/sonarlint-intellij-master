@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,6 +21,7 @@ package org.sonarlint.intellij.actions
 
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DataKey
 import com.intellij.openapi.module.ModuleUtil
 import com.intellij.openapi.project.Project
 import org.sonarlint.intellij.analysis.AnalysisStatus
@@ -28,22 +29,23 @@ import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.core.ModuleBindingManager
 import org.sonarlint.intellij.core.ProjectBindingManager
+import org.sonarlint.intellij.issue.vulnerabilities.LocalTaintVulnerability
 import org.sonarlint.intellij.telemetry.SonarLintTelemetry
-import org.sonarlint.intellij.util.DataKeys.Companion.TAINT_VULNERABILITY_DATA_KEY
-import org.sonarsource.sonarlint.core.serverapi.UrlUtils
+import org.sonarsource.sonarlint.core.util.StringUtils
 
 class OpenIssueInBrowserAction : AbstractSonarAction(
   "Open In Browser",
-  "Open issue in browser interface of SonarQube or SonarCloud",
+  "Open issue in browser interface of CodeScan",
   null
 ) {
-
-  override fun isEnabled(e: AnActionEvent, project: Project, status: AnalysisStatus): Boolean {
-    return e.getData(TAINT_VULNERABILITY_DATA_KEY) != null
+  companion object {
+    val TAINT_VULNERABILITY_DATA_KEY = DataKey.create<LocalTaintVulnerability>("sonarlint_taint_vulnerability")
   }
 
-  override fun updatePresentation(e: AnActionEvent, project: Project) {
+  override fun update(e: AnActionEvent) {
+    val project = e.project ?: return
     val serverConnection = serverConnection(project) ?: return
+    super.update(e)
     e.presentation.text = "Open in " + serverConnection.productName
     e.presentation.icon = serverConnection.productIcon
   }
@@ -60,9 +62,13 @@ class OpenIssueInBrowserAction : AbstractSonarAction(
     getService(SonarLintTelemetry::class.java).taintVulnerabilitiesInvestigatedRemotely()
   }
 
+  override fun isEnabled(e: AnActionEvent, project: Project, status: AnalysisStatus): Boolean {
+    return e.getData(TAINT_VULNERABILITY_DATA_KEY) != null
+  }
+
   private fun buildLink(serverUrl: String, projectKey: String, issueKey: String): String {
-    val urlEncodedProjectKey = UrlUtils.urlEncode(projectKey)
-    val urlEncodedIssueKey = UrlUtils.urlEncode(issueKey)
+    val urlEncodedProjectKey = StringUtils.urlEncode(projectKey)
+    val urlEncodedIssueKey = StringUtils.urlEncode(issueKey)
     return "$serverUrl/project/issues?id=$urlEncodedProjectKey&open=$urlEncodedIssueKey"
   }
 

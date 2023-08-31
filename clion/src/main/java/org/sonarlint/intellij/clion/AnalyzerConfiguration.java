@@ -1,6 +1,6 @@
 /*
  * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,15 +20,21 @@
 package org.sonarlint.intellij.clion;
 
 import com.intellij.execution.ExecutionException;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
+import com.jetbrains.cidr.cpp.cmake.model.CMakeConfiguration;
+import com.jetbrains.cidr.cpp.cmake.workspace.CMakeProfileInfo;
 import com.jetbrains.cidr.cpp.cmake.workspace.CMakeWorkspace;
 import com.jetbrains.cidr.cpp.toolchains.CPPEnvironment;
 import com.jetbrains.cidr.lang.CLanguageKind;
 import com.jetbrains.cidr.lang.OCLanguageKind;
 import com.jetbrains.cidr.lang.preprocessor.OCInclusionContextUtil;
 import com.jetbrains.cidr.lang.preprocessor.OCResolveRootAndConfiguration;
+import com.jetbrains.cidr.lang.psi.OCFile;
+import com.jetbrains.cidr.lang.psi.OCParsedLanguageAndConfiguration;
 import com.jetbrains.cidr.lang.psi.OCPsiFile;
 import com.jetbrains.cidr.lang.toolchains.CidrCompilerSwitches;
 import com.jetbrains.cidr.lang.workspace.OCCompilerSettings;
@@ -37,18 +43,17 @@ import com.jetbrains.cidr.lang.workspace.compiler.MSVCCompilerKind;
 import com.jetbrains.cidr.lang.workspace.compiler.OCCompilerKind;
 import com.jetbrains.cidr.lang.workspace.headerRoots.HeadersSearchPath;
 import com.jetbrains.cidr.project.workspace.CidrWorkspace;
+import org.jetbrains.annotations.NotNull;
+import org.sonarlint.intellij.common.ui.SonarLintConsole;
+import org.sonarsource.sonarlint.core.client.api.common.Language;
+
+import javax.annotation.Nullable;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
-import org.jetbrains.annotations.NotNull;
-import org.sonarlint.intellij.common.ui.SonarLintConsole;
-import org.sonarsource.sonarlint.core.commons.Language;
-
-import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
 
 public class AnalyzerConfiguration {
   private final Project project;
@@ -62,25 +67,24 @@ public class AnalyzerConfiguration {
   }
 
   public ConfigurationResult getConfiguration(VirtualFile file) {
-    var configuration = computeReadActionSafely(file, project, () -> getConfigurationAction(file));
-    return configuration != null ? configuration : ConfigurationResult.skip("The file is invalid or the project is being closed");
+    return ApplicationManager.getApplication().<ConfigurationResult>runReadAction(() -> getConfigurationAction(file));
   }
 
   /**
    * Inspired from ShowCompilerInfoForFile and ClangTidyAnnotator
    */
   public ConfigurationResult getConfigurationAction(VirtualFile file) {
-    var psiFile = PsiManager.getInstance(project).findFile(file);
+    PsiFile psiFile = PsiManager.getInstance(project).findFile(file);
     if (!(psiFile instanceof OCPsiFile)) {
       return new ConfigurationResult(psiFile + " not an OCPsiFile");
     }
-    var ocFile = ((OCPsiFile) psiFile).getOCFile();
+    OCFile ocFile = ((OCPsiFile) psiFile).getOCFile();
     if (!ocFile.isInProjectSources()) {
       return new ConfigurationResult(ocFile + " not in project sources");
     }
     OCResolveConfiguration configuration = null;
     OCLanguageKind languageKind;
-    var languageAndConfiguration = ocFile.getParsedLanguageAndConfiguration();
+    OCParsedLanguageAndConfiguration languageAndConfiguration = ocFile.getParsedLanguageAndConfiguration();
     if (languageAndConfiguration != null) {
       configuration = languageAndConfiguration.getConfiguration();
       languageKind = languageAndConfiguration.getLanguageKind();
@@ -93,12 +97,12 @@ public class AnalyzerConfiguration {
     if (configuration == null) {
       return ConfigurationResult.skip("configuration not found");
     }
-    var compilerSettings = configuration.getCompilerSettings(ocFile.getKind(), file);
-    var compilerKind = compilerSettings.getCompilerKind();
+    OCCompilerSettings compilerSettings = configuration.getCompilerSettings(ocFile.getKind(), file);
+    OCCompilerKind compilerKind = compilerSettings.getCompilerKind();
     if (compilerKind == null) {
       return ConfigurationResult.skip("compiler kind not found");
     }
-    var cFamilyCompiler = mapToCFamilyCompiler(compilerKind);
+    String cFamilyCompiler = mapToCFamilyCompiler(compilerKind);
     if (cFamilyCompiler == null) {
       return ConfigurationResult.skip("unsupported compiler " + compilerKind.getDisplayName());
     }
@@ -113,30 +117,26 @@ public class AnalyzerConfiguration {
       collectMSVCProperties(compilerSettings, properties);
     }
 
-    var sonarLanguage = getSonarLanguage(languageKind);
-    if (sonarLanguage != null) {
-      properties.put("sonarLanguage", sonarLanguage.getLanguageKey());
-    }
     return ConfigurationResult.of(new Configuration(
       file,
       compilerSettings.getCompilerExecutable().getAbsolutePath(),
       compilerSettings.getCompilerWorkingDir().getAbsolutePath(),
       compilerSettings.getCompilerSwitches().getList(CidrCompilerSwitches.Format.RAW),
       cFamilyCompiler,
-      sonarLanguage,
+      getSonarLanguage(languageKind),
       properties));
   }
 
   private static void collectPropertiesForRemoteToolchain(OCCompilerSettings compilerSettings, Map<String, String> properties) {
     properties.put("preprocessorDefines", getPreprocessorDefines(compilerSettings));
 
-    var includeDirs = compilerSettings.getHeadersSearchPaths().stream()
+    String includeDirs = compilerSettings.getHeadersSearchPaths().stream()
       .filter(h -> !h.isFrameworksSearchPath())
       .map(HeadersSearchPath::getPath)
       .collect(Collectors.joining("\n"));
     properties.put("includeDirs", includeDirs);
 
-    var frameworkDirs = compilerSettings.getHeadersSearchPaths().stream()
+    String frameworkDirs = compilerSettings.getHeadersSearchPaths().stream()
       .filter(HeadersSearchPath::isFrameworksSearchPath)
       .map(HeadersSearchPath::getPath)
       .collect(Collectors.joining("\n"));
@@ -180,8 +180,6 @@ public class AnalyzerConfiguration {
       case "Clang":
       case "GCC":
         return "clang";
-      case "clang-cl":
-        return "clang-cl";
       case "MSVC":
         return "msvc-cl";
       default:
@@ -203,14 +201,35 @@ public class AnalyzerConfiguration {
   }
 
   private boolean usingRemoteOrWslToolchain(OCResolveConfiguration configuration) {
-    final var initializedWorkspaces = CidrWorkspace.getInitializedWorkspaces(project);
+    final List<CidrWorkspace> initializedWorkspaces = CidrWorkspace.getInitializedWorkspaces(project);
     CPPEnvironment cppEnvironment = null;
-    for (var initializedWorkspace : initializedWorkspaces) {
+    for (CidrWorkspace initializedWorkspace : initializedWorkspaces) {
       if (initializedWorkspace instanceof CMakeWorkspace) {
         cppEnvironment = getCMakeCppEnvironment((CMakeWorkspace) initializedWorkspace, configuration);
       } else {
-        cppEnvironment = tryReflection(initializedWorkspace);
-        if (cppEnvironment != null) {
+        // Use reflection to check if workspace is instanceof com.jetbrains.cidr.project.workspace.WorkspaceWithEnvironment
+        // WorkspaceWithEnvironment interface has getEnvironment() method
+        final Method classMethod;
+        try {
+          classMethod = initializedWorkspace.getClass().getMethod("getEnvironment");
+        } catch (NoSuchMethodException e) {
+          SonarLintConsole.get(project).debug(initializedWorkspace.getClass().getName() + " has no getEnvironment() method");
+          continue;
+        }
+        Object result;
+        try {
+          result = classMethod.invoke(initializedWorkspace);
+        } catch (ReflectiveOperationException e) {
+          SonarLintConsole.get(project).debug(e.getMessage());
+          continue;
+        }
+        if (result instanceof List) {
+          // getEnvironment returns a singleton list
+          result = ((List<?>) result).get(0);
+        }
+        if (result instanceof CPPEnvironment) {
+          cppEnvironment = (CPPEnvironment) result;
+          // stop at the first CPPEnvironment found
           break;
         }
       }
@@ -219,49 +238,19 @@ public class AnalyzerConfiguration {
   }
 
   @Nullable
-  private CPPEnvironment tryReflection(CidrWorkspace initializedWorkspace) {
-    // Use reflection to check if workspace is instanceof com.jetbrains.cidr.project.workspace.WorkspaceWithEnvironment interface has getEnvironment() method
-    final Method classMethod;
-    try {
-      classMethod = initializedWorkspace.getClass().getMethod("getEnvironment");
-    } catch (NoSuchMethodException e) {
-      SonarLintConsole.get(project).debug(initializedWorkspace.getClass().getName() + " has no getEnvironment() method");
-      return null;
-    }
-    Object result;
-    try {
-      result = classMethod.invoke(initializedWorkspace);
-    } catch (ReflectiveOperationException e) {
-      SonarLintConsole.get(project).debug(e.getMessage());
-      return null;
-    }
-    result = unWrapList(result);
-    if (result instanceof CPPEnvironment) {
-      return (CPPEnvironment) result;
-    }
-    return null;
-  }
-
-  private static Object unWrapList(Object result) {
-    if (result instanceof List) {
-      // getEnvironment returns a singleton list
-      result = ((List<?>) result).get(0);
-    }
-    return result;
-  }
-
-  @Nullable
   private CPPEnvironment getCMakeCppEnvironment(CMakeWorkspace cMakeWorkspace, OCResolveConfiguration configuration) {
-    var cMakeConfiguration = cMakeWorkspace.getCMakeConfigurationFor(configuration);
+    CMakeConfiguration cMakeConfiguration = cMakeWorkspace.getCMakeConfigurationFor(configuration);
     if (cMakeConfiguration == null) {
       SonarLintConsole.get(project).debug("cMakeConfiguration is null");
       return null;
     }
+    CMakeProfileInfo profileInfo;
     try {
-      return cMakeWorkspace.getProfileInfoFor(cMakeConfiguration).getEnvironment();
+      profileInfo = cMakeWorkspace.getProfileInfoFor(cMakeConfiguration);
     } catch (ExecutionException e) {
       throw new IllegalStateException(e);
     }
+    return profileInfo.getEnvironment();
   }
 
   private static Method getPreprocessorDefinesMethod() {
@@ -285,10 +274,10 @@ public class AnalyzerConfiguration {
   private static BiFunction<VirtualFile, Project, OCResolveConfiguration> loadConfigurationResolver(Project project) {
     // Before 2021.3: com.jetbrains.cidr.lang.preprocessor.OCInclusionContextUtil.getResolveRootAndActiveConfiguration
     try {
-      final var method = OCInclusionContextUtil.class.getMethod("getResolveRootAndActiveConfiguration", VirtualFile.class, Project.class);
+      final Method method = OCInclusionContextUtil.class.getMethod("getResolveRootAndActiveConfiguration", VirtualFile.class, Project.class);
       return (f, p) -> {
         try {
-          final var result = method.invoke(null, f, p);
+          final Object result = method.invoke(null, f, p);
           return result == null ? null : ((OCResolveRootAndConfiguration) result).getConfiguration();
         } catch (ReflectiveOperationException e) {
           throw new IllegalStateException(e);
@@ -307,7 +296,7 @@ public class AnalyzerConfiguration {
       return FALLBACK_CONFIGURATION_RESOLVER;
     }
     try {
-      final var getPreselectedConfiguration = ocResolveConfigurationsClass.getMethod("getPreselectedConfiguration", VirtualFile.class, Project.class);
+      final Method getPreselectedConfiguration = ocResolveConfigurationsClass.getMethod("getPreselectedConfiguration", VirtualFile.class, Project.class);
       return (f, p) -> {
         try {
           final Object result = getPreselectedConfiguration.invoke(null, f, p);

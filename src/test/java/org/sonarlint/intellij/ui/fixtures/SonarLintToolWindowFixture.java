@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,17 +27,17 @@ import com.intellij.openapi.wm.impl.ProjectFrameHelper;
 import com.intellij.openapi.wm.impl.ToolWindowManagerImpl;
 import org.sonarlint.intellij.ui.SonarLintToolWindowFactory;
 
-class SonarLintToolWindowFixture {
-  static SonarLintToolWindowFixture createFor(Project project) {
-    var manager = new ToolWindowManagerImpl(project) {
+public class SonarLintToolWindowFixture {
+  public static SonarLintToolWindowFixture createFor(Project project) {
+    ToolWindowManagerImpl manager = new ToolWindowManagerImpl(project) {
       @Override
       protected void fireStateChanged() {
       }
     };
-    var frame = new ProjectFrameHelper(new IdeFrameImpl(), null);
+    ProjectFrameHelper frame = new ProjectFrameHelper(new IdeFrameImpl(), null);
     frame.init();
     manager.init(frame);
-    for (var extension : ToolWindowEP.EP_NAME.getExtensionList()) {
+    for (ToolWindowEP extension : ToolWindowEP.EP_NAME.getExtensionList()) {
       if (SonarLintToolWindowFactory.TOOL_WINDOW_ID.equals(extension.id)) {
         manager.initToolWindow(extension);
       }
@@ -47,15 +47,15 @@ class SonarLintToolWindowFixture {
 
   private final ToolWindowManagerImpl manager;
 
-  SonarLintToolWindowFixture(ToolWindowManagerImpl manager) {
+  public SonarLintToolWindowFixture(ToolWindowManagerImpl manager) {
     this.manager = manager;
   }
 
-  ToolWindowManagerImpl getManager() {
+  public ToolWindowManagerImpl getManager() {
     return manager;
   }
 
-  void cleanUp() {
+  public void cleanUp() {
     Disposer.dispose(manager.getToolWindow(SonarLintToolWindowFactory.TOOL_WINDOW_ID).getContentManager());
   }
 

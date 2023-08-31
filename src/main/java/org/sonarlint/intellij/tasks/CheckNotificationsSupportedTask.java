@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,16 +19,12 @@
  */
 package org.sonarlint.intellij.tasks;
 
-import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
-import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.global.ServerConnection;
-import org.sonarlint.intellij.core.BackendService;
-
-import static org.sonarlint.intellij.util.ProgressUtils.waitForFuture;
+import org.sonarlint.intellij.core.ServerNotificationsService;
 
 /**
  * Only useful for SonarQube, since we know notifications are available in SonarCloud
@@ -39,20 +35,24 @@ public class CheckNotificationsSupportedTask extends Task.Modal {
   private boolean notificationsSupported = false;
 
   public CheckNotificationsSupportedTask(ServerConnection connection) {
-    super(null, "Check if smart notifications are supported", true);
+    super(null, "Check if smart notifications are available in the CodeScan edition", true);
     this.connection = connection;
   }
 
   @Override
   public void run(@NotNull ProgressIndicator indicator) {
+    indicator.setText("Connecting to " + connection.getHostUrl() + "...");
     indicator.setIndeterminate(false);
+
     try {
-      indicator.setText("Checking support of notifications");
-      notificationsSupported = waitForFuture(indicator, SonarLintUtils.getService(BackendService.class).checkSmartNotificationsSupported(connection)).isSuccess();
-    } catch (ProcessCanceledException e) {
-      if (myProject != null) {
-        SonarLintConsole.get(myProject).error("Failed to check notifications", e);
+      if (connection.isCodeScanCloud()) {
+        notificationsSupported = true;
+      } else {
+        indicator.setText("Checking support of notifications");
+        notificationsSupported = ServerNotificationsService.get().isSupported(connection);
       }
+    } catch (Exception e) {
+      SonarLintConsole.get(myProject).error("Failed to check notifications", e);
       exception = e;
     }
   }

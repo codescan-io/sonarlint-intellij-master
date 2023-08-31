@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,16 +19,17 @@
  */
 package org.sonarlint.intellij.ui;
 
+import com.intellij.execution.filters.TextConsoleBuilderFactory;
 import com.intellij.execution.ui.ConsoleView;
 import com.intellij.execution.ui.ConsoleViewContentType;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.serviceContainer.NonInjectable;
+
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
 
@@ -38,7 +39,6 @@ public class SonarLintConsoleImpl implements SonarLintConsole, Disposable {
 
   private ConsoleView consoleView;
   private final Project myProject;
-  private final Queue<Log> previousLogs = new ConcurrentLinkedQueue<>();
 
   public SonarLintConsoleImpl(Project project) {
     this.myProject = project;
@@ -53,7 +53,7 @@ public class SonarLintConsoleImpl implements SonarLintConsole, Disposable {
   @Override
   public void debug(String msg) {
     if (debugEnabled()) {
-      print(msg, ConsoleViewContentType.NORMAL_OUTPUT);
+      getConsoleView().print(msg + "\n", ConsoleViewContentType.NORMAL_OUTPUT);
     }
   }
 
@@ -64,64 +64,43 @@ public class SonarLintConsoleImpl implements SonarLintConsole, Disposable {
 
   @Override
   public void info(String msg) {
-    print(msg, ConsoleViewContentType.NORMAL_OUTPUT);
+    getConsoleView().print(msg + "\n", ConsoleViewContentType.NORMAL_OUTPUT);
   }
 
   @Override
   public void error(String msg) {
-    print(msg, ConsoleViewContentType.ERROR_OUTPUT);
-  }
-
-  private void print(String msg, ConsoleViewContentType outputType) {
-    if (!myProject.isDisposed()) {
-      if (consoleView == null) {
-        previousLogs.offer(new Log(msg + "\n", outputType));
-      } else {
-        consoleView.print(msg + "\n", outputType);
-      }
-    }
+    getConsoleView().print(msg + "\n", ConsoleViewContentType.ERROR_OUTPUT);
   }
 
   @Override
   public void error(String msg, @Nullable Throwable t) {
     error(msg);
     if (t != null) {
-      var errors = new StringWriter();
+      StringWriter errors = new StringWriter();
       t.printStackTrace(new PrintWriter(errors));
       error(errors.toString());
     }
   }
 
   @Override
-  public void clear() {
+  public synchronized void clear() {
     if (consoleView != null) {
       consoleView.clear();
     }
   }
 
   @Override
-  public void setConsoleView(ConsoleView consoleView) {
-    while (!previousLogs.isEmpty()) {
-      var log = previousLogs.poll();
-      consoleView.print(log.text, log.outputType);
+  public synchronized ConsoleView getConsoleView() {
+    if (consoleView == null) {
+      consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(myProject).getConsole();
     }
-    this.consoleView = consoleView;
+    return this.consoleView;
   }
 
   @Override
   public void dispose() {
     if (consoleView != null) {
       Disposer.dispose(consoleView);
-    }
-  }
-
-  private static class Log {
-    private final String text;
-    private final ConsoleViewContentType outputType;
-
-    public Log(String text, ConsoleViewContentType outputType) {
-      this.text = text;
-      this.outputType = outputType;
     }
   }
 }

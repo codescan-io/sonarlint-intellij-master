@@ -1,6 +1,6 @@
 /*
  * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,34 +21,16 @@ package org.sonarlint.intellij.rider
 
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.util.io.isFile
-import com.jetbrains.rd.ide.model.RdExistingSolution
-import com.jetbrains.rider.projectView.solution
-import com.jetbrains.rider.projectView.solutionDescription
-import com.jetbrains.rider.projectView.solutionFile
 import com.jetbrains.rider.runtime.RiderDotNetActiveRuntimeHost
 import org.sonarlint.intellij.common.analysis.AnalysisConfigurator
 import org.sonarlint.intellij.common.analysis.AnalysisConfigurator.AnalysisConfiguration
-import java.nio.file.Paths
 
 class RiderAnalysisConfigurator : AnalysisConfigurator {
     override fun configure(module: Module, filesToAnalyze: Collection<VirtualFile>): AnalysisConfiguration {
         val result = AnalysisConfiguration()
-        val dotNetCoreRuntime = RiderDotNetActiveRuntimeHost.getInstance(module.project).dotNetCoreRuntime.value
-        if (dotNetCoreRuntime != null) {
-            result.extraProperties["sonar.cs.internal.dotnetCliExeLocation"] = dotNetCoreRuntime.cliExePath
-        }
-        val monoRuntime = RiderDotNetActiveRuntimeHost.getInstance(module.project).monoRuntime
-        if (monoRuntime != null) {
-            result.extraProperties["sonar.cs.internal.monoExeLocation"] = monoRuntime.getMonoExe().absolutePath
-        }
-        if (module.project.solutionDescription is RdExistingSolution) {
-            result.extraProperties["sonar.cs.internal.solutionPath"] = module.project.solutionFile.absolutePath
-        }
-        val msBuildPathStr = module.project.solution.activeMsBuildPath.value
-        if (msBuildPathStr != null) {
-            val msBuildPath = Paths.get(msBuildPathStr);
-            result.extraProperties["sonar.cs.internal.msBuildPath"] = if (msBuildPath.isFile()) msBuildPath.parent.toString() else msBuildPath.toString()
+        val value = RiderDotNetActiveRuntimeHost.getInstance(module.project).dotNetCoreRuntime.value
+        if (value != null) {
+            result.extraProperties["sonar.cs.internal.dotnetCliExeLocation"] = value.cliExePath
         }
         return result
     }

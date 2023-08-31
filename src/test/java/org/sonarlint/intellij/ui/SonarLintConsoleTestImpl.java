@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,25 +20,11 @@
 package org.sonarlint.intellij.ui;
 
 import com.intellij.execution.ui.ConsoleView;
-import java.io.PrintStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
 
 public class SonarLintConsoleTestImpl implements SonarLintConsole {
 
-  private StringWriter stringWriter;
-  private PrintWriter printWriter;
   private String lastMessage = "";
-
-  public SonarLintConsoleTestImpl() {
-    reset();
-  }
-
-  private void reset() {
-    this.stringWriter = new StringWriter();
-    this.printWriter = new PrintWriter(stringWriter);
-  }
 
   public String getLastMessage() {
     return lastMessage;
@@ -46,7 +32,7 @@ public class SonarLintConsoleTestImpl implements SonarLintConsole {
 
   @Override
   public void debug(String msg) {
-    print(msg);
+    lastMessage = msg;
   }
 
   @Override
@@ -56,36 +42,26 @@ public class SonarLintConsoleTestImpl implements SonarLintConsole {
 
   @Override
   public void info(String msg) {
-    print(msg);
+    lastMessage = msg;
   }
 
   @Override
   public void error(String msg) {
-    print(msg);
+    lastMessage = msg;
   }
 
   @Override
   public void error(String msg, Throwable t) {
-    print(msg);
-    t.printStackTrace(printWriter);
-  }
-
-  private void print(String msg) {
     lastMessage = msg;
-    printWriter.println(msg);
   }
 
   @Override
   public void clear() {
-    reset();
-  }
-
-  public void flushTo(PrintStream stream) {
-    stream.println(stringWriter.getBuffer());
-    reset();
+    lastMessage = "";
   }
 
   @Override
-  public void setConsoleView(ConsoleView consoleView) { }
-
+  public ConsoleView getConsoleView() {
+    return null;
+  }
 }

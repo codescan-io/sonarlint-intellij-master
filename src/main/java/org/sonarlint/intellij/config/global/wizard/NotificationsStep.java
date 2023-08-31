@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -30,6 +30,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class NotificationsStep extends AbstractWizardStepEx {
+
   private final WizardModel model;
   private final boolean onlyEditNotifications;
   private JPanel panel;
@@ -50,17 +51,16 @@ public class NotificationsStep extends AbstractWizardStepEx {
   @Override
   public void _init() {
     final boolean isSc = model.getServerType() == WizardModel.ServerType.SONARCLOUD;
-    final String sqOrSc = isSc ? "SonarCloud" : "SonarQube";
+    final String sqOrSc = isSc ? "CodeScanCloud" : "CodeScan";
     notificationsCheckBox.setText("Receive notifications from " + sqOrSc);
     notificationsCheckBox.setSelected(!model.isNotificationsDisabled());
-    final String docUrl = isSc ? "https://docs.sonarcloud.io/advanced-setup/sonarlint-smart-notifications/" :
-      "https://docs.sonarqube.org/latest/user-guide/sonarlint-connected-mode/";
+    final String docUrl = "https://docs.sonarqube.org/latest/user-guide/sonarlint-notifications/";
     notificationsDetails.setText("You will receive <a href=\"" + docUrl + "\">notifications</a> from " + sqOrSc + " in situations like:\n" +
       "<ul>" +
       "<li>the Quality Gate status of a bound project changes</li>" +
       "<li>the latest analysis of a bound project on " + sqOrSc + " raises new issues assigned to you</li>" +
       "</ul>");
-    notificationsDetails.addHyperlinkListener(BrowserHyperlinkListener.INSTANCE);
+    notificationsDetails.addHyperlinkListener(new BrowserHyperlinkListener());
   }
 
   @NotNull

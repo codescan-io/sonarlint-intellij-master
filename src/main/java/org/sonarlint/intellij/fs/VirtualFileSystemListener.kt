@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -33,13 +33,13 @@ import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileMoveEvent
 import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
+import com.intellij.util.PlatformUtils
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
-import org.sonarlint.intellij.common.util.SonarLintUtils.isRider
 import org.sonarlint.intellij.core.ProjectBindingManager
 import org.sonarlint.intellij.util.GlobalLogOutput
-import org.sonarsource.sonarlint.core.analysis.api.ClientModuleFileEvent
+import org.sonarsource.sonarlint.core.client.api.common.ClientModuleFileEvent
+import org.sonarsource.sonarlint.core.client.api.common.LogOutput
 import org.sonarsource.sonarlint.core.client.api.common.SonarLintEngine
-import org.sonarsource.sonarlint.core.commons.log.ClientLogOutput
 import org.sonarsource.sonarlint.plugin.api.module.file.ModuleFileEvent
 
 /**
@@ -64,7 +64,7 @@ class VirtualFileSystemListener(
                 is VFileContentChangeEvent -> ModuleFileEvent.Type.MODIFIED
                 is VFilePropertyChangeEvent -> null
                 else -> {
-                    GlobalLogOutput.get().log("Unknown file event type: $it", ClientLogOutput.Level.DEBUG)
+                    GlobalLogOutput.get().log("Unknown file event type: $it", LogOutput.Level.DEBUG)
                     null
                 }
             }
@@ -110,7 +110,7 @@ class VirtualFileSystemListener(
             file.isDirectory -> file.children.flatMap { allEventsFor(it, fileModule, type) }
             // SLI-551 Only send events on .py files (avoid parse errors)
             // For Rider, send all events for OmniSharp
-            isRider() || ModuleFileEventsNotifier.isPython(file) -> listOfNotNull(buildModuleFileEvent(fileModule, file, type))
+            PlatformUtils.isRider() || ModuleFileEventsNotifier.isPython(file) -> listOfNotNull(buildModuleFileEvent(fileModule, file, type))
             else -> emptyList()
         }
     }

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,13 +19,13 @@
  */
 package org.sonarlint.intellij.errorsubmitter;
 
-import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.diagnostic.ErrorReportSubmitter;
 import com.intellij.openapi.diagnostic.IdeaLoggingEvent;
 import com.intellij.openapi.diagnostic.SubmittedReportInfo;
+import com.intellij.openapi.diagnostic.SubmittedReportInfo.SubmissionStatus;
 import com.intellij.util.Consumer;
-import java.awt.Component;
+import java.awt.*;
 import java.io.BufferedReader;
 import java.io.StringReader;
 import java.util.Collections;
@@ -37,21 +37,15 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.SonarLintPlugin;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarsource.sonarlint.core.serverapi.UrlUtils;
+import org.sonarlint.intellij.config.global.wizard.CodescanCloudConstants;
+import org.sonarlint.intellij.http.ApacheHttpClient;
+import org.sonarsource.sonarlint.core.serverapi.HttpClient;
 
 // Inspired from https://github.com/openclover/clover/blob/master/clover-idea/src/com/atlassian/clover/idea/util/BlameClover.java
 public class BlameSonarSource extends ErrorReportSubmitter {
-  static final int MAX_URI_LENGTH = 2000;
-  private static final int BUG_FAULT_CATEGORY_ID = 6;
-  private static final String INTELLIJ_TAG = "intellij";
-  private static final String COMMUNITY_ROOT_URL = "https://community.sonarsource.com/";
-  private static final String COMMUNITY_FAULT_CATEGORY_URL = COMMUNITY_ROOT_URL + "tags/c/" + BUG_FAULT_CATEGORY_ID + "/" + INTELLIJ_TAG;
-  private static final String COMMUNITY_NEW_TOPIC_URL = COMMUNITY_ROOT_URL + "new-topic"
-    + "?title=Error+in+SonarLint+for+IntelliJ"
-    + "&category_id=" + BUG_FAULT_CATEGORY_ID
-    + "&tags=sonarlint," + INTELLIJ_TAG;
 
   private static final Map<String, String> packageAbbreviation;
+
   static {
     Map<String, String> aMap = new LinkedHashMap<>();
     aMap.put("com.intellij.openapi.", "c.ij.oa.");
@@ -64,43 +58,46 @@ public class BlameSonarSource extends ErrorReportSubmitter {
 
   @Override
   public String getReportActionText() {
-    return "Report to SonarSource";
+    return "Report to CodeScan Support";
   }
 
   @Override
   public boolean submit(@NotNull IdeaLoggingEvent[] events,
     @Nullable String additionalInfo,
     @NotNull Component parentComponent,
-    @NotNull Consumer<? super SubmittedReportInfo> consumer) {
+    @NotNull Consumer<SubmittedReportInfo> consumer) {
     String body = buildBody(events, additionalInfo);
-    BrowserUtil.browse(getReportWithBodyUrl(body));
-    consumer.consume(new SubmittedReportInfo(COMMUNITY_FAULT_CATEGORY_URL, "community support thread", SubmittedReportInfo.SubmissionStatus.NEW_ISSUE));
-    return true;
+    HttpClient.Response response = ApacheHttpClient.getDefault()
+            .post(CodescanCloudConstants.CODESCAN_ERROR_ENDPOINT, "text/html", body);
+    SubmissionStatus status = response.isSuccessful() ? SubmissionStatus.NEW_ISSUE : SubmissionStatus.FAILED;
+    consumer.consume(new SubmittedReportInfo(status));
+    return response.isSuccessful();
   }
 
   @NotNull
-  static String buildBody(@NotNull IdeaLoggingEvent[] events, @Nullable String additionalInfo) {
-    var body = new StringBuilder();
-    body.append("Environment:\n");
-    body.append("* Java: ").append(System.getProperty("java.vendor")).append(" ").append(System.getProperty("java.version")).append("\n");
-    body.append("* OS: ").append(System.getProperty("os.name")).append(" ").append(System.getProperty("os.arch")).append("\n");
-    body.append("* IDE: ").append(ApplicationInfo.getInstance().getFullApplicationName()).append("\n");
-    body.append("* SonarLint: ").append(SonarLintUtils.getService(SonarLintPlugin.class).getVersion()).append("\n");
-    body.append("\n");
+  static String buildBody(@NotNull IdeaLoggingEvent @NotNull [] events, @Nullable String additionalInfo) {
+    StringBuilder body = new StringBuilder();
+    body.append("<h4>Environment:</h4>");
+    body.append("<ul style=\"list-style-type:disc;\">");
+    body.append("<li> Java: ").append(System.getProperty("java.vendor")).append(" ").append(System.getProperty("java.version")).append("</li>");
+    body.append("<li> OS: ").append(System.getProperty("os.name")).append(" ").append(System.getProperty("os.arch")).append("</li>");
+    body.append("<li> IDE: ").append(ApplicationInfo.getInstance().getFullApplicationName()).append("</li>");
+    body.append("<li> CodeScan: ").append(SonarLintUtils.getService(SonarLintPlugin.class).getVersion()).append("</li>");
+    body.append("</ul>");
     if (additionalInfo != null) {
       body.append(additionalInfo);
-      body.append("\n");
+      body.append("<br/>\n");
     }
-    for (var ideaLoggingEvent : events) {
-      final var message = ideaLoggingEvent.getMessage();
+    for (IdeaLoggingEvent ideaLoggingEvent : events) {
+      final String message = ideaLoggingEvent.getMessage();
       if (StringUtils.isNotBlank(message)) {
-        body.append(message).append("\n");
+        body.append(message).append("<br/>\n");
       }
-      final var throwableText = ideaLoggingEvent.getThrowableText();
+      final String throwableText = ideaLoggingEvent.getThrowableText();
       if (StringUtils.isNotBlank(throwableText)) {
-        body.append("\n```\n");
+        body.append("<br/>\n");
         body.append(abbreviate(throwableText));
-        body.append("\n```\n\n");
+        body.append("<br/>\n");
       }
     }
     return body.toString();
@@ -108,35 +105,12 @@ public class BlameSonarSource extends ErrorReportSubmitter {
 
   static String abbreviate(String throwableText) {
     return new BufferedReader(new StringReader(throwableText)).lines()
-      .map(line -> {
-        var abbreviated = line;
-        for (var entry : packageAbbreviation.entrySet()) {
+      .map(l -> {
+        String abbreviated = l;
+        for (Map.Entry<String, String> entry : packageAbbreviation.entrySet()) {
           abbreviated = StringUtils.replace(abbreviated, entry.getKey(), entry.getValue());
         }
         return abbreviated;
-      }).collect(Collectors.joining("\n"));
-
-  }
-
-  String getReportWithBodyUrl(String description) {
-    final var urlStart = COMMUNITY_NEW_TOPIC_URL + "&body=";
-    final var charsLeft = MAX_URI_LENGTH - urlStart.length();
-
-    return urlStart + getBoundedEncodedString(description, charsLeft);
-  }
-
-  String getBoundedEncodedString(String description, int maxLen) {
-    var encoded = UrlUtils.urlEncode(description);
-    while (encoded.length() > maxLen) {
-      int lastNewline = description.lastIndexOf('\n');
-      if (lastNewline == -1) {
-        return "";
-      }
-      description = description.substring(0, lastNewline);
-      encoded = UrlUtils.urlEncode(description);
-    }
-
-    return encoded;
-
+      }).collect(Collectors.joining("<br/>\n"));
   }
 }

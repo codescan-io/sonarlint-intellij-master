@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -44,8 +44,9 @@ import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.core.ModuleBindingManager
 import org.sonarlint.intellij.core.ProjectBindingManager
+import org.sonarlint.intellij.core.SonarLintEngineManager
 import org.sonarlint.intellij.tasks.ServerDownloadProjectTask
-import org.sonarsource.sonarlint.core.serverapi.component.ServerProject
+import org.sonarsource.sonarlint.core.serverapi.project.ServerProject
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -146,7 +147,7 @@ class ModuleBindingPanel(private val project: Project, currentConnectionSupplier
                     rootPanel,
                     projectKeyTextField.text,
                     map,
-                    selectedConnection.isSonarCloud
+                    selectedConnection.isCodeScanCloud
                 )
                 if (dialog.showAndGet() && dialog.selectedProjectKey != null) {
                     projectKeyTextField.text = dialog.selectedProjectKey
@@ -185,7 +186,8 @@ class ModuleBindingPanel(private val project: Project, currentConnectionSupplier
         project: Project,
         selectedConnection: ServerConnection,
     ): Map<String, ServerProject>? {
-        val downloadTask = ServerDownloadProjectTask(project, selectedConnection)
+        val engine = getService(SonarLintEngineManager::class.java).getConnectedEngine(selectedConnection.name)
+        val downloadTask = ServerDownloadProjectTask(project, engine, selectedConnection)
         return try {
             ProgressManager.getInstance().run(downloadTask)
             downloadTask.result

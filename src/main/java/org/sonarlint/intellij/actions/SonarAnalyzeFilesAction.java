@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,69 +19,94 @@
  */
 package org.sonarlint.intellij.actions;
 
+import com.intellij.openapi.actionSystem.ActionPlaces;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectCoreUtil;
-import com.intellij.openapi.vfs.VfsUtilCore;
+import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileVisitor;
+import icons.SonarLintIcons;
+
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.swing.Icon;
+
 import org.jetbrains.annotations.NotNull;
-import org.sonarlint.intellij.SonarLintIcons;
+import org.jetbrains.annotations.Nullable;
+import org.sonarlint.intellij.analysis.AnalysisCallback;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
-import org.sonarlint.intellij.analysis.AnalysisSubmitter;
+import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.trigger.SonarLintSubmitter;
+import org.sonarlint.intellij.trigger.TriggerType;
 import org.sonarlint.intellij.ui.SonarLintToolWindowFactory;
 
-import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
-
-public class SonarAnalyzeFilesAction extends AbstractSonarAction {
+public class SonarAnalyzeFilesAction extends DumbAwareAction {
   public SonarAnalyzeFilesAction() {
     super();
   }
 
-  @Override
-  protected boolean isVisible(AnActionEvent e) {
-    var files = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
-    return files != null && files.length > 0 && !AbstractSonarAction.isRiderSlnOrCsproj(files);
+  public SonarAnalyzeFilesAction(@Nullable String text, @Nullable String description, @Nullable Icon icon) {
+    super(text, description, icon);
   }
 
   @Override
-  protected boolean isEnabled(AnActionEvent e, Project project, AnalysisStatus status) {
-    return !status.isRunning();
-  }
+  public void update(AnActionEvent e) {
+    super.update(e);
 
-  @Override
-  protected void updatePresentation(AnActionEvent e, Project project) {
+    VirtualFile[] files = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
+    if (files == null || files.length == 0 || AbstractSonarAction.isRiderSlnOrCsproj(files)) {
+      e.getPresentation().setEnabled(false);
+      e.getPresentation().setVisible(false);
+      return;
+    }
+
     if (SonarLintToolWindowFactory.TOOL_WINDOW_ID.equals(e.getPlace())) {
       e.getPresentation().setIcon(SonarLintIcons.PLAY);
     }
+    e.getPresentation().setVisible(true);
+
+    Project project = e.getProject();
+    if (project == null || !project.isInitialized() || project.isDisposed()) {
+      e.getPresentation().setEnabled(false);
+      return;
+    }
+
+    AnalysisStatus status = SonarLintUtils.getService(project, AnalysisStatus.class);
+    if (status.isRunning()) {
+      e.getPresentation().setEnabled(false);
+      return;
+    }
+
+    e.getPresentation().setEnabled(true);
   }
 
   @Override
   public void actionPerformed(AnActionEvent e) {
-    var project = e.getProject();
-    var files = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
+    Project project = e.getProject();
+    VirtualFile[] files = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
 
     if (project == null || project.isDisposed() || files == null || files.length == 0) {
       return;
     }
 
-    var hasProject = Stream.of(files)
+    boolean hasProject = Arrays.stream(files)
       .anyMatch(f -> f.getPath().equals(project.getBasePath()));
 
-    if (hasProject && !SonarAnalyzeAllFilesAction.userConfirmed(project)) {
+    if (hasProject && !SonarAnalyzeAllFilesAction.showWarning()) {
       return;
     }
 
-    var fileSet = Stream.of(files)
+    Set<VirtualFile> fileSet = Arrays.stream(files)
       .flatMap(f -> {
         if (f.isDirectory()) {
-          var visitor = new CollectFilesVisitor();
-          VfsUtilCore.visitChildrenRecursively(f, visitor);
+          CollectFilesVisitor visitor = new CollectFilesVisitor();
+          VfsUtil.visitChildrenRecursively(f, visitor);
           return visitor.files.stream();
         } else {
           return Stream.of(f);
@@ -89,7 +114,24 @@ public class SonarAnalyzeFilesAction extends AbstractSonarAction {
       })
       .collect(Collectors.toSet());
 
-    getService(project, AnalysisSubmitter.class).analyzeFilesOnUserAction(fileSet, e);
+    SonarLintSubmitter submitter = SonarLintUtils.getService(project, SonarLintSubmitter.class);
+    AnalysisCallback callback;
+
+    if (SonarLintToolWindowFactory.TOOL_WINDOW_ID.equals(e.getPlace())) {
+      callback = new ShowCurrentFileCallable(project);
+    } else {
+      callback = new ShowAnalysisResultsCallable(project, fileSet, whatAnalyzed(fileSet.size()));
+    }
+
+    submitter.submitFiles(fileSet, TriggerType.ACTION, callback, executeBackground(e));
+  }
+
+  private static String whatAnalyzed(int numFiles) {
+    if (numFiles == 1) {
+      return "1 file";
+    } else {
+      return numFiles + " files";
+    }
   }
 
   private static class CollectFilesVisitor extends VirtualFileVisitor {
@@ -101,11 +143,23 @@ public class SonarAnalyzeFilesAction extends AbstractSonarAction {
 
     @Override
     public boolean visitFile(@NotNull VirtualFile file) {
-      var projectFile = ProjectCoreUtil.isProjectOrWorkspaceFile(file, file.getFileType());
+      boolean projectFile = ProjectCoreUtil.isProjectOrWorkspaceFile(file, file.getFileType());
       if (!file.isDirectory() && !file.getFileType().isBinary() && !projectFile) {
         files.add(file);
       }
       return !projectFile && !".git".equals(file.getName());
     }
+  }
+
+  /**
+   * Whether the analysis should be launched in the background.
+   * Analysis should be run in background in the following cases:
+   * - Keybinding used (place = MainMenu)
+   * - Macro used (place = unknown)
+   * - Action used, ctrl+shift+A (place = GoToAction)
+   */
+  private static boolean executeBackground(AnActionEvent e) {
+    return ActionPlaces.isMainMenuOrActionSearch(e.getPlace())
+      || ActionPlaces.UNKNOWN.equals(e.getPlace());
   }
 }

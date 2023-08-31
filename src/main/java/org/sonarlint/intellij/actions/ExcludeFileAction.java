@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,25 +23,29 @@ import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionPlaces;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.CheckForNull;
-import org.sonarlint.intellij.analysis.AnalysisStatus;
-import org.sonarlint.intellij.analysis.AnalysisSubmitter;
+
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.project.ExclusionItem;
+import org.sonarlint.intellij.config.project.SonarLintProjectSettings;
 import org.sonarlint.intellij.messages.ProjectConfigurationListener;
+import org.sonarlint.intellij.trigger.SonarLintSubmitter;
 import org.sonarlint.intellij.trigger.TriggerType;
 import org.sonarlint.intellij.util.SonarLintAppUtils;
 
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 
-public class ExcludeFileAction extends AbstractSonarAction {
+public class ExcludeFileAction extends DumbAwareAction {
   public ExcludeFileAction() {
 
   }
@@ -51,47 +55,61 @@ public class ExcludeFileAction extends AbstractSonarAction {
   }
 
   @Override
-  protected boolean isVisible(AnActionEvent e) {
-    var files = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
-    return ActionPlaces.isPopupPlace(e.getPlace()) && files != null && files.length > 0 && !AbstractSonarAction.isRiderSlnOrCsproj(files);
-  }
+  public void update(AnActionEvent e) {
+    super.update(e);
 
-  @Override
-  protected boolean isEnabled(AnActionEvent e, Project project, AnalysisStatus status) {
-    var files = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
-    var exclusions = List.copyOf(getSettingsFor(project).getFileExclusions());
+    Project project = e.getProject();
+    if (project == null || !project.isInitialized() || project.isDisposed()) {
+      e.getPresentation().setEnabled(false);
+      e.getPresentation().setVisible(true);
+      return;
+    }
 
-    return files != null && toStringStream(project, files)
+    VirtualFile[] files = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
+    if (!ActionPlaces.isPopupPlace(e.getPlace()) || files == null || files.length == 0 || AbstractSonarAction.isRiderSlnOrCsproj(files)) {
+      e.getPresentation().setEnabled(false);
+      e.getPresentation().setVisible(false);
+      return;
+    }
+
+    e.getPresentation().setVisible(true);
+
+    List<String> exclusions = new ArrayList<>(getSettingsFor(project).getFileExclusions());
+
+    boolean anyFileToAdd = toStringStream(project, files)
       .anyMatch(path -> !exclusions.contains(path));
+
+    if (!anyFileToAdd) {
+      e.getPresentation().setEnabled(false);
+    }
   }
 
-  @Override
-  public void actionPerformed(AnActionEvent e) {
-    var project = e.getProject();
-    var files = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
+  @Override public void actionPerformed(AnActionEvent e) {
+    Project project = e.getProject();
+    VirtualFile[] files = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
 
     if (project == null || project.isDisposed() || files == null || files.length == 0) {
       return;
     }
 
-    var settings = getSettingsFor(project);
-    var exclusions = new ArrayList<>(settings.getFileExclusions());
+    SonarLintProjectSettings settings = getSettingsFor(project);
+    List<String> exclusions = new ArrayList<>(settings.getFileExclusions());
 
-    var newExclusions = toStringStream(project, files)
+    List<String> newExclusions = toStringStream(project, files)
       .filter(path -> !exclusions.contains(path))
       .collect(Collectors.toList());
 
     if (!newExclusions.isEmpty()) {
       exclusions.addAll(newExclusions);
       settings.setFileExclusions(exclusions);
-      var projectListener = project.getMessageBus().syncPublisher(ProjectConfigurationListener.TOPIC);
+      ProjectConfigurationListener projectListener = project.getMessageBus().syncPublisher(ProjectConfigurationListener.TOPIC);
       projectListener.changed(settings);
-      SonarLintUtils.getService(project, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.CONFIG_CHANGE);
+      SonarLintUtils.getService(project, SonarLintSubmitter.class).submitOpenFilesAuto(TriggerType.CONFIG_CHANGE);
     }
   }
 
   private static Stream<String> toStringStream(Project project, VirtualFile[] files) {
-    return Stream.of(files)
+    return Arrays.stream(files)
       .map(vf -> toExclusion(project, vf))
       .filter(Objects::nonNull)
       .filter(exclusion -> !exclusion.item().isEmpty())
@@ -100,7 +118,7 @@ public class ExcludeFileAction extends AbstractSonarAction {
 
   @CheckForNull
   private static ExclusionItem toExclusion(Project project, VirtualFile virtualFile) {
-    var relativeFilePath = SonarLintAppUtils.getRelativePathForAnalysis(project, virtualFile);
+    String relativeFilePath = SonarLintAppUtils.getRelativePathForAnalysis(project, virtualFile);
     if (relativeFilePath == null) {
       return null;
     }

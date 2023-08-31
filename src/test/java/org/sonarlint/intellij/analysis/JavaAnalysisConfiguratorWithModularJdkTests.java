@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,21 +20,23 @@
 package org.sonarlint.intellij.analysis;
 
 import com.intellij.openapi.projectRoots.Sdk;
+import com.intellij.openapi.projectRoots.SdkModificator;
 import com.intellij.testFramework.IdeaTestUtil;
 import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.fixtures.DefaultLightProjectDescriptor;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 import org.sonarlint.intellij.AbstractSonarLintLightTests;
 import org.sonarlint.intellij.java.JavaAnalysisConfigurator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class JavaAnalysisConfiguratorWithModularJdkTests extends AbstractSonarLintLightTests {
+public class JavaAnalysisConfiguratorWithModularJdkTests extends AbstractSonarLintLightTests {
 
   private static final Path FAKE_JDK_ROOT_PATH = Paths.get("src/test/resources/fake_jdk/").toAbsolutePath();
 
@@ -51,8 +53,8 @@ class JavaAnalysisConfiguratorWithModularJdkTests extends AbstractSonarLintLight
   }
 
   @Test
-  void testAddJrtFsToClasspath() {
-    final var props = underTest.configure(getModule(), Collections.emptyList()).extraProperties;
+  public void testAddJrtFsToClasspath() {
+    final Map<String, String> props = underTest.configure(getModule(), Collections.emptyList()).extraProperties;
     assertThat(props).containsKeys("sonar.java.libraries", "sonar.java.test.libraries");
     assertThat(Stream.of(props.get("sonar.java.libraries").split(",")).map(Paths::get))
       .containsExactly(FAKE_JDK_ROOT_PATH.resolve("jdk9/lib/jrt-fs.jar"));
@@ -67,7 +69,7 @@ class JavaAnalysisConfiguratorWithModularJdkTests extends AbstractSonarLintLight
     } catch (CloneNotSupportedException e) {
       throw new RuntimeException(e);
     }
-    var sdkModificator = jdk.getSdkModificator();
+    SdkModificator sdkModificator = jdk.getSdkModificator();
     sdkModificator.setHomePath(FAKE_JDK_ROOT_PATH.resolve("jdk9").toString());
     sdkModificator.commitChanges();
     return jdk;

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,8 +22,6 @@ package org.sonarlint.intellij.actions;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.Project;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
-import org.sonarlint.intellij.analysis.AnalysisSubmitter;
-import org.sonarlint.intellij.common.util.SonarLintUtils;
 
 public class SonarCancelAction extends AbstractSonarAction {
   @Override
@@ -35,7 +33,6 @@ public class SonarCancelAction extends AbstractSonarAction {
   public void actionPerformed(AnActionEvent e) {
     if (e.getProject() != null) {
       AnalysisStatus.get(e.getProject()).cancel();
-      SonarLintUtils.getService(e.getProject(), AnalysisSubmitter.class).cancelCurrentManualAnalysis();
     }
   }
 }

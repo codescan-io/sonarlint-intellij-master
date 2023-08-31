@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,40 +19,32 @@
  */
 package org.sonarlint.intellij.util;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
-import com.intellij.openapi.actionSystem.IdeActions;
-import com.intellij.openapi.components.Service;
 import com.intellij.serviceContainer.NonInjectable;
-import org.sonarlint.intellij.SonarLintIcons;
-import org.sonarlint.intellij.actions.ClearCurrentFileIssuesAction;
-import org.sonarlint.intellij.actions.ClearReportAction;
-import org.sonarlint.intellij.actions.FilterSecurityHotspotActionGroup;
+import icons.SonarLintIcons;
 import org.sonarlint.intellij.actions.SonarAnalyzeAllFilesAction;
 import org.sonarlint.intellij.actions.SonarAnalyzeChangedFilesAction;
 import org.sonarlint.intellij.actions.SonarCleanConsoleAction;
-import org.sonarlint.intellij.actions.filters.IncludeResolvedHotspotsAction;
+import org.sonarlint.intellij.actions.SonarClearAnalysisResultsAction;
+import org.sonarlint.intellij.actions.SonarClearIssuesAction;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 
 /**
- * Creates and keeps a single instance of actions used by SonarLint.
+ * Creates and keeps a single instance of actions used by CodeScan.
  * Some actions are created programmatically instead of being declared in plugin.xml so that they are not registered in
  * ActionManager, becoming accessible from the action search.
  */
-@Service(Service.Level.APP)
-public final class SonarLintActions {
+public class SonarLintActions {
 
-  private final AnAction clearReportAction;
+  private final AnAction clearResultsAction;
   private final AnAction clearIssuesAction;
   private final AnAction cleanConsoleAction;
   private final AnAction cancelAction;
   private final AnAction configureAction;
   private final AnAction analyzeChangedFilesAction;
   private final AnAction analyzeAllFilesAction;
-  private final FilterSecurityHotspotActionGroup filterAction;
-  private final IncludeResolvedHotspotsAction includeResolvedHotspotAction;
 
   public SonarLintActions() {
     this(ActionManager.getInstance());
@@ -60,38 +52,32 @@ public final class SonarLintActions {
 
   @NonInjectable
   SonarLintActions(ActionManager actionManager) {
-    var analyzeMenu = actionManager.getAction(IdeActions.GROUP_ANALYZE);
-    // some flavors of IDEA don't have the Analyze menu, register at runtime to avoid error if declared in plugin.xml
+    AnAction analyzeMenu = actionManager.getAction("AnalyzeMenu");
+    // some flavors of IDEA don't have the analyze menu
     if (analyzeMenu instanceof DefaultActionGroup) {
-      var sonarLintAnalyzeMenu = actionManager.getAction("SonarLint.AnalyzeMenu");
-      var analyzeMenuGroup = (DefaultActionGroup) analyzeMenu;
+      AnAction sonarLintAnalyzeMenu = actionManager.getAction("CodeScan.AnalyzeMenu");
+      DefaultActionGroup analyzeMenuGroup = (DefaultActionGroup) analyzeMenu;
       analyzeMenuGroup.add(sonarLintAnalyzeMenu);
     }
 
-    cancelAction = actionManager.getAction("SonarLint.toolwindow.Cancel");
-    configureAction = actionManager.getAction("SonarLint.toolwindow.Configure");
+    cancelAction = actionManager.getAction("CodeScan.toolwindow.Cancel");
+    configureAction = actionManager.getAction("CodeScan.toolwindow.Configure");
 
-    clearReportAction = new ClearReportAction("Clear Project Files Issues",
+    clearResultsAction = new SonarClearAnalysisResultsAction("Clear Project Files Issues",
       "Clear analysis results",
       SonarLintIcons.CLEAN);
-    clearIssuesAction = new ClearCurrentFileIssuesAction("Clear SonarLint Issues",
-      "Clear SonarLint issues",
+    clearIssuesAction = new SonarClearIssuesAction("Clear CodeScan Issues",
+      "Clear CodeScan issues",
       SonarLintIcons.CLEAN);
-    cleanConsoleAction = new SonarCleanConsoleAction("Clear SonarLint Console",
-      "Clear SonarLint console",
+    cleanConsoleAction = new SonarCleanConsoleAction("Clear CodeScan Console",
+      "Clear CodeScan console",
       SonarLintIcons.CLEAN);
     analyzeAllFilesAction = new SonarAnalyzeAllFilesAction("Analyze All Project Files",
-      "Run a SonarLint analysis on all project files",
+      "Run a CodeScan analysis on all project files",
       SonarLintIcons.PROJECT);
     analyzeChangedFilesAction = new SonarAnalyzeChangedFilesAction("Analyze VCS Changed Files",
-      "Run a SonarLint analysis on VCS changed files",
+      "Run a CodeScan analysis on VCS changed files",
       SonarLintIcons.SCM);
-    filterAction = new FilterSecurityHotspotActionGroup("Filter Security Hotspots",
-      "Filter Security Hotspots",
-      AllIcons.General.Filter);
-    includeResolvedHotspotAction = new IncludeResolvedHotspotsAction("Include Resolved Security Hotspots",
-      "Include resolved Security Hotspots",
-      SonarLintIcons.HOTSPOT_CHECKED);
   }
 
   public static SonarLintActions getInstance() {
@@ -102,8 +88,8 @@ public final class SonarLintActions {
     return cancelAction;
   }
 
-  public AnAction clearReport() {
-    return clearReportAction;
+  public AnAction clearResults() {
+    return clearResultsAction;
   }
 
   public AnAction clearIssues() {
@@ -126,11 +112,4 @@ public final class SonarLintActions {
     return analyzeAllFilesAction;
   }
 
-  public FilterSecurityHotspotActionGroup filterSecurityHotspots() {
-    return filterAction;
-  }
-
-  public IncludeResolvedHotspotsAction includeResolvedHotspotAction() {
-    return includeResolvedHotspotAction;
-  }
 }

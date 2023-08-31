@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA ITs
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,33 +23,35 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.intellij.remoterobot.RemoteRobot
 import com.intellij.remoterobot.utils.keyboard
 import com.sonar.orchestrator.Orchestrator
+import com.sonar.orchestrator.build.MavenBuild
+import com.sonar.orchestrator.container.Server
 import com.sonar.orchestrator.locator.FileLocation
 import com.sonar.orchestrator.locator.MavenLocation
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.condition.DisabledIf
 import org.sonarlint.intellij.its.BaseUiTest
 import org.sonarlint.intellij.its.fixtures.dialog
 import org.sonarlint.intellij.its.fixtures.editor
 import org.sonarlint.intellij.its.fixtures.fileBrowserDialog
 import org.sonarlint.intellij.its.fixtures.idea
-import org.sonarlint.intellij.its.fixtures.jPasswordField
+import org.sonarlint.intellij.its.fixtures.jTextField
 import org.sonarlint.intellij.its.fixtures.tool.window.toolWindow
 import org.sonarlint.intellij.its.utils.ItUtils
-import org.sonarlint.intellij.its.utils.OrchestratorUtils.Companion.defaultBuilderEnv
-import org.sonarlint.intellij.its.utils.OrchestratorUtils.Companion.executeBuildWithMaven
-import org.sonarlint.intellij.its.utils.OrchestratorUtils.Companion.generateToken
-import org.sonarlint.intellij.its.utils.OrchestratorUtils.Companion.newAdminWsClientWithUser
+import org.sonarlint.intellij.its.utils.ItUtils.SONAR_VERSION
 import org.sonarlint.intellij.its.utils.optionalStep
+import org.sonarqube.ws.client.HttpConnector
 import org.sonarqube.ws.client.WsClient
+import org.sonarqube.ws.client.WsClientFactories
 import org.sonarqube.ws.client.hotspots.SearchRequest
+import org.sonarqube.ws.client.users.CreateRequest
+import org.sonarqube.ws.client.usertokens.GenerateRequest
+import java.io.File
 import java.net.URL
 
 const val PROJECT_KEY = "sample-java-hotspot"
 
-@DisabledIf("isCLionOrGoLand", disabledReason = "No Java Security Hotspots in CLion or GoLand")
 class OpenInIdeTest : BaseUiTest() {
 
     @Test
@@ -74,14 +76,14 @@ class OpenInIdeTest : BaseUiTest() {
                     button("Next").click()
                 }
                 dialog("New Connection: Authentication") {
-                    jPasswordField().text = token
+                    jTextField().text = token
                     button("Next").click()
                 }
                 dialog("New Connection: Configure Notifications") {
                     button("Next").click()
                 }
                 dialog("New Connection: Configuration completed") {
-                    pressFinishOrCreate()
+                    button("Finish").click()
                 }
             }
         }
@@ -128,8 +130,9 @@ class OpenInIdeTest : BaseUiTest() {
         with(robot) {
             idea {
                 toolWindow("SonarLint") {
-                    tabTitleContains("Security Hotspots") {
-                        content("SecurityHotspotsPanel") {
+                    tab("Security Hotspots") {
+                        content("SonarLintHotspotsPanel") {
+                            assertThat(hasText("LOW")).isTrue()
                             assertThat(hasText("Make sure using this hardcoded IP address is safe here.")).isTrue()
                         }
                     }
@@ -143,26 +146,51 @@ class OpenInIdeTest : BaseUiTest() {
         private var firstHotspotKey: String? = null
         lateinit var token: String
 
-        private val ORCHESTRATOR: Orchestrator = defaultBuilderEnv()
+        private val ORCHESTRATOR: Orchestrator = Orchestrator.builderEnv()
+            .defaultForceAuthentication()
+            .setSonarVersion(SONAR_VERSION)
             .addPlugin(MavenLocation.of("org.sonarsource.java", "sonar-java-plugin", ItUtils.javaVersion))
             .restoreProfileAtStartup(FileLocation.ofClasspath("/java-sonarlint-with-hotspot.xml"))
             .build()
+
+        private const val SONARLINT_USER = "sonarlint"
+        private const val SONARLINT_PWD = "sonarlintpwd"
 
         @BeforeAll
         @JvmStatic
         fun prepare() {
             ORCHESTRATOR.start()
 
-            val adminWsClient = newAdminWsClientWithUser(ORCHESTRATOR.server)
+            val adminWsClient = newAdminWsClient()
+            adminWsClient.users()
+                .create(CreateRequest().setLogin(SONARLINT_USER).setPassword(SONARLINT_PWD).setName("SonarLint"))
 
             ORCHESTRATOR.server.provisionProject(PROJECT_KEY, "Sample Java")
             ORCHESTRATOR.server.associateProjectToQualityProfile(PROJECT_KEY, "java", "SonarLint IT Java Hotspot")
 
             // Build and analyze project to raise hotspot
-            executeBuildWithMaven("projects/sample-java-hotspot/pom.xml", ORCHESTRATOR);
+            val file = File("projects/sample-java-hotspot/pom.xml")
+            ORCHESTRATOR.executeBuild(
+                MavenBuild.create(file)
+                    .setCleanPackageSonarGoals()
+                    .setProperty("sonar.login", SONARLINT_USER)
+                    .setProperty("sonar.password", SONARLINT_PWD)
+            )
 
             firstHotspotKey = getFirstHotspotKey(adminWsClient)
-            token = generateToken(adminWsClient)
+            val generateRequest = GenerateRequest()
+            generateRequest.name = "TestUser"
+            token = adminWsClient.userTokens().generate(generateRequest).token
+        }
+
+        private fun newAdminWsClient(): WsClient {
+            val server = ORCHESTRATOR.server
+            return WsClientFactories.getDefault().newClient(
+                HttpConnector.newBuilder()
+                    .url(server.url)
+                    .credentials(Server.ADMIN_LOGIN, Server.ADMIN_PASSWORD)
+                    .build()
+            )
         }
 
         @AfterAll

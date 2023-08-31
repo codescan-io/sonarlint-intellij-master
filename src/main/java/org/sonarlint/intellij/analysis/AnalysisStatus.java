@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,7 +19,6 @@
  */
 package org.sonarlint.intellij.analysis;
 
-import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -28,8 +27,7 @@ import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.messages.StatusListener;
 
 @ThreadSafe
-@Service(Service.Level.PROJECT)
-public final class AnalysisStatus {
+public class AnalysisStatus {
   private final StatusListener statusListener;
   private Status status = Status.STOPPED;
 

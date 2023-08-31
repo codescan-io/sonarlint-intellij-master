@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA ITs
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,16 +19,26 @@
  */
 package org.sonarlint.intellij.its.tests
 
+import com.intellij.remoterobot.RemoteRobot
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.Assume
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.condition.EnabledIf
 import org.sonarlint.intellij.its.BaseUiTest
 import org.sonarlint.intellij.its.fixtures.dialog
 import org.sonarlint.intellij.its.fixtures.idea
+import org.sonarlint.intellij.its.fixtures.isCLion
+import org.sonarlint.intellij.its.fixtures.tool.window.toolWindow
 import org.sonarlint.intellij.its.utils.optionalStep
 import java.time.Duration
 
-@EnabledIf("isCLion")
+
 class CLionTests : BaseUiTest() {
+
+    @BeforeEach
+    fun requirements() {
+        Assume.assumeTrue(remoteRobot.isCLion())
+    }
 
     @Test
     fun should_analyze_cpp() = uiTest {
@@ -58,10 +68,11 @@ class CLionTests : BaseUiTest() {
         openFile("main.cpp")
 
         verifyCurrentFileTabContainsMessages(
-            "Found 4 issues in 1 file",
+            "Found 5 issues in 1 file",
             "main.cpp",
             "array designators are a C99 extension",
             "Replace this macro by \"const\", \"constexpr\" or an \"enum\".",
+            "Replace this usage of \"std::cout\" by a logger.",
             "Use \"std::array\" or \"std::vector\" instead of a C-style array.",
             "unused variable 's'"
         )

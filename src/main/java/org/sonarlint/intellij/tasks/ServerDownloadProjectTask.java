@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,32 +22,45 @@ package org.sonarlint.intellij.tasks;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+
 import java.util.Map;
-import java.util.stream.Collectors;
+
 import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.util.TaskProgressMonitor;
-import org.sonarsource.sonarlint.core.commons.progress.ProgressMonitor;
-import org.sonarsource.sonarlint.core.serverapi.component.ServerProject;
+import org.sonarsource.sonarlint.core.client.api.connected.ConnectedSonarLintEngine;
+import org.sonarsource.sonarlint.core.serverapi.project.ServerProject;
 
-public class ServerDownloadProjectTask extends Task.WithResult<Map<String, ServerProject>, Exception> {
+// we can't use Task.WithResult because it was only introduced recently
+public class ServerDownloadProjectTask extends Task.Modal {
+  private final ConnectedSonarLintEngine engine;
   private final ServerConnection server;
 
-  public ServerDownloadProjectTask(Project project, ServerConnection server) {
+  private Exception exception;
+  private Map<String, ServerProject> result;
+
+  public ServerDownloadProjectTask(Project project, ConnectedSonarLintEngine engine, ServerConnection server) {
     super(project, "Downloading Project List", true);
+    this.engine = engine;
     this.server = server;
   }
 
   @Override
-  protected Map<String, ServerProject> compute(@NotNull ProgressIndicator indicator) throws Exception {
+  public void run(@NotNull ProgressIndicator indicator) {
     try {
-      var monitor = new TaskProgressMonitor(indicator, myProject);
-      return server.api().component().getAllProjects(new ProgressMonitor(monitor)).stream().collect(Collectors.toMap(ServerProject::getKey, p -> p));
+      TaskProgressMonitor monitor = new TaskProgressMonitor(indicator, myProject);
+      this.result = engine.downloadAllProjects(server.getEndpointParams(), server.getHttpClient(), monitor);
     } catch (Exception e) {
       SonarLintConsole.get(myProject).error("Failed to download list of projects", e);
-      throw e;
+      this.exception = e;
     }
   }
 
+  public Map<String, ServerProject> getResult() throws Exception {
+    if (exception != null) {
+      throw exception;
+    }
+    return result;
+  }
 }

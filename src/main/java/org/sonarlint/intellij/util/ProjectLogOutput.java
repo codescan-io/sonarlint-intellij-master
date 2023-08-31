@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,11 +22,12 @@ package org.sonarlint.intellij.util;
 import com.intellij.openapi.project.Project;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarsource.sonarlint.core.commons.log.ClientLogOutput;
+import org.sonarlint.intellij.notifications.AnalysisRequirementNotifications;
+import org.sonarsource.sonarlint.core.client.api.common.LogOutput;
 
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 
-public class ProjectLogOutput implements ClientLogOutput {
+public class ProjectLogOutput implements LogOutput {
   private final Project project;
 
   public ProjectLogOutput(Project project) {
@@ -38,7 +39,13 @@ public class ProjectLogOutput implements ClientLogOutput {
     if (project.isDisposed()) {
       return;
     }
-    var console = SonarLintUtils.getService(project, SonarLintConsole.class);
+    SonarLintConsole console = SonarLintUtils.getService(project, SonarLintConsole.class);
+    if (isNodeCommandException(msg)) {
+      console.info(msg);
+      AnalysisRequirementNotifications.notifyNodeCommandException(project);
+      // Avoid duplicate log (info + debug)
+      return;
+    }
     if (!getSettingsFor(project).isAnalysisLogsEnabled()) {
       return;
     }
@@ -55,5 +62,9 @@ public class ProjectLogOutput implements ClientLogOutput {
       default:
         console.info(msg);
     }
+  }
+
+  private static boolean isNodeCommandException(String msg) {
+    return msg.contains("NodeCommandException");
   }
 }

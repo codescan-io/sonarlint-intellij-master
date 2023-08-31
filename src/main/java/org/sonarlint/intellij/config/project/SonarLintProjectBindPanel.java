@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,9 +19,6 @@
  */
 package org.sonarlint.intellij.config.project;
 
-import com.intellij.codeInsight.hint.HintManager;
-import com.intellij.codeInsight.hint.HintUtil;
-import com.intellij.icons.AllIcons;
 import com.intellij.ide.DataManager;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.module.Module;
@@ -34,14 +31,14 @@ import com.intellij.openapi.ui.ComboBox;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.projectImport.ProjectAttachProcessor;
 import com.intellij.ui.ColoredListCellRenderer;
-import com.intellij.ui.HyperlinkAdapter;
-import com.intellij.ui.HyperlinkLabel;
+import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.SimpleTextAttributes;
-import com.intellij.ui.awt.RelativePoint;
 import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBTextField;
-import com.intellij.ui.components.panels.HorizontalLayout;
+import com.intellij.util.ui.JBInsets;
 import com.intellij.util.ui.JBUI;
+import icons.SonarLintIcons;
+
 import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -60,20 +57,21 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
-import javax.swing.event.HyperlinkEvent;
+import javax.swing.border.Border;
+
 import org.apache.commons.lang.StringUtils;
-import org.sonarlint.intellij.SonarLintIcons;
+import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable;
-import org.sonarlint.intellij.tasks.BindingStorageUpdateTask;
+import org.sonarlint.intellij.core.SonarLintEngineManager;
 import org.sonarlint.intellij.tasks.ServerDownloadProjectTask;
-import org.sonarsource.sonarlint.core.serverapi.component.ServerProject;
+import org.sonarsource.sonarlint.core.client.api.connected.ConnectedSonarLintEngine;
+import org.sonarsource.sonarlint.core.serverapi.project.ServerProject;
 
 import static java.awt.GridBagConstraints.HORIZONTAL;
 import static java.awt.GridBagConstraints.NONE;
 import static java.awt.GridBagConstraints.WEST;
 import static java.util.Optional.ofNullable;
-import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 
 public class SonarLintProjectBindPanel {
   private static final String CONNECTION_EMPTY_TEXT = "<No connections configured>";
@@ -90,9 +88,6 @@ public class SonarLintProjectBindPanel {
   private JBTextField projectKeyTextField;
   private JButton searchProjectButton;
 
-  // Storage status
-  private JButton updateStorageButton;
-
   private Project project;
   private JLabel connectionListLabel;
   private JLabel projectKeyLabel;
@@ -101,13 +96,15 @@ public class SonarLintProjectBindPanel {
   public JPanel create(Project project) {
     this.project = project;
     rootPanel = new JPanel(new BorderLayout());
+    boolean pluralizeProject = ProjectAttachProcessor.canAttachToProject() && ModuleManager.getInstance(project).getModules().length > 1;
+    bindEnable = new JBCheckBox("Bind project"+ (pluralizeProject ? "s" : "") + " to CodeScan / CodeScanCloud", true);
+    bindEnable.addItemListener(new BindItemListener());
     createBindPanel();
 
-    rootPanel.add(bindPanel, BorderLayout.NORTH);
-
+    rootPanel.add(bindEnable, BorderLayout.NORTH);
+    rootPanel.add(bindPanel, BorderLayout.CENTER);
     moduleBindingPanel = new ModuleBindingPanel(project, () -> isBindingEnabled() ? getSelectedConnection() : null);
-    rootPanel.add(moduleBindingPanel.getRootPanel(), BorderLayout.CENTER);
-
+    rootPanel.add(moduleBindingPanel.getRootPanel(), BorderLayout.SOUTH);
     return rootPanel;
   }
 
@@ -117,7 +114,7 @@ public class SonarLintProjectBindPanel {
 
     connectionComboBox.removeAllItems();
     setConnectionList(connections, projectSettings.getConnectionName());
-    var selectedProjectKey = projectSettings.getProjectKey();
+    String selectedProjectKey = projectSettings.getProjectKey();
     if (selectedProjectKey != null) {
       projectKeyTextField.setText(selectedProjectKey);
     }
@@ -127,7 +124,7 @@ public class SonarLintProjectBindPanel {
   @CheckForNull
   public ServerConnection getSelectedConnection() {
     // do things in a type safe way
-    var idx = connectionComboBox.getSelectedIndex();
+    int idx = connectionComboBox.getSelectedIndex();
     if (idx < 0) {
       return null;
     }
@@ -147,12 +144,10 @@ public class SonarLintProjectBindPanel {
   private void onConnectionSelected() {
     ApplicationManager.getApplication().assertIsDispatchThread();
 
-    var selectedConnection = getSelectedConnection();
-    var isAnyConnectionSelected = selectedConnection != null;
-    projectKeyTextField.setEnabled(isAnyConnectionSelected);
-    projectKeyTextField.setEditable(isAnyConnectionSelected);
-    searchProjectButton.setEnabled(isAnyConnectionSelected);
-    updateStorageButton.setEnabled(isAnyConnectionSelected && getGlobalSettings().connectionExists(selectedConnection.getName()));
+    boolean connectionSelected = getSelectedConnection() != null;
+    projectKeyTextField.setEnabled(connectionSelected);
+    projectKeyTextField.setEditable(connectionSelected);
+    searchProjectButton.setEnabled(connectionSelected);
   }
 
   /**
@@ -162,11 +157,15 @@ public class SonarLintProjectBindPanel {
   private Map<String, ServerProject> downloadProjectList(ServerConnection selectedConnection) {
     ApplicationManager.getApplication().assertIsDispatchThread();
 
-    var downloadTask = new ServerDownloadProjectTask(project, selectedConnection);
+    SonarLintEngineManager core = SonarLintUtils.getService(SonarLintEngineManager.class);
+    ConnectedSonarLintEngine engine = core.getConnectedEngine(selectedConnection.getName());
+    ServerDownloadProjectTask downloadTask = new ServerDownloadProjectTask(project, engine, selectedConnection);
+
     try {
-      return ProgressManager.getInstance().run(downloadTask);
+      ProgressManager.getInstance().run(downloadTask);
+      return downloadTask.getResult();
     } catch (Exception e) {
-      var msg = e.getMessage() != null ? e.getMessage() : "Failed to download list of projects";
+      String msg = e.getMessage() != null ? e.getMessage() : "Failed to download list of projects";
       Messages.showErrorDialog(rootPanel, msg, "Error Downloading Project List");
       return null;
     }
@@ -176,8 +175,8 @@ public class SonarLintProjectBindPanel {
     ApplicationManager.getApplication().assertIsDispatchThread();
 
     // keep selection if possible
-    final var selectedConnection = getSelectedConnection();
-    var previousSelectedStorageId = selectedConnection != null ? selectedConnection.getName() : null;
+    final ServerConnection selectedConnection = getSelectedConnection();
+    String previousSelectedStorageId = selectedConnection != null ? selectedConnection.getName() : null;
     connectionComboBox.removeAllItems();
     setConnectionList(connectionList, previousSelectedStorageId);
   }
@@ -187,20 +186,20 @@ public class SonarLintProjectBindPanel {
    * Will also enable or disable other components.
    */
   private void setConnectionList(Collection<ServerConnection> connections, @Nullable String previousSelectedStorageId) {
-    var model = (DefaultComboBoxModel<ServerConnection>) connectionComboBox.getModel();
+    DefaultComboBoxModel<ServerConnection> model = (DefaultComboBoxModel<ServerConnection>) connectionComboBox.getModel();
 
     if (connections.isEmpty()) {
       connectionComboBox.setEnabled(false);
-      var connection = ServerConnection.newBuilder()
+      ServerConnection s = ServerConnection.newBuilder()
         .setName(CONNECTION_EMPTY_TEXT)
         .build();
-      connectionComboBox.setPrototypeDisplayValue(connection);
+      connectionComboBox.setPrototypeDisplayValue(s);
       // ensure this is called, even when nothing is selected
     } else {
       connectionComboBox.setEnabled(bindEnable.isSelected());
-      var i = 0;
-      var selectedIndex = -1;
-      for (var connection : connections) {
+      int i = 0;
+      int selectedIndex = -1;
+      for (ServerConnection connection : connections) {
         if (previousSelectedStorageId != null && connection.getName() != null && previousSelectedStorageId.equals(connection.getName())) {
           selectedIndex = i;
         }
@@ -222,10 +221,6 @@ public class SonarLintProjectBindPanel {
 
     bindPanel = new JPanel(new GridBagLayout());
 
-    boolean pluralizeProject = ProjectAttachProcessor.canAttachToProject() && ModuleManager.getInstance(project).getModules().length > 1;
-    bindEnable = new JBCheckBox("Bind project" + (pluralizeProject ? "s" : "") + " to SonarQube / SonarCloud", true);
-    bindEnable.addItemListener(new BindItemListener());
-
     configureConnectionButton = new JButton();
     configureConnectionButton.setAction(new AbstractAction() {
       @Override
@@ -243,19 +238,19 @@ public class SonarLintProjectBindPanel {
 
     projectKeyLabel = new JLabel("Project key:");
     projectKeyTextField = new JBTextField();
-    projectKeyTextField.getEmptyText().setText("Input SonarQube/SonarCloud project key or search one");
+    projectKeyTextField.getEmptyText().setText("Input CodeScan project key or search one");
 
     searchProjectButton = new JButton();
     searchProjectButton.setAction(new AbstractAction() {
       @Override
       public void actionPerformed(ActionEvent e) {
-        var selectedConnection = getSelectedConnection();
+        ServerConnection selectedConnection = getSelectedConnection();
         if (selectedConnection == null) {
           return;
         }
-        var projects = downloadProjectList(selectedConnection);
-        if (projects != null) {
-          var dialog = new SearchProjectKeyDialog(rootPanel, projectKeyTextField.getText(), projects, selectedConnection.isSonarCloud());
+        Map<String, ServerProject> map = downloadProjectList(selectedConnection);
+        if (map != null) {
+          SearchProjectKeyDialog dialog = new SearchProjectKeyDialog(rootPanel, projectKeyTextField.getText(), map, selectedConnection.isCodeScanCloud());
           if (dialog.showAndGet()) {
             projectKeyTextField.setText(dialog.getSelectedProjectKey() != null ? dialog.getSelectedProjectKey() : "");
           }
@@ -266,81 +261,39 @@ public class SonarLintProjectBindPanel {
 
     connectionListLabel.setLabelFor(connectionComboBox);
 
-    updateStorageButton = new JButton();
+    JBInsets insets = JBUI.insets(2, 0, 0, 0);
 
-    final var link = new HyperlinkLabel("");
-    link.setIcon(AllIcons.General.ContextHelp);
-    link.setUseIconAsLink(true);
-    link.addHyperlinkListener(new HyperlinkAdapter() {
-      @Override
-      protected void hyperlinkActivated(HyperlinkEvent e) {
-        final var label = new JLabel("<html>Click to fetch and cache data from the selected connection, such as"
-          + " rules, quality profiles, etc.</html>");
-        label.setBorder(HintUtil.createHintBorder());
-        label.setBackground(HintUtil.getInformationColor());
-        label.setOpaque(true);
-        HintManager.getInstance().showHint(label, RelativePoint.getSouthWestOf(link), HintManager.HIDE_BY_ANY_KEY | HintManager.HIDE_BY_TEXT_CHANGE, -1);
-      }
-    });
-
-    var updateStoragePanel = new JPanel(new HorizontalLayout(5));
-    updateStoragePanel.add(updateStorageButton);
-    updateStoragePanel.add(link);
-
-    updateStorageButton.setAction(new AbstractAction() {
-      @Override
-      public void actionPerformed(ActionEvent e) {
-        actionUpdateConnectionStorageTask();
-      }
-    });
-    updateStorageButton.setText("Update local storage");
-    updateStorageButton.setToolTipText("Fetch and cache data from server: quality profile, settings, ...");
-
-    var insets = JBUI.insetsTop(2);
-
-    bindPanel.add(bindEnable, new GridBagConstraints(0, 0, 3, 1, 0.0, 0.0,
+    bindPanel.add(connectionListLabel, new GridBagConstraints(0, 0, 1, 1, 0.0, 0.0,
+      WEST, NONE, insets, 0, 0));
+    bindPanel.add(connectionComboBox, new GridBagConstraints(1, 0, 1, 1, 1.0, 0.0,
+      WEST, HORIZONTAL, insets, 0, 0));
+    bindPanel.add(configureConnectionButton, new GridBagConstraints(2, 0, 1, 1, 0.0, 0.0,
       WEST, NONE, insets, 0, 0));
 
-    bindPanel.add(connectionListLabel, new GridBagConstraints(0, 1, 1, 1, 0.0, 0.0,
+    bindPanel.add(projectKeyLabel, new GridBagConstraints(0, 1, 1, 1, 0.0, 0.0,
       WEST, NONE, insets, 0, 0));
-    bindPanel.add(connectionComboBox, new GridBagConstraints(1, 1, 1, 1, 1.0, 0.0,
+    bindPanel.add(projectKeyTextField, new GridBagConstraints(1, 1, 1, 1, 1.0, 0.0,
       WEST, HORIZONTAL, insets, 0, 0));
-    bindPanel.add(configureConnectionButton, new GridBagConstraints(2, 1, 1, 1, 0.0, 0.0,
-      WEST, HORIZONTAL, insets, 0, 0));
-
-    bindPanel.add(projectKeyLabel, new GridBagConstraints(0, 2, 1, 1, 0.0, 0.0,
-      WEST, NONE, insets, 0, 0));
-    bindPanel.add(projectKeyTextField, new GridBagConstraints(1, 2, 1, 1, 1.0, 0.0,
-      WEST, HORIZONTAL, insets, 0, 0));
-    bindPanel.add(searchProjectButton, new GridBagConstraints(2, 2, 1, 1, 0.0, 0.0,
+    bindPanel.add(searchProjectButton, new GridBagConstraints(2, 1, 1, 1, 0.0, 0.0,
       WEST, HORIZONTAL, insets, 0, 0));
 
-    bindPanel.add(updateStoragePanel, new GridBagConstraints(2, 3, 1, 1, 0.0, 0.0, WEST, HORIZONTAL, insets, 0, 0));
-  }
-
-  private void actionUpdateConnectionStorageTask() {
-    var connection = getSelectedConnection();
-    if (connection == null) {
-      return;
-    }
-
-    var task = new BindingStorageUpdateTask(connection, project, () -> ApplicationManager.getApplication().invokeLater(() -> updateStorageButton.setEnabled(true)));
-    updateStorageButton.setEnabled(false);
-    ProgressManager.getInstance().run(task.asBackground());
+    // Consume extra space
+    bindPanel.add(new JPanel(), new GridBagConstraints(0, 2, 3, 1, 0.0, 1.0,
+      WEST, HORIZONTAL, insets, 0, 0));
   }
 
   /**
    * Navigates to global configuration. There are 2 possible ways of doing it, depending on how the settings are opened.
    */
   private void actionConfigureConnections() {
-    var allSettings = Settings.KEY.getData(DataManager.getInstance().getDataContext(rootPanel));
+    Settings allSettings = Settings.KEY.getData(DataManager.getInstance().getDataContext(rootPanel));
     if (allSettings != null) {
-      final var globalConfigurable = allSettings.find(SonarLintGlobalConfigurable.class);
+      final SonarLintGlobalConfigurable globalConfigurable = allSettings.find(SonarLintGlobalConfigurable.class);
       if (globalConfigurable != null) {
         allSettings.select(globalConfigurable);
       }
     } else {
-      var globalConfigurable = new SonarLintGlobalConfigurable();
+      SonarLintGlobalConfigurable globalConfigurable = new SonarLintGlobalConfigurable();
       ShowSettingsUtil.getInstance().editConfigurable(rootPanel, globalConfigurable);
     }
   }
@@ -373,7 +326,7 @@ public class SonarLintProjectBindPanel {
   }
 
   /**
-   * Render a connection in combo box
+   * Render CodeScan server in combo box
    */
   private class ServerComboBoxRenderer extends ColoredListCellRenderer<ServerConnection> {
     @Override
@@ -399,8 +352,8 @@ public class SonarLintProjectBindPanel {
       }
 
       append(value.getName(), attrs, true);
-      setToolTipText("Bind project using this connection");
-      if (value.isSonarCloud()) {
+      setToolTipText("Connect to this CodeScan server");
+      if (value.isCodeScanCloud()) {
         setIcon(SonarLintIcons.ICON_SONARCLOUD_16);
       } else {
         setIcon(SonarLintIcons.ICON_SONARQUBE_16);
@@ -430,11 +383,6 @@ public class SonarLintProjectBindPanel {
       connectionComboBox.setEnabled(bound);
       configureConnectionButton.setEnabled(bound);
       moduleBindingPanel.setEnabled(bound);
-      updateStorageButton.setEnabled(bound);
-
-      if (bound) {
-        onConnectionSelected();
-      }
     }
   }
 }

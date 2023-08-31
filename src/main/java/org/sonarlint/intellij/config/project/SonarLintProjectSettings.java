@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -33,7 +33,6 @@ public final class SonarLintProjectSettings {
 
   private boolean verboseEnabled = false;
   private boolean analysisLogsEnabled = false;
-  private boolean resolvedHotspotsEnabled = false;
   private Map<String, String> additionalProperties = new LinkedHashMap<>();
   private boolean bindingEnabled = false;
   // For backward compatibility
@@ -41,7 +40,6 @@ public final class SonarLintProjectSettings {
   private String connectionName = null;
   private String projectKey = null;
   private List<String> fileExclusions = new ArrayList<>();
-  private boolean bindingSuggestionsEnabled = true;
 
   public boolean isVerboseEnabled() {
     return verboseEnabled;
@@ -89,15 +87,6 @@ public final class SonarLintProjectSettings {
     return analysisLogsEnabled;
   }
 
-  public boolean isResolvedHotspotsEnabled() {
-    return resolvedHotspotsEnabled;
-  }
-
-
-  public void setResolvedHotspotsEnabled(boolean resolvedHotspotsEnabled) {
-    this.resolvedHotspotsEnabled = resolvedHotspotsEnabled;
-  }
-
   public void setAnalysisLogsEnabled(boolean analysisLogsEnabled) {
     this.analysisLogsEnabled = analysisLogsEnabled;
   }
@@ -128,13 +117,5 @@ public final class SonarLintProjectSettings {
     bindingEnabled = false;
     connectionName = null;
     this.projectKey = null;
-  }
-
-  public void setBindingSuggestionsEnabled(boolean enabled) {
-    bindingSuggestionsEnabled = enabled;
-  }
-
-  public boolean isBindingSuggestionsEnabled() {
-    return bindingSuggestionsEnabled;
   }
 }

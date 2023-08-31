@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2021 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,18 +27,17 @@ import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataProvider
-import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.ui.SimpleToolWindowPanel
 import com.intellij.tools.SimpleActionGroup
 import com.intellij.ui.ScrollPaneFactory
-import com.intellij.ui.SimpleTextAttributes
-import com.intellij.ui.components.JBPanelWithEmptyText
+import com.intellij.ui.components.JBTabbedPane
+import com.intellij.ui.components.labels.ActionLink
 import com.intellij.ui.components.panels.HorizontalLayout
 import com.intellij.util.ui.tree.TreeUtil
-import org.sonarlint.intellij.actions.AbstractSonarAction
+import org.sonarlint.intellij.actions.OpenIssueInBrowserAction
 import org.sonarlint.intellij.actions.OpenTaintVulnerabilityDocumentationAction
 import org.sonarlint.intellij.actions.RefreshTaintVulnerabilitiesAction
 import org.sonarlint.intellij.actions.SonarConfigureProject
@@ -46,13 +45,11 @@ import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.config.Settings.getGlobalSettings
 import org.sonarlint.intellij.core.ProjectBindingManager
 import org.sonarlint.intellij.editor.EditorDecorator
-import org.sonarlint.intellij.finding.issue.vulnerabilities.FoundTaintVulnerabilities
-import org.sonarlint.intellij.finding.issue.vulnerabilities.InvalidBinding
-import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability
-import org.sonarlint.intellij.finding.issue.vulnerabilities.NoBinding
-import org.sonarlint.intellij.finding.issue.vulnerabilities.TaintVulnerabilitiesStatus
-import org.sonarlint.intellij.ui.CardPanel
-import org.sonarlint.intellij.ui.CurrentFilePanel
+import org.sonarlint.intellij.issue.vulnerabilities.FoundTaintVulnerabilities
+import org.sonarlint.intellij.issue.vulnerabilities.InvalidBinding
+import org.sonarlint.intellij.issue.vulnerabilities.LocalTaintVulnerability
+import org.sonarlint.intellij.issue.vulnerabilities.NoBinding
+import org.sonarlint.intellij.issue.vulnerabilities.TaintVulnerabilitiesStatus
 import org.sonarlint.intellij.ui.SonarLintRulePanel
 import org.sonarlint.intellij.ui.SonarLintToolWindowFactory.createSplitter
 import org.sonarlint.intellij.ui.nodes.AbstractNode
@@ -60,15 +57,15 @@ import org.sonarlint.intellij.ui.nodes.IssueNode
 import org.sonarlint.intellij.ui.nodes.LocalTaintVulnerabilityNode
 import org.sonarlint.intellij.ui.tree.TaintVulnerabilityTree
 import org.sonarlint.intellij.ui.tree.TaintVulnerabilityTreeModelBuilder
-import org.sonarlint.intellij.util.DataKeys.Companion.TAINT_VULNERABILITY_DATA_KEY
-import org.sonarlint.intellij.util.SonarLintActions
 import java.awt.BorderLayout
-import java.awt.Dimension
-import java.awt.event.ActionEvent
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import javax.swing.Box
+import javax.swing.BoxLayout
+import javax.swing.JComponent
+import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.ScrollPaneConstants
 import javax.swing.event.TreeSelectionListener
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.TreeNode
@@ -89,19 +86,39 @@ private const val TOOLBAR_GROUP_ID = "TaintVulnerabilities"
 class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindowPanel(false, true),
     OccurenceNavigator, DataProvider, Disposable {
 
-    private val rulePanel = SonarLintRulePanel(project, this)
+    private lateinit var rulePanel: SonarLintRulePanel
     private lateinit var tree: TaintVulnerabilityTree
     private lateinit var treeBuilder: TaintVulnerabilityTreeModelBuilder
+    private val noVulnerabilitiesLabel = JLabel("")
     private val cards = CardPanel()
-    private val noVulnerabilitiesPanel: JBPanelWithEmptyText
+
+    class CardPanel {
+        val container = JPanel()
+        private var subPanels = mutableMapOf<String, JComponent>()
+
+        init {
+            container.layout = BoxLayout(container, BoxLayout.PAGE_AXIS)
+        }
+
+        fun add(panel: JComponent, id: String) {
+            panel.isVisible = subPanels.isEmpty()
+            panel.alignmentX = 0.5f
+            panel.alignmentY = 0.5f
+            container.add(panel)
+            subPanels[id] = panel
+        }
+
+        fun show(id: String) {
+            subPanels.values.forEach { it.isVisible = false }
+            subPanels[id]!!.isVisible = true
+        }
+    }
 
     init {
-        cards.add(centeredLabel("The project is not bound to SonarQube/SonarCloud", "Configure Binding", SonarConfigureProject()), NO_BINDING_CARD_ID)
-        cards.add(centeredLabel("The project binding is invalid", "Edit Binding", SonarConfigureProject()), INVALID_BINDING_CARD_ID)
-        noVulnerabilitiesPanel = centeredLabel("", "", null)
-        cards.add(noVulnerabilitiesPanel, NO_ISSUES_CARD_ID)
-        rulePanel.minimumSize = Dimension(350, 200)
-        cards.add(createSplitter(project, this, this, ScrollPaneFactory.createScrollPane(createTree()), rulePanel, SPLIT_PROPORTION_PROPERTY, DEFAULT_SPLIT_PROPORTION),
+        cards.add(centeredLabel("The project is not bound to CodeScan", ActionLink("Configure Binding", SonarConfigureProject())), NO_BINDING_CARD_ID)
+        cards.add(centeredLabel("The project binding is invalid", ActionLink("Edit Binding", SonarConfigureProject())), INVALID_BINDING_CARD_ID)
+        cards.add(centeredLabel(noVulnerabilitiesLabel), NO_ISSUES_CARD_ID)
+        cards.add(createSplitter(project, this, this, ScrollPaneFactory.createScrollPane(createTree()), createRulePanel(), SPLIT_PROPORTION_PROPERTY, DEFAULT_SPLIT_PROPORTION),
             TREE_CARD_ID
         )
         val issuesPanel = JPanel(BorderLayout())
@@ -111,34 +128,22 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
         }
         issuesPanel.add(cards.container, BorderLayout.CENTER)
         setContent(issuesPanel)
-        val sonarLintActions = SonarLintActions.getInstance()
-        setupToolbar(listOf(RefreshTaintVulnerabilitiesAction(), sonarLintActions.configure(), OpenTaintVulnerabilityDocumentationAction()))
+        setupToolbar(listOf(RefreshTaintVulnerabilitiesAction(), OpenTaintVulnerabilityDocumentationAction()))
     }
 
-    private fun centeredLabel(textLabel: String, actionText: String?, action: AnAction?): JBPanelWithEmptyText {
-        val labelPanel = JBPanelWithEmptyText(HorizontalLayout(5))
-        val text = labelPanel.emptyText
-        text.setText(textLabel)
-        if (action != null && actionText != null) {
-            text.appendLine(
-                actionText, SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES
-            ) { _: ActionEvent? ->
-                ActionUtil.invokeAction(
-                    action,
-                    labelPanel,
-                    CurrentFilePanel.SONARLINT_TOOLWINDOW_ID,
-                    null,
-                    null
-                )
-            }
-        }
+    private fun centeredLabel(text: String, actionLink: ActionLink? = null) = centeredLabel(JLabel(text), actionLink)
+
+    private fun centeredLabel(textLabel: JLabel, actionLink: ActionLink? = null): JPanel {
+        val labelPanel = JPanel(HorizontalLayout(5))
+        labelPanel.add(textLabel, HorizontalLayout.CENTER)
+        if (actionLink != null) labelPanel.add(actionLink, HorizontalLayout.CENTER)
         return labelPanel
     }
 
     private fun createDisclaimer(): StripePanel {
-        val stripePanel = StripePanel("This tab displays taint vulnerabilities detected by SonarQube or SonarCloud. SonarLint does not detect those issues locally.", Information)
-        stripePanel.addAction("Learn More", OpenTaintVulnerabilityDocumentationAction())
-        stripePanel.addAction("Dismiss", object : AbstractSonarAction() {
+        val stripePanel = StripePanel("This tab displays taint vulnerabilities detected by CodeScan. CodeScan does not detect those issues locally.", Information)
+        stripePanel.addAction("Learn more", OpenTaintVulnerabilityDocumentationAction())
+        stripePanel.addAction("Dismiss", object : AnAction() {
             override fun actionPerformed(e: AnActionEvent) {
                 stripePanel.isVisible = false
                 getGlobalSettings().dismissTaintVulnerabilitiesTabDisclaimer()
@@ -151,7 +156,7 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
         val group = SimpleActionGroup()
         actions.forEach { group.add(it) }
         val toolbar = ActionManager.getInstance().createActionToolbar(TOOLBAR_GROUP_ID, group, false)
-        toolbar.targetComponent = this
+        toolbar.setTargetComponent(this)
         val toolBarBox = Box.createHorizontalBox()
         toolBarBox.add(toolbar.component)
         setToolbar(toolBarBox)
@@ -165,7 +170,7 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
     fun populate(status: TaintVulnerabilitiesStatus) {
         val highlighting = getService(project, EditorDecorator::class.java)
         when (status) {
-            is NoBinding  ->  {
+            is NoBinding -> {
                 showCard(NO_BINDING_CARD_ID)
                 highlighting.removeHighlights()
             }
@@ -210,7 +215,7 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
 
     private fun showNoVulnerabilitiesLabel() {
         val serverConnection = getService(project, ProjectBindingManager::class.java).serverConnection
-        noVulnerabilitiesPanel.withEmptyText("No vulnerabilities found for currently opened files in the latest analysis on ${serverConnection.productName}")
+        noVulnerabilitiesLabel.text = "No vulnerabilities found for currently opened files in the latest analysis on ${serverConnection.productName}."
         showCard(NO_ISSUES_CARD_ID)
     }
 
@@ -221,37 +226,42 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
         TreeUtil.selectPath(tree, TreePath(vulnerabilityNode.path))
     }
 
-    fun remove(taintVulnerability: LocalTaintVulnerability) {
-        treeBuilder.remove(taintVulnerability)
+    private fun createRulePanel(): JBTabbedPane {
+        // Rule panel
+        rulePanel = SonarLintRulePanel(project)
+
+        val scrollableRulePanel = ScrollPaneFactory.createScrollPane(rulePanel.panel, true)
+        scrollableRulePanel.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER)
+        scrollableRulePanel.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED)
+        scrollableRulePanel.verticalScrollBar.unitIncrement = 10
+        val detailsTab = JBTabbedPane()
+        detailsTab.addTab("Rule", null, scrollableRulePanel, "Details about the rule")
+        return detailsTab
     }
 
     private fun updateRulePanelContent() {
         val highlighting = getService(project, EditorDecorator::class.java)
         val issue = tree.getIssueFromSelectedNode()
         if (issue == null) {
-            rulePanel.clear()
+            rulePanel.setRuleKey(null, null)
             highlighting.removeHighlights()
         } else {
             val file = issue.file()
             if (file == null) {
                 // FIXME can't we find a way to get the rule description?
-                rulePanel.clear()
+                rulePanel.setRuleKey(null, null)
                 highlighting.removeHighlights()
             } else {
                 val moduleForFile = ProjectRootManager.getInstance(project).fileIndex.getModuleForFile(file)
-                if (moduleForFile != null) {
-                    rulePanel.setSelectedFinding(moduleForFile, issue)
-                } else {
-                    rulePanel.clear()
-                }
+                rulePanel.setRuleKey(moduleForFile, issue.ruleKey())
                 highlighting.highlight(issue)
             }
         }
     }
 
     private val TREE_SELECTION_LISTENER = TreeSelectionListener {
-        updateRulePanelContent()
-    }
+        updateRulePanelContent();
+    };
 
     private fun createTree(): TaintVulnerabilityTree {
         treeBuilder = TaintVulnerabilityTreeModelBuilder()
@@ -329,7 +339,7 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
     }
 
     override fun getData(dataId: String): Any? {
-        return if (TAINT_VULNERABILITY_DATA_KEY.`is`(dataId)) {
+        return if (OpenIssueInBrowserAction.TAINT_VULNERABILITY_DATA_KEY.`is`(dataId)) {
             tree.getSelectedIssue()
         } else null
     }
