@@ -105,7 +105,7 @@ public final class ProjectBindingManager {
   public ConnectedSonarLintEngine getConnectedEngine() throws InvalidBindingException {
     var projectSettings = getSettingsFor(myProject);
     if (!projectSettings.isBindingEnabled()) {
-      throw new IllegalStateException("Project is not bound to a SonarQube project");
+      throw new IllegalStateException("Project is not bound to a CodeScan project");
     }
     var notifications = getService(myProject, SonarLintProjectNotifications.class);
     var connectionName = projectSettings.getConnectionName();

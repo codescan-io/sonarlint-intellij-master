@@ -28,6 +28,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.swing.Icon;
 import org.sonarlint.intellij.SonarLintIcons;
+import org.sonarlint.intellij.SonarLintIcons.*;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.core.BackendService;
 import org.sonarlint.intellij.core.server.ServerLinks;
@@ -53,7 +54,6 @@ import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 // Don't change annotation, used for backward compatibility
 @Tag("SonarQubeServer")
 public class ServerConnection {
-  public static final String SONARCLOUD_URL = "https://app.codescan.io";
   @OptionTag
   private String hostUrl;
   @Tag
@@ -138,16 +138,16 @@ public class ServerConnection {
     }
   }
 
-  public boolean isCodescanCloud() {
+  public boolean isCodeScanCloud() {
     return SonarLintUtils.isCodeScanCloudAlias(hostUrl);
   }
 
   public String getProductName() {
-    return isCodescanCloud() ? "SonarCloud" : "SonarQube";
+    return "CodeScan";
   }
 
   public Icon getProductIcon() {
-    return isCodescanCloud() ? SonarLintIcons.ICON_SONARCLOUD_16 : SonarLintIcons.ICON_SONARQUBE_16;
+    return isCodeScanCloud() ? SonarLintIcons.ICON_SONARCLOUD_16 : SonarLintIcons.ICON_SONARQUBE_16;
   }
 
   public boolean enableProxy() {
@@ -171,7 +171,7 @@ public class ServerConnection {
   }
 
   public EndpointParams getEndpointParams() {
-    return new EndpointParams(getHostUrl(), isCodescanCloud(), getOrganizationKey());
+    return new EndpointParams(getHostUrl(), isCodeScanCloud(), getOrganizationKey());
   }
 
   public ServerApi api() {
@@ -188,7 +188,7 @@ public class ServerConnection {
   }
 
   public ServerLinks links() {
-    return isCodescanCloud() ? SonarCloudLinks.INSTANCE : new SonarQubeLinks(hostUrl);
+    return isCodeScanCloud() ? SonarCloudLinks.INSTANCE : new SonarQubeLinks(hostUrl);
   }
 
   public static class Builder {

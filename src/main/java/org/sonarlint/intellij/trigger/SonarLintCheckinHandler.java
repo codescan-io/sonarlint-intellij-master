@@ -93,7 +93,7 @@ public class SonarLintCheckinHandler extends CheckinHandler {
   }
 
   private void handleError(Exception e, int numFiles) {
-    var msg = "SonarLint - Error analysing " + numFiles + " changed file(s).";
+    var msg = "CodeScan - Error analysing " + numFiles + " changed file(s).";
     if (e.getMessage() != null) {
       msg = msg + ": " + e.getMessage();
     }
@@ -140,16 +140,16 @@ public class SonarLintCheckinHandler extends CheckinHandler {
     var warningAboutLeakedSecrets = "";
     if (numSecretsIssues > 0) {
       var secretWord = SonarLintUtils.pluralize("secret", numSecretsIssues);
-      warningAboutLeakedSecrets = String.format("\n\nSonarLint analysis found %d %s. " +
+      warningAboutLeakedSecrets = String.format("\n\nCodeScan analysis found %d %s. " +
         "Committed secrets may lead to unauthorized system access.", numSecretsIssues, secretWord);
     }
     var message = new StringBuilder();
     if (numBlockerIssues > 0) {
       var blocker = SonarLintUtils.pluralize("issue", numBlockerIssues);
-      message.append(String.format("SonarLint analysis on %d %s found %d %s (including %d blocker %s)", filesAnalyzed, files,
+      message.append(String.format("CodeScan analysis on %d %s found %d %s (including %d blocker %s)", filesAnalyzed, files,
         numIssues, issues, numBlockerIssues, blocker));
     } else {
-      message.append(String.format("SonarLint analysis on %d %s found %d %s", filesAnalyzed, files, numIssues, issues));
+      message.append(String.format("CodeScan analysis on %d %s found %d %s", filesAnalyzed, files, numIssues, issues));
     }
     message.append(warningAboutLeakedSecrets);
     return message.toString();
@@ -158,7 +158,7 @@ public class SonarLintCheckinHandler extends CheckinHandler {
   private ReturnResult showYesNoCancel(String resultStr) {
     final var answer = Messages.showYesNoCancelDialog(project,
       resultStr,
-      "SonarLint Analysis Results",
+      "CodeScan Analysis Results",
       "&Review Issues",
       "C&ontinue",
       "Cancel",
@@ -190,7 +190,7 @@ public class SonarLintCheckinHandler extends CheckinHandler {
       panel.add(checkBox);
       var dumb = DumbService.isDumb(project);
       checkBox.setEnabled(!dumb);
-      checkBox.setToolTipText(dumb ? "SonarLint analysis is impossible until indices are up-to-date" : "");
+      checkBox.setToolTipText(dumb ? "CodeScan analysis is impossible until indices are up-to-date" : "");
       return panel;
     }
 

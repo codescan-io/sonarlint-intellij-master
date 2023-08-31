@@ -41,11 +41,11 @@ import static org.sonarlint.intellij.actions.SonarLintToolWindow.buildTabName;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 
 /**
- * Factory of SonarLint tool window.
+ * Factory of CodeScan tool window.
  * Nothing can be injected as it runs in the root pico container.
  */
 public class SonarLintToolWindowFactory implements ToolWindowFactory {
-  public static final String TOOL_WINDOW_ID = "SonarLint";
+  public static final String TOOL_WINDOW_ID = "CodeScan";
   public static final String LOG_TAB_TITLE = "Log";
   public static final String CURRENT_FILE_TAB_TITLE = "Current File";
   public static final String REPORT_TAB_TITLE = "Report";

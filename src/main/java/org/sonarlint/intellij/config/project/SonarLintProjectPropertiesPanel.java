@@ -48,8 +48,8 @@ public class SonarLintProjectPropertiesPanel {
   public JPanel create() {
     tableModel = new PropertiesTableModel();
     // Unfortunately TableModel's listener does not work properly, it doesn't receive events related to changed cells.
-    final var table = new JBTable(tableModel);
-    table.getEmptyText().setText("No SonarLint properties configured for this project");
+    final JBTable table = new JBTable(tableModel);
+    table.getEmptyText().setText("No CodeScan properties configured for this project");
 
     var tablePanel = ToolbarDecorator.createDecorator(table)
       .disableUpAction()

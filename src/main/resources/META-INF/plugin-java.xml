@@ -20,13 +20,15 @@
 
 -->
 <idea-plugin>
-    <extensions defaultExtensionNs="org.sonarlint.idea">
+    <extensions defaultExtensionNs="com.code-scan.intellij">
         <analysisConfiguration implementation="org.sonarlint.intellij.java.JavaAnalysisConfigurator"/>
         <languageActivator implementation="org.sonarlint.intellij.java.JavaLanguageActivator"/>
     </extensions>
 
     <extensions defaultExtensionNs="com.intellij">
         <postStartupActivity implementation="org.sonarlint.intellij.trigger.MakeTrigger"/>
+        <!-- BE CAREFUL to not register the annotator twice for the same language (taking into account inheritance) or the annotation will appear multiple times -->
+        <externalAnnotator language="JAVA" implementationClass="org.sonarlint.intellij.editor.SonarExternalAnnotator"/>
     </extensions>
 
 </idea-plugin>

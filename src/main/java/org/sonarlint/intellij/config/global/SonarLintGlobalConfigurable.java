@@ -166,10 +166,10 @@ public class SonarLintGlobalConfigurable implements Configurable, Configurable.N
 
       rootPanel = new JPanel(new BorderLayout());
       tabs = new JBTabbedPane();
-      tabs.insertTab("Settings", null, settingsPanel, "Configure Codescan for all projects", SETTINGS_TAB_INDEX);
+      tabs.insertTab("Settings", null, settingsPanel, "Configure CodeScan for all projects", SETTINGS_TAB_INDEX);
       tabs.insertTab("File Exclusions", null, exclusions.getComponent(), "Configure which files should be excluded from analysis", FILE_EXCLUSIONS_TAB_INDEX);
       tabs.insertTab("Rules", null, rules.getComponent(), "Choose which rules are enabled when not bound to Codescan or CodescanCloud", RULES_TAB_INDEX);
-      tabs.insertTab("About", null, about.getComponent(), "About Codescan", ABOUT_TAB_INDEX);
+      tabs.insertTab("About", null, about.getComponent(), "About CodeScan", ABOUT_TAB_INDEX);
       rootPanel.add(tabs, BorderLayout.CENTER);
     }
 

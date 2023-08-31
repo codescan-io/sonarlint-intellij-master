@@ -117,10 +117,10 @@ public final class LocalFileExclusions {
       return ExcludeResult.excluded("Could not create a relative path");
     }
     if (globalExclusions.test(relativePath)) {
-      return ExcludeResult.excluded("file matches exclusions defined in the Codescan Global Settings");
+      return ExcludeResult.excluded("file matches exclusions defined in the CodeScan Global Settings");
     }
     if (projectExclusions.test(relativePath)) {
-      return ExcludeResult.excluded("file matches exclusions defined in the Codescan Project Settings");
+      return ExcludeResult.excluded("file matches exclusions defined in the CodeScan Project Settings");
     }
 
     return ExcludeResult.notExcluded();

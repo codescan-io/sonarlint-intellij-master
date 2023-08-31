@@ -42,6 +42,7 @@ import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.MouseInputAdapter;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
@@ -81,11 +82,12 @@ public class ServerStep extends AbstractWizardStepEx {
 
     nameField.setToolTipText("Name of this configuration (mandatory field)");
 
-    String cloudText = "Connect to <a href=\"https://sonarcloud.io\">the online service</a>";
+    String cloudText = "To connect to <a href=\"" + CodescanCloudConstants.CODESCAN_US_URL + "\">"
+            + CodescanCloudConstants.CODESCAN_US_URL + "</a>";
     sonarcloudText.setText(cloudText);
-    sonarcloudText.addHyperlinkListener(BrowserHyperlinkListener.INSTANCE);
+    sonarcloudText.addHyperlinkListener(new BrowserHyperlinkListener());
 
-    String sqText = "Connect to a server";
+    String sqText = "Connect to other CodeScan instances or a server";
     sonarqubeText.setText(sqText);
 
     if (!editing) {
@@ -120,7 +122,8 @@ public class ServerStep extends AbstractWizardStepEx {
     Icon sqIcon = SonarLintIcons.ICON_CODESCAN;
     Icon clIcon = SonarLintIcons.ICON_CODESCAN;
 
-    if (model.getServerType() == WizardModel.ServerType.SONARCLOUD || model.getServerType() == null) {
+    if ((model.getServerType() == WizardModel.ServerType.SONARCLOUD &&
+            CodescanCloudConstants.CODESCAN_US_URL.equals(model.getServerUrl())) || model.getServerType() == null) {
       radioCodeScanCloud.setSelected(true);
       if (editing) {
         sqIcon = SonarLintIcons.toDisabled(sqIcon);
@@ -209,10 +212,16 @@ public class ServerStep extends AbstractWizardStepEx {
   private void save() {
     if (radioCodeScanCloud.isSelected()) {
       model.setServerType(WizardModel.ServerType.SONARCLOUD);
-      model.setServerUrl("https://sonarcloud.io");
+      model.setServerUrl(CodescanCloudConstants.CODESCAN_US_URL);
     } else {
-      model.setServerType(WizardModel.ServerType.SONARQUBE);
-      model.setServerUrl(urlText.getText().trim());
+      String serverUrl = urlText.getText().trim();
+      serverUrl = StringUtils.removeEnd(serverUrl, "/");
+      model.setServerUrl(serverUrl);
+      if (SonarLintUtils.isCodeScanCloudAlias(serverUrl)) {
+        model.setServerType(WizardModel.ServerType.SONARCLOUD);
+      } else {
+        model.setServerType(WizardModel.ServerType.SONARQUBE);
+      }
     }
     model.setName(nameField.getText().trim());
   }

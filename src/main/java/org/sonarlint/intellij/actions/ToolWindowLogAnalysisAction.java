@@ -25,7 +25,7 @@ import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 
 public class ToolWindowLogAnalysisAction extends AbstractSonarToggleAction {
   public ToolWindowLogAnalysisAction() {
-    super("Analysis logs", "Enable logging of Codescan analysis", null);
+    super("Analysis logs", "Enable logging of CodeScan analysis", null);
   }
 
   @Override

@@ -98,7 +98,7 @@ public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGl
     var emptyPanel = new JPanel(new BorderLayout());
     emptyPanel.add(emptyLabel, BorderLayout.CENTER);
 
-    var border = IdeBorderFactory.createTitledBorder("Codescan / CodescanCloud connections");
+    var border = IdeBorderFactory.createTitledBorder("CodeScan / CodeScanCloud connections");
     panel = new JPanel(new BorderLayout());
     panel.setBorder(border);
     panel.add(serversPanel);
@@ -106,13 +106,13 @@ public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGl
     connectionList.setCellRenderer(new ColoredListCellRenderer<>() {
       @Override
       protected void customizeCellRenderer(JList list, ServerConnection server, int index, boolean selected, boolean hasFocus) {
-        if (server.isCodescanCloud()) {
+        if (server.isCodeScanCloud()) {
           setIcon(SonarLintIcons.ICON_SONARCLOUD_16);
         } else {
           setIcon(SonarLintIcons.ICON_SONARQUBE_16);
         }
         append(server.getName(), SimpleTextAttributes.REGULAR_ATTRIBUTES);
-        if (!server.isCodescanCloud()) {
+        if (!server.isCodeScanCloud()) {
           append("    (" + server.getHostUrl() + ")", SimpleTextAttributes.GRAYED_ATTRIBUTES, false);
         }
       }

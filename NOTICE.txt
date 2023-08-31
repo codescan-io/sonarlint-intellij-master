@@ -1,6 +1,6 @@
 codescan-intellij
-Copyright (C) 2015-2023 Codescan CS
-mailto:Suport AT Codescan DOT io
+Copyright (C) 2015-2021 SonarSource SA
+mailto:support AT codescan DOT io
 
 This product includes software developed at
-Codescan (https://www.codescan.io/).
+SonarSource (http://www.sonarsource.com/).

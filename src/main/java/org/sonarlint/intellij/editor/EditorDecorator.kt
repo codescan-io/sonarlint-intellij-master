@@ -176,7 +176,7 @@ class EditorDecorator(private val project: Project) {
             .severity(HighlightSeverity.ERROR)
             .textAttributes(SonarLintTextAttributes.SELECTED)
         if (!message.isNullOrEmpty() && "..." != message) {
-            builder.descriptionAndTooltip("SonarLint: $message")
+            builder.descriptionAndTooltip("CodeScan: $message")
         }
         return builder.create()?.let { Highlight(location.document, it) }
     }

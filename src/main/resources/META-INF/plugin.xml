@@ -1,7 +1,7 @@
 <!--
 
-    Codescan for IntelliJ IDEA
-    Copyright (C) 2015-2023 SonarSource
+    CodeScan for IntelliJ IDEA
+    Copyright (C) 2015-2021 SonarSource
     sonarlint@sonarsource.com
 
     This program is free software; you can redistribute it and/or
@@ -20,94 +20,63 @@
 
 -->
 <idea-plugin url="https://www.sonarlint.org" require-restart="true">
-    <id>org.sonarlint.idea</id>
-    <name>SonarLint</name>
+    <id>com.code-scan.intellij</id>
+    <name>CodeScan</name>
     <version>${project.version}</version>
-    <vendor url="https://www.sonarsource.com">SonarSource</vendor>
+    <vendor email="support@codescan.io" url="https://codescan.io">CodeScan</vendor>
 
     <description><![CDATA[
         <html>
             <p>
-                SonarLint is a free IDE extension to find and fix coding issues in real-time, flagging issues as you code, just like a spell-checker.
-                More than a linter, it also delivers rich contextual guidance to help developers understand why there is an issue,
-                assess the risk and educate them on how to fix it. This helps improve their skills, enhance their productivity,
-                and take ownership of their code, taking linting to a different level.
+                CodeScan is a free IDE extension that lets you fix bugs and vulnerabilities as you write code!
+                Like a spell checker, CodeScan highlights coding issues on the fly, with clear remediation
+                guidance so you can fix them before the code is even committed. Across popular IDEs (IntelliJ,
+                VS Code) and popular programming languages, CodeScan helps all developers write better and safer code!
             </p>
             <br/>
             <p>
-                When paired with <a href="https://www.sonarsource.com/products/sonarqube/">SonarQube</a> or <a href="https://www.sonarsource.com/products/sonarcloud/">SonarCloud</a> in connected mode,
-                SonarLint forms a powerful end-to-end code quality platform to enrich the CI/CD pipeline, ensuring any code edits or additions are clean.
-                In connected mode, your team can share common language rulesets, project analysis settings and <a href="https://www.sonarsource.com/products/sonarlint/features/connected-mode/">more</a>.
+                CodeScan supports all JetBrains IDE, including IntelliJ, WebStorm, PhpStorm, PyCharm and RubyMine.
             </p>
             <br/>
             <p>
-                SonarLint is a powerful open-source tool for developers of all experience and skill levels, empowering them
-                to deliver Clean Code - code fit for development and production. An essential linting tool for every developer.
+                If your project is analyzed on CodeScan or on CodeScanCloud, CodeScan can connect to
+                the server to retrieve the appropriate quality profiles and settings for that project.
             </p>
             <br/>
             <p>
-                SonarLint integrates with most JetBrains IDEs including
-                IntelliJ IDEA, CLion, GoLand, WebStorm, PHPStorm, PyCharm, Rider, Android Studio & RubyMine. Supported languages include
-                C, C++, Java, Go, JavaScript, TypeScript, Python, C#, Kotlin, Ruby, HTML, CSS, PHP & PL/SQL.
-            </p>
-            <br/>
-            <p>
-                Beginning in version 7.5, SonarLint can detect <a href="https://github.com/SonarSource/sonarlint-intellij/wiki/Security-Hotspots">Security Hotspots</a> when in Connected Mode with SonarQube 9.7+.
-            </p>
-            <br/>
-            <p>
-                SonarLint requires your IDE to be run with a JVM 11+ (this is the case for all recent JetBrains IDE);
-                the analysis of JavaScript and TypeScript requires Node.js >= 14.20 to be installed on your computer (Node.js >= 16 is recommended).
+                CodeScan requires your IDE to be run with a JVM 11+ (this is the case for all recent JetBrains IDE);
+                the analysis of JavaScript and TypeScript requires Node.js >= 10.12 to be installed on your computer.
             </p>
         </html>
       ]]></description>
 
     <change-notes><![CDATA[
       <ul>
-        <li>8.5.1 - Fix an error when creating or updating a connection to SonarCloud. Fix SSL issues related to our HTTP client. Fix an error when using a proxy.</li>
-        <li>8.5 - Support PL/SQL analysis in connected mode when 'Database Tools and SQL' plugin is enabled. 43 new MISRA rules for C++. 12 new rules for CloudFormation, Docker, Kubernetes and Terraform. 9 new rules and one quick fix for C# in Rider. Bug fixes, fewer FPs and improvements for many languages.</li>
-        <li>8.4 - Allow marking issues existing on SonarQube/SonarCloud as resolved. Support near real-time synchronization of Security Hotspots with SonarQube. Support syntax highlighting in rule configuration. 5 new rules and 1 quick fix for JavaScript. 2 new rules for C++. 1 new rule for C# and support .NET 7 in Rider. Bug fixes, fewer FPs and improvements for many languages.</li>
-        <li>8.3 - Allow changing status of Security Hotspots. Support Security Hotspots when connected to SonarCloud. Support analysis of Go not only in GoLand but also when using the Go plugin in IntelliJ IDEA Ultimate. 17 new rules for JavaScript. 6 new rules for PHP. 10 new rules, 1 new quick fix for Python. 9 new rules for Kotlin. 11 new rules for C# in Rider. Bug fixes, fewer FPs and improvements for many languages.</li>
-        <li>8.2 - Support syntax highlighting and diff view for code examples. Add support for CloudFormation, Docker, Kubernetes and Terraform. 3 new rules for Java. 8 new rules for JavaScript. 2 new rules for C# in Rider. 9 new rules for Kotlin. 11 new rules, 3 new quick fixes for Python. Bug fixes, fewer FPs and improvements for many languages.</li>
-        <li>8.1 - Support analysis of Go in GoLand. Support for tiarmclang compiler, Kotlin 1.8 and IPython syntax. 6 new rules for C# in Rider. Bug fixes, fewer FPs and improvements for many languages.</li>
-        <li>8.0 - Raise minimal supported version to 2021.3. Report Security Hotspots locally when connected to SonarQube 9.7+. Support of JavaScript analysis in HTML files. Support for clang-cl and Microchip compilers. New quick fixes for 11 Java rules. New quick fix for a C++ rule. New quick fixes for 17 Python rules. 6 new rules for C# in Rider. Bug fixes, fewer FPs and improvements for many languages.</li>
-        <li>7.4 - Display Clean Code principles in rule descriptions. 13 new rules around std::format for C++. 1 new rule for Java. Bug fixes, fewer FPs and improvements for many languages.</li>
-        <li>7.3 - Improved display of rule descriptions. New react performance rules. Analyze CSS files. New Kotlin rules. 6 new C++20 rules. Support Python 3.11. Analyze JS, TS, CSS and HTML in Rider. 1 new rule for C# in Rider. Many rules improvements.</li>
-        <li>7.2.1 - Fix an error when selecting issues or taint vulnerabilities in the tool window in 2022.3.</li>
-        <li>7.2 - Help users to generate a token when creating a new connection. Add quick fixes in Rider for C#. 2 new rules, 4 new quick fixes for Python. 1 new rule for credentials detection for Java. Support analysis of JS in YAML files. New AWS CDK rules. Bug fixes, fewer FPs and improvements for many languages.</li>
-        <li>7.1.1 - Fix security issue when opening a hotspot from SonarQube.</li>
-        <li>7.1 - Support analysis of Kotlin 1.7.10. 8 new rules around unit tests for Python. Support analysis of PHP 8.2. Support analysis of TypeScript 4.8. Remove support for Node.JS 12 and deprecate support for Node.JS 14. Add 7 rules for React. Bug fixes, fewer FPs and improvements for many languages.</li>
-        <li>7.0 - Reworked connected mode storage. Auto-sync of issues with SonarQube 9.6+.</li>
-        <li>6.8 - Use embedded JS/TS/HTML/Kotlin/Ruby/XML analyzer even in connected mode. Introduce quick fixes for 7 Python rules. 15 new rules for Java (6 for regular expressions, 7 for AWS Cloud functions). 5 new rules for JS/TS. Add support for TypeScript 4.7. 3 new rules for C/C++. Add support for Ruby 3.1. New and improved C# rules. Support for C# 10. Bug fixes, fewer FPs and improvements for many languages.</li>
-        <li>6.7 - Quick fixes for 3 C/C++ and 30 JS/TS rules. 17 new rules for Python (8 for regular expressions). Support for TypeScript 4.6. Activate JS rule S1172 by default. Activate C# rule S2222 by default. Remove legacy C/C++ rule keys. Bug fixes, fewer FPs and improvements for many languages.</li>
-        <li>6.6 - Synchronize issues and taint vulnerabilities from the appropriate branch in connected mode. Subscribe for server events to update active rules. Quick fixes for 15 C/C++ and 23 JS/TS rules. Support TypeScript 4.5. Drop support for Node 10. One more rule for C#. Performance improvements in Rider.</li>
-        <li>6.5.1 - Fix error message at startup.</li>
-        <li>6.5 - Deprecation of Node.js &lt; 12.22 for JS/TS analyzes. Embed the XML analyzer. 5 new rules for Java. 9 new rules for PHP around regexes. Bug fixes, fewer FPs and improvements for many languages</li>
-        <li>6.4.3 - Fewer false-negatives and false-positives for C/C++.</li>
-        <li>6.4.2 - Fix potential UI-freeze when loading/unloading modules.</li>
-        <li>6.4.1 - Fix error in connected mode if custom plugin have markdown rule description.</li>
-        <li>6.4 - Automatically synchronize rules and settings from server. New JS/TS rules for tests. Support PHP 8.1. New rules for regexp in Python. Support Python 3.10. New rules for Kotlin. Support Kotlin 1.6. Support Ruby 3.0.3. 10 new rules for C++20 coroutines, quick fixes for 3 more C++ rules. Support .NET 6 in Rider. Many rules improvements.</li>
-        <li>6.3.1 - Fix connected mode in Rider.</li>
-        <li>6.3 - Quick fixes for 43 C/C++ rules.</li>
-        <li>6.2 - 9 new rules for regular expressions in PHP. 1 new vulnerability detection rule for Android. Fixes for HTTP protocol issues and UI improvements.</li>
-        <li>6.1 - Allow binding individual modules or attached projects to SonarQube/SonarCloud. New rules for regular expressions in PHP, JS and TS. Wordpress misconfiguration rules in PHP. 7 new rules for C++20. Many rules improvements.</li>
+        <li>6.1.5 - Added support for using the plugin with CodeScan instances with custom domains.</li>
+        <li>6.1.4 - Added support for using the plugin with CodeScan dedicated instances.</li>
+        <li>6.1.3 - Fix Edit Connection Behavior for CodeScanCloud EU users.</li>
+        <li>6.1.2 - Added support of using CodeScan Cloud Europe servers: app-eu.codescan.io.</li>
+        <li>6.1.1 - Enhanced runtime error logging of plugin: added option to send information about occuring exceptions to CodeScan dev team.</li>
+        <li>6.1 - Allow binding individual modules or attached projects to CodeScan/CodeScanCloud. New rules for regular expressions in PHP, JS and TS. Wordpress misconfiguration rules in PHP. 7 new rules for C++20. Many rules improvements.</li>
         <li>6.0 - Change plugin JVM runtime requirement to 11+</li>
         <li>5.3 - Introduce quick fixes for 40 Java rules. Remote and WSL toolchains support for CLion. 1 new rule for Java, 4 for C/C++, 5 for secrets detection. Rules improvements for Java and C++.</li>
         <li>5.2 - New Java 16 specific rules. Rules improvements for PHP. Performance improvement for Python analysis. Many bug fixes and small improvements.</li>
         <li>5.1 - Support TS 4.3 and Vue.js. MSVC support for CLion. Rules improvements for Java, Kotlin, C/C++ and JS/TS.</li>
         <li>5.0.1 - Fix exceptions in registration of application listeners and during analysis on older versions of the IntelliJ platform. Fix UI freezes.</li>
-        <li>5.0 - Improve precision of Python analyzes thanks to cross-module resolution of symbols. Drop support of SonarQube < 7.9 for connected mode. Fixed false-positives and false-negatives in C/C++ analysis. Bug fixes and improvements.</li>
+        <li>5.0 - Improve precision of Python analyses thanks to cross-module resolution of symbols. Drop support of CodeScan < 7.9 for connected mode. Fixed false-positives and false-negatives in C/C++ analysis. Bug fixes and improvements.</li>
         <li>4.16 - 3 new rules for C++20. Improved JS/TS rules. Fixed false positive in HTML analysis. Improved PHP rules.</li>
         <li>4.15 - Support analysis of C/C++ in CLion. Support TypeScript 4.1 and 4.2. Rules improvements for Java and Python. Minimal supported version is 2019.3.</li>
         <li>4.14.2 - Fix exceptions thrown during analysis and work around an issue with latest EAP.</li>
         <li>4.14.1 - Fix an error occurring after each analysis. Fix the regression on UI responsiveness.</li>
-        <li>4.14 - New rules for regexp in Java, Java 15 support. All JS rules now based on the TypeScript parser. Rules improvements for PHP and Python. Support for Ruby 3.0.0. Support of Python 3.9. Investigate taint vulnerabilities detected by SonarQube 8.6+ or SonarCloud.</li>
+        <li>4.14 - New rules for regexp in Java, Java 15 support. All JS rules now based on the TypeScript parser. Rules improvements for PHP and Python. Support for Ruby 3.0.0. Support of Python 3.9. Investigate taint vulnerabilities detected by CodeScan 8.6+ or CodeScanCloud.</li>
         <li>4.13 - New or improved rules for access control or authentication in Java. Security rules for JS/TS. Support of PHP 8, improved rules. Updated Kotlin and Ruby analyzers, supporting latest language features and improved rules. Updated HTML analyzer with improved rules. Reworked server notifications. Review a Security Hotspot within its context.</li>
         <li>4.12 - Lots of new rules for Java (including test code), support analysis of Java 14. 20 new rules for PHP, including 13 related to unit tests. 2 new rules for JavaScript. 3 new rules for Python. Bug fixes and improvements.</li>
         <li>4.11 - Improve issues, flows and secondary locations navigation and highlighting. Show secondary location indexes in the editor. Add 'Show rule description' and 'Show data flow/issue locations' contextual actions. Relax search criteria in rule configuration filter. Show effective rule parameter in the rule description panel. Bug fixes and improvements.</li>
         <li>4.10 - Fix duplicated annotations for PHP files. Display rule severity defined in the quality profile in connected mode. Fix analysis failure with JSP files. Bug fixes and improvements for JS files. 4 new rules (3 security related), bug fixes and improvements for PHP files.</li>
         <li>4.9 - Many new rules about JUnit and AssertJ for Java test files. 10 new rules for PHP. 22 new rules for Python and support of Typeshed packages. Preparatory changes for dynamic plugin installation.</li>
         <li>4.8 - Configure rule parameters in IDE settings. Performance improvement and fewer false positives for PHP. 4 new vulnerability detection rules for Python.</li>
+        <li>4.7.3 - Updated plugin logo image.</li>
+        <li>4.7.2 - Fix issue of parsing codescanlang analysis results.</li>
         <li>4.7 - 2 new rules and performance improvements for Java. 2 new rules for Python.</li>
         <li>4.6 - Enable analysis of TypeScript. 27 new rules for Python. Support for Python 3.8.</li>
         <li>4.5.1 - Fix two regressions causing exception during analysis.</li>
@@ -119,18 +88,18 @@
         <li>4.1 - Enable analysis of HTML. Add support of XML in connected mode. 10 new Java rules.</li>
         <li>4.0.2 - Fix error on startup registering actions affecting all IDEs other than IntelliJ</li>
         <li>4.0.1 - Fix duplicated highlighting in WebStorm and connection to a server with more than 10k rules</li>
-        <li>4.0 - Improved matching of issues with SonarQube</li>
+        <li>4.0 - Improved matching of issues with CodeScan</li>
         <li>3.5.1 - Fixed error with read access and repeated annotations</li>
-        <li>3.5 - Manage rules when not connected to SonarQube or SonarCloud</li>
-        <li>3.4.2 - Fix a regression in the SonarQube server configuration wizard</li>
-        <li>3.4.1 - Fix of several bugs: binding to SonarCloud organizations, support of Java 10, rendering of rule descriptions</li>
+        <li>3.5 - Manage rules when not connected to CodeScan or CodeScanCloud</li>
+        <li>3.4.2 - Fix a regression in the CodeScan server configuration wizard</li>
+        <li>3.4.1 - Fix of several bugs: binding to CodeScanCloud organizations, support of Java 10, rendering of rule descriptions</li>
         <li>3.4 - Update of embedded code analyzers. Fix analysis of files located outside of the project base directory</li>
         <li>3.3 - Numerous improvements and UX enhancements.</li>
         <li>3.2.1 - Bug fix for concurrent modification when all files of a module are excluded by server configuration</li>
         <li>3.2 - Support excluding files from the automatic analysis</li>
         <li>3.1 - Various minor improvements and bug fixes. Updated code analyzers.</li>
         <li>3.0 - Avoid saving files when possible. Improve support of cancellation</li>
-        <li>2.10 - Support of SonarQube organizations</li>
+        <li>2.10 - Support of CodeScan organizations</li>
         <li>2.9 - New code analyzers included in standalone mode. Collection of usage statistics</li>
         <li>2.8 - Analyze all files in project. New icons for issue types</li>
         <li>2.7 - Display of secondary locations of issues</li>
@@ -139,22 +108,22 @@
         <li>2.4.3 - Bug fix for multi-module projects on Windows</li>
         <li>2.4.2 - Fix resolved issues on windows and authentication</li>
         <li>2.4.1 - Bug fix of Javascript in standalone mode.</li>
-        <li>2.4 - Hide issues that are resolved in SonarQube. Numerous bug fixes.</li>
+        <li>2.4 - Hide issues that are resolved in CodeScan. Numerous bug fixes.</li>
         <li>2.3.2 - Fix configuration of automatic trigger of analysis</li>
         <li>2.3.1 - Bug fix for analysis configuration and performance improvements</li>
-        <li>2.3 - Support of exclusions in connected mode; Numerous bug fixes. Java 8 is now required to run SonarLint.</li>
-        <li>2.2 - Support of SonarQube LTS (4.5) and commercial plugins</li>
+        <li>2.3 - Support of exclusions in connected mode; Numerous bug fixes. Java 8 is now required to run CodeScan.</li>
+        <li>2.2 - Support of CodeScan LTS (4.5) and commercial plugins</li>
         <li>2.1.1 - Bug fix for PHPStorm</li>
         <li>2.1 - Various improvements and bug fixes</li>
         <li>2.0.2 - Bug fix SLI-73</li>
         <li>2.0.1 - Bug fixes</li>
-        <li>2.0 - Connect to a SonarQube server;</li>
-        <li>1.5 - Display SonarLint markers age;</li>
+        <li>2.0 - Connect to a CodeScan server;</li>
+        <li>1.5 - Display CodeScan markers age;</li>
         <li>1.4 - No internet required; Several bug fixes;</li>
         <li>1.3 - Issues views; UI improvements;</li>
         <li>1.2 - Automatic trigger of analysis; "NO SONAR" quick fix; configurable highlighting of issues;</li>
-        <li>1.1 - More precise issue location; trigger of analysis changed to on demand only; improved SonarLint console;</li>
-        <li>1.0 - On the fly SonarLint inspection</li>
+        <li>1.1 - More precise issue location; trigger of analysis changed to on demand only; improved CodeScan console;</li>
+        <li>1.0 - On the fly CodeScan inspection</li>
       </ul>
       ]]>
     </change-notes>
@@ -183,10 +152,10 @@
     </projectListeners>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="SonarLint" anchor="bottom" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_TOOLWINDOW_EMPTY" factoryClass="org.sonarlint.intellij.ui.SonarLintToolWindowFactory" canCloseContents="true"/>
+        <toolWindow id="CodeScan" anchor="bottom" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_TOOLWINDOW_EMPTY" factoryClass="org.sonarlint.intellij.ui.SonarLintToolWindowFactory" canCloseContents="true"/>
         <applicationConfigurable groupId="tools" id="sonarlint" displayName="SonarLint" instance="org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable"/>
         <projectConfigurable parentId="sonarlint" displayName="Project Settings" instance="org.sonarlint.intellij.config.project.SonarLintProjectConfigurable" nonDefaultProject="true"/>
-        <moduleConfigurable id="SonarLint" displayName="SonarLint" instance="org.sonarlint.intellij.config.module.SonarLintModuleConfigurable"/>
+        <moduleConfigurable id="CodeScan" displayName="SonarLint" instance="org.sonarlint.intellij.config.module.SonarLintModuleConfigurable"/>
         <colorSettingsPage implementation="org.sonarlint.intellij.config.SonarLintColorSettingsPage"/>
         <checkinHandlerFactory implementation="org.sonarlint.intellij.trigger.SonarLintCheckinHandlerFactory"/>
         <additionalTextAttributes scheme="Default" file="colorSchemes/SonarLintDefault.xml"/>
@@ -237,25 +206,25 @@
         <postStartupActivity implementation="org.sonarlint.intellij.trigger.EditorOpenTrigger"/>
         <postStartupActivity implementation="org.sonarlint.intellij.fs.EditorFileChangeListener"/>
 
-        <notificationGroup id="SonarLint: Server Binding Errors"
+        <notificationGroup id="CodeScan: Server Binding Errors"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarLint: Analyzer Requirement"
+        <notificationGroup id="CodeScan: Analyzer Requirement"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarLint: Secrets detection"
+        <notificationGroup id="CodeScan: Secrets detection"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarLint: Taint vulnerabilities"
+        <notificationGroup id="CodeScan: Taint vulnerabilities"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarLint: Open in IDE"
+        <notificationGroup id="CodeScan: Open in IDE"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarLint"
+        <notificationGroup id="CodeScan"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarLint: Server Notifications"
+        <notificationGroup id="CodeScan: Server Notifications"
                            displayType="STICKY_BALLOON"/>
-        <notificationGroup id="SonarLint: Binding Suggestions"
+        <notificationGroup id="CodeScan: Binding Suggestions"
                            displayType="STICKY_BALLOON"/>
-        <notificationGroup id="SonarLint: Security Hotspot Review"
+        <notificationGroup id="CodeScan: Security Hotspot Review"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarLint: Mark Issue as Resolved"
+        <notificationGroup id="CodeScan: Mark Issue as Resolved"
                            displayType="BALLOON"/>
     </extensions>
 
@@ -275,60 +244,60 @@
 
     <actions>
         <!-- Some actions are defined in SonarLintActions so that they aren't registered in ActionManager -->
-        <group id="SonarLint.AnalyzeMenu" searchable="false" text="SonarLint" popup="false" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
+        <group id="CodeScan.AnalyzeMenu" searchable="false" text="CodeScan" popup="false" icon="SonarLintIcons.SONARLINT_ACTION">
             <separator/>
             <!-- This group is programmatically added to AnalyzeMenu if it exists -->
         </group>
 
-        <action id="SonarLint.AnalyzeFiles"
+        <action id="CodeScan.AnalyzeFiles"
                 class="org.sonarlint.intellij.actions.SonarAnalyzeFilesAction"
-                text="Analyze with SonarLint"
-                description="Run SonarLint analysis on selected file(s)"
-                icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
+                text="Analyze with CodeScan"
+                description="Run CodeScan analysis on selected file(s)"
+                icon="SonarLintIcons.SONARLINT_ACTION">
             <keyboard-shortcut first-keystroke="shift ctrl S" keymap="$default"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
-            <add-to-group group-id="SonarLint.AnalyzeMenu"/>
+            <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 
-        <group id="SonarLint.ProjectViewPopupMenu" searchable="false" text="SonarLint" popup="true" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
-            <reference ref="SonarLint.AnalyzeFiles"/>
-            <action id="SonarLint.Exclude"
+        <group id="CodeScan.ProjectViewPopupMenu" text="CodeScan" popup="true" icon="SonarLintIcons.SONARLINT_ACTION">
+            <reference ref="CodeScan.AnalyzeFiles"/>
+            <action id="CodeScan.Exclude"
                     class="org.sonarlint.intellij.actions.ExcludeFileAction"
-                    text="Exclude from SonarLint analysis"
-                    description="Adds resources to the list exclusions in the SonarLint project settings"
-                    icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
+                    text="Exclude from CodeScan analysis"
+                    description="Adds resources to the list exclusions in the CodeScan project settings"
+                    icon="SonarLintIcons.SONARLINT_ACTION">
             </action>
             <add-to-group group-id="ProjectViewPopupMenu"/>
         </group>
 
-        <action id="SonarLint.AnalyzeChangedFiles"
+        <action id="CodeScan.AnalyzeChangedFiles"
                 class="org.sonarlint.intellij.actions.SonarAnalyzeChangedFilesAction"
-                text="Analyze VCS Changed Files with SonarLint"
-                description="Run a SonarLint analysis on VCS changed files"
-                icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
-            <add-to-group group-id="SonarLint.AnalyzeMenu"/>
+                text="Analyze VCS Changed Files with CodeScan"
+                description="Run a CodeScan analysis on VCS changed files"
+                icon="SonarLintIcons.SONARLINT_ACTION">
+            <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 
-        <action id="SonarLint.AnalyzeAllFiles"
+        <action id="CodeScan.AnalyzeAllFiles"
                 class="org.sonarlint.intellij.actions.SonarAnalyzeAllFilesAction"
-                text="Analyze All Files with SonarLint"
-                description="Run a SonarLint analysis on all files in the project"
-                icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
-            <add-to-group group-id="SonarLint.AnalyzeMenu"/>
+                text="Analyze All Files with CodeScan"
+                description="Run a CodeScan analysis on all files in the project"
+                icon="SonarLintIcons.SONARLINT_ACTION">
+            <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 
-        <action id="SonarLint.toolwindow.Cancel"
+        <action id="CodeScan.toolwindow.Cancel"
                 class="org.sonarlint.intellij.actions.SonarCancelAction"
-                text="Cancel SonarLint Analysis"
-                description="Cancel the SonarLint analysis running"
-                icon="org.sonarlint.intellij.SonarLintIcons.SUSPEND">
+                text="Cancel CodeScan Analysis"
+                description="Cancel the CodeScan analysis running"
+                icon="SonarLintIcons.SUSPEND">
         </action>
 
-        <action id="SonarLint.toolwindow.Configure"
+        <action id="CodeScan.toolwindow.Configure"
                 class="org.sonarlint.intellij.actions.SonarConfigureProject"
-                text="Configure SonarLint"
-                description="Configure SonarLint"
-                icon="org.sonarlint.intellij.SonarLintIcons.TOOLS">
+                text="Configure CodeScan"
+                description="Configure CodeScan"
+                icon="SonarLintIcons.TOOLS">
         </action>
     </actions>
 </idea-plugin>

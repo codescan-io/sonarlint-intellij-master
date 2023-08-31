@@ -36,7 +36,7 @@ public class SonarLintModuleConfigurable implements Configurable, Configurable.N
   @Nls(capitalization = Nls.Capitalization.Title)
   @Override
   public String getDisplayName() {
-    return "SonarLint";
+    return "CodeScan";
   }
 
   @Nullable @Override

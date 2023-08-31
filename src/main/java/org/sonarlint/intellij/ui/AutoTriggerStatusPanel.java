@@ -49,7 +49,7 @@ public class AutoTriggerStatusPanel {
   private static final String FILE_DISABLED = "FILE_DISABLED";
   private static final String AUTO_TRIGGER_DISABLED = "AUTO_TRIGGER_DISABLED";
 
-  private static final String TOOLTIP = "Some files are not automatically analyzed. Check the SonarLint debug logs for details.";
+  private static final String TOOLTIP = "Some files are not automatically analyzed. Check the CodeScan debug logs for details.";
 
   private final Project project;
 

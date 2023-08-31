@@ -243,7 +243,7 @@ public class SonarLintProjectBindPanel {
 
     projectKeyLabel = new JLabel("Project key:");
     projectKeyTextField = new JBTextField();
-    projectKeyTextField.getEmptyText().setText("Input SonarQube/SonarCloud project key or search one");
+    projectKeyTextField.getEmptyText().setText("Input CodeScan project key or search one");
 
     searchProjectButton = new JButton();
     searchProjectButton.setAction(new AbstractAction() {
@@ -255,7 +255,7 @@ public class SonarLintProjectBindPanel {
         }
         var projects = downloadProjectList(selectedConnection);
         if (projects != null) {
-          var dialog = new SearchProjectKeyDialog(rootPanel, projectKeyTextField.getText(), projects, selectedConnection.isSonarCloud());
+          var dialog = new SearchProjectKeyDialog(rootPanel, projectKeyTextField.getText(), projects, selectedConnection.isCodeScanCloud());
           if (dialog.showAndGet()) {
             projectKeyTextField.setText(dialog.getSelectedProjectKey() != null ? dialog.getSelectedProjectKey() : "");
           }
@@ -373,7 +373,7 @@ public class SonarLintProjectBindPanel {
   }
 
   /**
-   * Render a connection in combo box
+   * Render CodeScan server in combo box
    */
   private class ServerComboBoxRenderer extends ColoredListCellRenderer<ServerConnection> {
     @Override
@@ -399,8 +399,8 @@ public class SonarLintProjectBindPanel {
       }
 
       append(value.getName(), attrs, true);
-      setToolTipText("Bind project using this connection");
-      if (value.isSonarCloud()) {
+      setToolTipText("Connect to this CodeScan server");
+      if (value.isCodeScanCloud()) {
         setIcon(SonarLintIcons.ICON_SONARCLOUD_16);
       } else {
         setIcon(SonarLintIcons.ICON_SONARQUBE_16);

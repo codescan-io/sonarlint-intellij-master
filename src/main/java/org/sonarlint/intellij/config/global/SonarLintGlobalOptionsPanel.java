@@ -38,8 +38,8 @@ import org.sonarlint.intellij.core.NodeJsManager;
 import org.sonarsource.sonarlint.core.commons.Version;
 
 public class SonarLintGlobalOptionsPanel implements ConfigurationPanel<SonarLintGlobalSettings> {
-  private static final String NODE_JS_TOOLTIP = "Codescan requires Node.js to analyze some languages. You can provide an explicit path for the node executable here or leave " +
-    "this field blank to let Codescan look for it using your PATH environment variable.";
+  private static final String NODE_JS_TOOLTIP = "CodeScan requires Node.js to analyze some languages. You can provide an explicit path for the node executable here or leave " +
+    "this field blank to let CodeScan look for it using your PATH environment variable.";
   private JPanel rootPane;
   private JCheckBox autoTrigger;
   private JBTextField nodeJsPath;

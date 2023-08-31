@@ -38,14 +38,14 @@ public class GetOrganizationTask extends Task.Modal {
   private OrganizationDto organization;
 
   public GetOrganizationTask(ServerConnection server, String organizationKey) {
-    super(null, "Fetch Organization From SonarCloud", true);
+    super(null, "Fetch Organization From CodeScanCloud", true);
     this.server = server;
     this.organizationKey = organizationKey;
   }
 
   @Override
   public void run(@NotNull ProgressIndicator indicator) {
-    indicator.setText("Connecting to SonarCloud...");
+    indicator.setText("Connecting to CodeScanCloud...");
     indicator.setIndeterminate(false);
 
     try {

@@ -37,7 +37,7 @@ import org.sonarlint.intellij.actions.filters.IncludeResolvedHotspotsAction;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 
 /**
- * Creates and keeps a single instance of actions used by SonarLint.
+ * Creates and keeps a single instance of actions used by CodeScan.
  * Some actions are created programmatically instead of being declared in plugin.xml so that they are not registered in
  * ActionManager, becoming accessible from the action search.
  */
@@ -63,28 +63,28 @@ public final class SonarLintActions {
     var analyzeMenu = actionManager.getAction(IdeActions.GROUP_ANALYZE);
     // some flavors of IDEA don't have the Analyze menu, register at runtime to avoid error if declared in plugin.xml
     if (analyzeMenu instanceof DefaultActionGroup) {
-      var sonarLintAnalyzeMenu = actionManager.getAction("SonarLint.AnalyzeMenu");
+      var sonarLintAnalyzeMenu = actionManager.getAction("CodeScan.AnalyzeMenu");
       var analyzeMenuGroup = (DefaultActionGroup) analyzeMenu;
       analyzeMenuGroup.add(sonarLintAnalyzeMenu);
     }
 
-    cancelAction = actionManager.getAction("SonarLint.toolwindow.Cancel");
-    configureAction = actionManager.getAction("SonarLint.toolwindow.Configure");
+    cancelAction = actionManager.getAction("CodeScan.toolwindow.Cancel");
+    configureAction = actionManager.getAction("CodeScan.toolwindow.Configure");
 
     clearReportAction = new ClearReportAction("Clear Project Files Issues",
       "Clear analysis results",
       SonarLintIcons.CLEAN);
-    clearIssuesAction = new ClearCurrentFileIssuesAction("Clear SonarLint Issues",
-      "Clear SonarLint issues",
+    clearIssuesAction = new ClearCurrentFileIssuesAction("Clear CodeScan Issues",
+      "Clear CodeScan issues",
       SonarLintIcons.CLEAN);
-    cleanConsoleAction = new SonarCleanConsoleAction("Clear SonarLint Console",
-      "Clear SonarLint console",
+    cleanConsoleAction = new SonarCleanConsoleAction("Clear CodeScan Console",
+      "Clear CodeScan console",
       SonarLintIcons.CLEAN);
     analyzeAllFilesAction = new SonarAnalyzeAllFilesAction("Analyze All Project Files",
-      "Run a SonarLint analysis on all project files",
+      "Run a CodeScan analysis on all project files",
       SonarLintIcons.PROJECT);
     analyzeChangedFilesAction = new SonarAnalyzeChangedFilesAction("Analyze VCS Changed Files",
-      "Run a SonarLint analysis on VCS changed files",
+      "Run a CodeScan analysis on VCS changed files",
       SonarLintIcons.SCM);
     filterAction = new FilterSecurityHotspotActionGroup("Filter Security Hotspots",
       "Filter Security Hotspots",

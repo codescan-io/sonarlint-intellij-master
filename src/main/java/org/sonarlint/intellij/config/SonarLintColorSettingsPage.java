@@ -101,7 +101,7 @@ public class SonarLintColorSettingsPage implements ColorSettingsPage {
   }
 
   @NotNull @Override public String getDisplayName() {
-    return "Codescan";
+    return "CodeScan";
   }
 
 }

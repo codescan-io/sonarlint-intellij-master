@@ -239,7 +239,7 @@ public class BindingStorageUpdateTask {
   }
 
   public interface Listener {
-    Topic<Listener> TOPIC = Topic.create("SonarLint Binding Update Status", Listener.class);
+    Topic<Listener> TOPIC = Topic.create("CodeScan Binding Update Status", Listener.class);
 
     void updateFinished();
   }

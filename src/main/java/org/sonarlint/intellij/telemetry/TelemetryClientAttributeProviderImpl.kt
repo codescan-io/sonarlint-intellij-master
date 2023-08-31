@@ -88,7 +88,7 @@ class TelemetryClientAttributeProviderImpl : TelemetryClientAttributesProvider {
         private fun isAnyProjectConnectedToSonarCloud(): Boolean = isAnyOpenProjectMatch { p: Project ->
             val bindingManager = SonarLintUtils.getService(p, ProjectBindingManager::class.java)
             bindingManager.tryGetServerConnection()
-                .filter { obj: ServerConnection -> obj.isSonarCloud }
+                .filter { obj: ServerConnection -> obj.isCodeScanCloud }
                 .isPresent
         }
 

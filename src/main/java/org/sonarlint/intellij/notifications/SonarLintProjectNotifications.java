@@ -45,15 +45,15 @@ import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 @Service(Service.Level.PROJECT)
 public final class SonarLintProjectNotifications {
   private static final NotificationGroup BINDING_PROBLEM_GROUP = NotificationGroupManager.getInstance()
-    .getNotificationGroup("SonarLint: Server Binding Errors");
+    .getNotificationGroup("CodeScan: Server Binding Errors");
   public static final NotificationGroup SERVER_NOTIFICATIONS_GROUP = NotificationGroupManager.getInstance()
-    .getNotificationGroup("SonarLint: Server Notifications");
+    .getNotificationGroup("CodeScan: Server Notifications");
   private static final NotificationGroup BINDING_SUGGESTION_GROUP = NotificationGroupManager.getInstance()
-    .getNotificationGroup("SonarLint: Binding Suggestions");
+    .getNotificationGroup("CodeScan: Binding Suggestions");
   private static final NotificationGroup OPEN_IN_IDE_GROUP = NotificationGroupManager.getInstance()
-    .getNotificationGroup("SonarLint: Open in IDE");
-  private static final String UPDATE_BINDING_MSG = "\n<br>Please check the SonarLint project configuration";
-  private static final String TITLE_SONARLINT_INVALID_BINDING = "<b>SonarLint - Invalid binding</b>";
+    .getNotificationGroup("CodeScan: Open in IDE");
+  private static final String UPDATE_BINDING_MSG = "\n<br>Please check the CodeScan project configuration";
+  private static final String TITLE_SONARLINT_INVALID_BINDING = "<b>CodeScan - Invalid binding</b>";
   private volatile boolean shown = false;
   private final Project myProject;
 
@@ -105,7 +105,7 @@ public final class SonarLintProjectNotifications {
       notifyBindingSuggestions("Bind this project to '" + suggestedBinding.getProjectName() + "' on '" + suggestedBinding.getConnectionId() + "'?",
         new BindProjectAction(suggestedBinding), new OpenProjectSettingsAction(myProject, "Select another one"));
     } else {
-      notifyBindingSuggestions("Bind this project to SonarQube or SonarCloud?",
+      notifyBindingSuggestions("Bind this project to CodeScan?",
         suggestedBindings.isEmpty() ? new OpenProjectSettingsAction(myProject, "Configure binding") : new ChooseBindingSuggestionAction(suggestedBindings));
     }
   }
@@ -127,7 +127,7 @@ public final class SonarLintProjectNotifications {
   public void notifyUnableToOpenSecurityHotspot(String message, AnAction... mainActions) {
     expireCurrentHotspotNotificationIfNeeded();
     currentOpenHotspotNotification = OPEN_IN_IDE_GROUP.createNotification(
-      "<b>SonarLint - Unable to open Security Hotspot</b>",
+      "<b>CodeScan - Unable to open Security Hotspot</b>",
       message,
       NotificationType.INFORMATION);
     Arrays.stream(mainActions).forEach(currentOpenHotspotNotification::addAction);
@@ -149,7 +149,7 @@ public final class SonarLintProjectNotifications {
       GlobalLogOutput.get().log("Connection ID of smart notification should not be null", ClientLogOutput.Level.WARN);
       return;
     }
-    boolean isSonarCloud = connection.map(ServerConnection::isSonarCloud).orElse(false);
+    boolean isSonarCloud = connection.map(ServerConnection::isCodeScanCloud).orElse(false);
 
     String label = isSonarCloud ? "SonarCloud" : "SonarQube";
     var notification = SERVER_NOTIFICATIONS_GROUP.createNotification(

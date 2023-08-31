@@ -73,7 +73,7 @@ public class SonarAnalyzeAllFilesAction extends AbstractSonarAction {
   static boolean userConfirmed(Project project) {
     if (!ApplicationManager.getApplication().isUnitTestMode() && !PropertiesComponent.getInstance().getBoolean(HIDE_WARNING_PROPERTY,
       false)) {
-      return MessageDialogBuilder.yesNo("SonarLint - Analyze All Files", WARNING_MESSAGE)
+      return MessageDialogBuilder.yesNo("Codescan - Analyze All Files", WARNING_MESSAGE)
         .yesText("Proceed")
         .noText("Cancel")
         .icon(Messages.getWarningIcon())

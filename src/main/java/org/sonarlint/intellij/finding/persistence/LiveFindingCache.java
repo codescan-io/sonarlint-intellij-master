@@ -78,10 +78,10 @@ public class LiveFindingCache<T extends LiveFinding> {
         var key = createKey(eldest.getKey());
         if (key != null) {
           try {
-            SonarLintConsole.get(project).debug("Persisting findings for " + key);
+            SonarLintConsole.get(project).debug("Persisting issues for " + key);
             persistence.save(key, eldest.getValue());
           } catch (IOException e) {
-            throw new IllegalStateException(String.format("Error persisting findings for %s", key), e);
+            throw new IllegalStateException(String.format("Error persisting issues for %s", key), e);
           }
         }
       }
