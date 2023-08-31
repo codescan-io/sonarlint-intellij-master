@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -26,7 +26,7 @@ import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 
 public class ToolWindowVerboseModeAction extends AbstractSonarToggleAction {
   public ToolWindowVerboseModeAction() {
-    super("Verbose output", "Enable verbose output for SonarLint analysis",
+    super("Verbose output", "Enable verbose output for Codescan analysis",
       AllIcons.Actions.StartDebugger);
   }
 

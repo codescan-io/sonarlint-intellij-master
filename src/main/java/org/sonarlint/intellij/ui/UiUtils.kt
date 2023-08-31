@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -30,7 +30,6 @@ class UiUtils {
             runOnUiThread(project, ModalityState.defaultModalityState(), runnable)
         }
 
-        @JvmStatic
         fun runOnUiThread(project: Project, modality: ModalityState, runnable: Runnable) {
             ApplicationManager.getApplication().invokeLater({
                 if (!project.isDisposed) {

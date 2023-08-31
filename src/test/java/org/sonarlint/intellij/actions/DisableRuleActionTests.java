@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -29,7 +29,6 @@ import org.sonarlint.intellij.finding.issue.LiveIssue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.sonarlint.intellij.util.DataKeys.ISSUE_DATA_KEY;
 
 class DisableRuleActionTests extends AbstractSonarLintLightTests {
   private static final String RULE_KEY = "key";
@@ -46,7 +45,7 @@ class DisableRuleActionTests extends AbstractSonarLintLightTests {
 
   @Test
   void should_be_enabled_when_issue_present() {
-    when(event.getData(ISSUE_DATA_KEY)).thenReturn(issue);
+    when(event.getData(DisableRuleAction.ISSUE_DATA_KEY)).thenReturn(issue);
 
     action.update(event);
 
@@ -64,7 +63,7 @@ class DisableRuleActionTests extends AbstractSonarLintLightTests {
 
   @Test
   void should_be_not_visible_when_bound() {
-    when(event.getData(ISSUE_DATA_KEY)).thenReturn(issue);
+    when(event.getData(DisableRuleAction.ISSUE_DATA_KEY)).thenReturn(issue);
     getProjectSettings().setBindingEnabled(true);
     action.update(event);
 
@@ -74,7 +73,7 @@ class DisableRuleActionTests extends AbstractSonarLintLightTests {
 
   @Test
   void should_be_disabled_if_rule_is_excluded() {
-    when(event.getData(ISSUE_DATA_KEY)).thenReturn(issue);
+    when(event.getData(DisableRuleAction.ISSUE_DATA_KEY)).thenReturn(issue);
     when(issue.getRuleKey()).thenReturn(RULE_KEY);
     getGlobalSettings().disableRule(RULE_KEY);
     action.update(event);
@@ -94,7 +93,7 @@ class DisableRuleActionTests extends AbstractSonarLintLightTests {
 
   @Test
   void should_disable_rule() {
-    when(event.getData(ISSUE_DATA_KEY)).thenReturn(issue);
+    when(event.getData(DisableRuleAction.ISSUE_DATA_KEY)).thenReturn(issue);
     when(issue.getRuleKey()).thenReturn(RULE_KEY);
 
     action.actionPerformed(event);

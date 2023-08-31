@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -50,7 +50,7 @@ public class ExclusionItem {
     if (StringUtils.trimToNull(item) == null) {
       return null;
     }
-    switch (text.substring(0, i).toUpperCase(Locale.ENGLISH)) {
+    switch (text.substring(0, i).toUpperCase(Locale.US)) {
       case "FILE":
         return new ExclusionItem(FILE, item);
       case "DIRECTORY":

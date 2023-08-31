@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
 import org.jetbrains.annotations.Nullable;
 
-import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
+import static com.intellij.openapi.application.ApplicationManager.getApplication;
 
 public class SonarLintAppUtils {
 
@@ -48,7 +48,7 @@ public class SonarLintAppUtils {
 
   @CheckForNull
   public static Module findModuleForFile(VirtualFile file, Project project) {
-    return computeReadActionSafely(file, project, () -> {
+    return getApplication().<Module>runReadAction(() -> {
       if (!project.isOpen() || project.isDisposed()) {
         return null;
       }
@@ -62,13 +62,12 @@ public class SonarLintAppUtils {
   }
 
   public static List<VirtualFile> retainOpenFiles(Project project, List<VirtualFile> files) {
-    var openFiles = computeReadActionSafely(project, () -> {
+    return getApplication().<List<VirtualFile>>runReadAction(() -> {
       if (!project.isOpen()) {
-        return Collections.<VirtualFile>emptyList();
+        return Collections.emptyList();
       }
       return files.stream().filter(f -> FileEditorManager.getInstance(project).isFileOpen(f)).collect(Collectors.toList());
     });
-    return openFiles != null ? openFiles : Collections.emptyList();
   }
 
   /**

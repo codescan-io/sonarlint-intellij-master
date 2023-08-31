@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -38,8 +38,8 @@ import org.sonarlint.intellij.core.NodeJsManager;
 import org.sonarsource.sonarlint.core.commons.Version;
 
 public class SonarLintGlobalOptionsPanel implements ConfigurationPanel<SonarLintGlobalSettings> {
-  private static final String NODE_JS_TOOLTIP = "SonarLint requires Node.js to analyze some languages. You can provide an explicit path for the node executable here or leave " +
-    "this field blank to let SonarLint look for it using your PATH environment variable.";
+  private static final String NODE_JS_TOOLTIP = "Codescan requires Node.js to analyze some languages. You can provide an explicit path for the node executable here or leave " +
+    "this field blank to let Codescan look for it using your PATH environment variable.";
   private JPanel rootPane;
   private JCheckBox autoTrigger;
   private JBTextField nodeJsPath;
@@ -80,7 +80,7 @@ public class SonarLintGlobalOptionsPanel implements ConfigurationPanel<SonarLint
     var nodeJsPathWithBrowse = new TextFieldWithBrowseButton(nodeJsPath);
     nodeJsPathWithBrowse.setToolTipText(NODE_JS_TOOLTIP);
     var fileChooser = FileChooserDescriptorFactory.createSingleLocalFileDescriptor();
-    nodeJsPathWithBrowse.addBrowseFolderListener("Select Node.js Binary", "Select Node.js binary to be used by SonarLint", null, fileChooser);
+    nodeJsPathWithBrowse.addBrowseFolderListener("Select Node.js Binary", "Select Node.js binary to be used by Codescan", null, fileChooser);
     constraints.gridx = 1;
     constraints.gridy = 1;
     constraints.weightx = 1.0;

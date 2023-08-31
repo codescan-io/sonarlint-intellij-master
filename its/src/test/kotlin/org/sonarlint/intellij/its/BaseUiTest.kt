@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -341,19 +341,6 @@ open class BaseUiTest {
                 actionMenu("File") {
                     open()
                     item("Close Project") {
-                        click()
-                    }
-                }
-            }
-        }
-    }
-
-    protected fun clickPowerSaveMode() {
-        with(remoteRobot) {
-            optionalIdeaFrame(this)?.apply {
-                actionMenu("File") {
-                    open()
-                    item("Power Save Mode") {
                         click()
                     }
                 }

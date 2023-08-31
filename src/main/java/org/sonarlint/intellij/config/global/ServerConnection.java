@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -53,6 +53,7 @@ import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 // Don't change annotation, used for backward compatibility
 @Tag("SonarQubeServer")
 public class ServerConnection {
+  public static final String SONARCLOUD_URL = "https://app.codescan.io";
   @OptionTag
   private String hostUrl;
   @Tag
@@ -136,20 +137,17 @@ public class ServerConnection {
       return null;
     }
   }
-  public boolean isSonarCloud() {
-    return SonarLintUtils.isSonarCloudAlias(hostUrl);
-  }
 
-  public boolean isSonarQube() {
-    return !isSonarCloud();
+  public boolean isCodescanCloud() {
+    return SonarLintUtils.isCodeScanCloudAlias(hostUrl);
   }
 
   public String getProductName() {
-    return isSonarCloud() ? "SonarCloud" : "SonarQube";
+    return isCodescanCloud() ? "SonarCloud" : "SonarQube";
   }
 
   public Icon getProductIcon() {
-    return isSonarCloud() ? SonarLintIcons.ICON_SONARCLOUD_16 : SonarLintIcons.ICON_SONARQUBE_16;
+    return isCodescanCloud() ? SonarLintIcons.ICON_SONARCLOUD_16 : SonarLintIcons.ICON_SONARQUBE_16;
   }
 
   public boolean enableProxy() {
@@ -173,7 +171,7 @@ public class ServerConnection {
   }
 
   public EndpointParams getEndpointParams() {
-    return new EndpointParams(getHostUrl(), isSonarCloud(), getOrganizationKey());
+    return new EndpointParams(getHostUrl(), isCodescanCloud(), getOrganizationKey());
   }
 
   public ServerApi api() {
@@ -190,7 +188,7 @@ public class ServerConnection {
   }
 
   public ServerLinks links() {
-    return isSonarCloud() ? SonarCloudLinks.INSTANCE : new SonarQubeLinks(hostUrl);
+    return isCodescanCloud() ? SonarCloudLinks.INSTANCE : new SonarQubeLinks(hostUrl);
   }
 
   public static class Builder {

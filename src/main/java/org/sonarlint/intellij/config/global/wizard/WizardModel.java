@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -31,7 +31,7 @@ import org.sonarlint.intellij.tasks.GetOrganizationTask;
 import org.sonarlint.intellij.tasks.GetOrganizationsTask;
 import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.OrganizationDto;
 
-import static org.sonarlint.intellij.common.util.SonarLintUtils.SONARCLOUD_URL;
+import static org.sonarlint.intellij.config.global.ServerConnection.SONARCLOUD_URL;
 
 public class WizardModel {
   private ServerType serverType;
@@ -57,7 +57,7 @@ public class WizardModel {
   }
 
   public WizardModel(ServerConnection connectionToEdit) {
-    if (SonarLintUtils.isSonarCloudAlias(connectionToEdit.getHostUrl())) {
+    if (SonarLintUtils.isCodeScanCloudAlias(connectionToEdit.getHostUrl())) {
       serverType = ServerType.SONARCLOUD;
     } else {
       serverType = ServerType.SONARQUBE;

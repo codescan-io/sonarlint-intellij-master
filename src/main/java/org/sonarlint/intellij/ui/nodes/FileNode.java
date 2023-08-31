@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -67,11 +67,9 @@ public class FileNode extends AbstractNode {
   @Override
   public void render(TreeCellRenderer renderer) {
     renderer.setIcon(getIcon());
-    renderer.setIconToolTip(file.getFileType().getDisplayName() + " file");
     renderer.append(file.getName());
     renderer.append(spaceAndThinSpace() + "(" + getFindingCount() + pluralize(isSecurityHotspot ? " Security Hotspot" : " issue", getFindingCount()) + ")",
       SimpleTextAttributes.GRAYED_BOLD_ATTRIBUTES);
-    renderer.setToolTipText("Double click to list file " + pluralize(isSecurityHotspot ? " Security Hotspot" : " issue", getFindingCount()));
   }
 
   @Override

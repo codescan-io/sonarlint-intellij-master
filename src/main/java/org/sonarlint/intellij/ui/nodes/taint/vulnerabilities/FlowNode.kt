@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -30,9 +30,8 @@ import java.util.Objects
 class FlowNode(val flow: Flow, private val label: String, val issue: LocalTaintVulnerability) : AbstractNode() {
 
   override fun render(renderer: TreeCellRenderer) {
-    renderer.ipad = JBUI.insets(3)
+    renderer.ipad = JBUI.insets(3, 3, 3, 3)
     renderer.append(label, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES, true)
-    renderer.toolTipText = null
   }
 
   override fun equals(other: Any?): Boolean {

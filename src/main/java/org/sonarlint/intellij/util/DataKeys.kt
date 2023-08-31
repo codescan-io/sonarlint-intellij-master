@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -20,13 +20,10 @@
 package org.sonarlint.intellij.util
 
 import com.intellij.openapi.actionSystem.DataKey
-import org.sonarlint.intellij.finding.issue.LiveIssue
 import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability
 
 class DataKeys {
     companion object {
-        @JvmField
-        val ISSUE_DATA_KEY = DataKey.create<LiveIssue>("sonarlint_issue")
         val TAINT_VULNERABILITY_DATA_KEY = DataKey.create<LocalTaintVulnerability>("sonarlint_taint_vulnerability")
     }
 }

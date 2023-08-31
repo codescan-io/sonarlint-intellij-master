@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -19,7 +19,6 @@
  */
 package org.sonarlint.intellij.finding.tracking;
 
-import java.util.UUID;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import org.sonarlint.intellij.proto.Sonarlint;
@@ -31,16 +30,6 @@ public class LocalFindingTrackable implements Trackable {
 
   public LocalFindingTrackable(Sonarlint.Findings.Finding finding) {
     this.finding = finding;
-  }
-
-  @CheckForNull
-  @Override
-  public UUID getId() {
-    try {
-      return UUID.fromString(finding.getId());
-    } catch (Exception e) {
-      return null;
-    }
   }
 
   @CheckForNull

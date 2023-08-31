@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -87,22 +87,16 @@ class RuleParsingUtils {
                 section.mergeOrAdd(HtmlFragment(remainingRuleDescription))
             }
 
-            transformAndAddSections(section, project, parent, fileType, mainPanel)
-
-            return createScrollPane(mainPanel)
-        }
-
-        private fun transformAndAddSections(section: Section, project: Project, parent: Disposable, fileType: FileType, mainPanel: JBPanel<*>) {
             section.fragments.map {
                 when (it) {
                     is HtmlFragment -> RuleHtmlViewer(false).apply { updateHtml(it.html) }
                     is CodeExampleFragment -> RuleCodeSnippet(project, fileType, it).apply {
-                        if (!Disposer.isDisposed(parent)) {
-                            Disposer.register(parent, this)
-                        }
+                        Disposer.register(parent, this)
                     }
                 }
             }.forEach { mainPanel.add(it) }
+
+            return createScrollPane(mainPanel)
         }
 
         private fun isWithinTable(previousHtml: String): Boolean {

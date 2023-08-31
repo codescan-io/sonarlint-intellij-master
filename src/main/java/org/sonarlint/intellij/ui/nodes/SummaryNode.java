@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -100,7 +100,6 @@ public class SummaryNode extends AbstractNode {
   @Override
   public void render(TreeCellRenderer renderer) {
     renderer.append(getText());
-    renderer.setToolTipText(null);
   }
 
   @Override

@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -37,7 +37,6 @@ import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.Transparency;
 import java.util.List;
-import java.util.Set;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import javax.swing.Icon;
@@ -48,10 +47,7 @@ import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 public class SonarLintUtils {
 
   private static final Logger LOG = Logger.getInstance(SonarLintUtils.class);
-  public static final String DEFAULT_SONARCLOUD_URL = "https://sonarcloud.io";
-  public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_SONARCLOUD_URL);
-  private static final Set<String> SONARCLOUD_ALIAS = Set.copyOf(List.of("https://sonarqube.com", "https://www.sonarqube.com",
-    "https://www.sonarcloud.io", DEFAULT_SONARCLOUD_URL, SONARCLOUD_URL));
+  private static final String[] SONARCLOUD_ALIAS = {"https://app.codescan.io"};
 
   private SonarLintUtils() {
     // Utility class
@@ -85,8 +81,8 @@ public class SonarLintUtils {
     }
   }
 
-  public static boolean isSonarCloudAlias(@Nullable String url) {
-    return url != null && SONARCLOUD_ALIAS.contains(url);
+  public static boolean isCodeScanCloudAlias(@Nullable String url) {
+    return url != null && List.of(SONARCLOUD_ALIAS).contains(url);
   }
 
   public static boolean isEmpty(@Nullable String str) {

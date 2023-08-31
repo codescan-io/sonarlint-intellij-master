@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -19,6 +19,7 @@
  */
 package org.sonarlint.intellij.util;
 
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectCoreUtil;
 import com.intellij.openapi.roots.ProjectRootManager;
@@ -32,8 +33,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import org.sonarlint.intellij.finding.TextRangeMatcher;
-
-import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
 
 public class ProjectUtils {
 
@@ -78,7 +77,7 @@ public class ProjectUtils {
   }
 
   public static Map<VirtualFile, String> getRelativePaths(Project project, Collection<VirtualFile> files) {
-    return computeReadActionSafely(project, () -> {
+    return ApplicationManager.getApplication().<Map<VirtualFile, String>>runReadAction(() -> {
       Map<VirtualFile, String> relativePathPerFile = new HashMap<>();
 
       for (var file : files) {

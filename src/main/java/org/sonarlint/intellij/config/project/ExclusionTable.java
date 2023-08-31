@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -164,7 +164,7 @@ public class ExclusionTable {
     @Override public Object getValueAt(int rowIndex, int columnIndex) {
       var item = rows.get(rowIndex);
       if (columnIndex == 0) {
-        return StringUtils.capitalize(item.type().name().toLowerCase(Locale.ENGLISH));
+        return StringUtils.capitalize(item.type().name().toLowerCase(Locale.US));
       }
       return item.item();
     }

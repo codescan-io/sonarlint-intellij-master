@@ -1,40 +1,28 @@
-SonarLint IntelliJ Plugin
+Codescan IntelliJ Plugin
 =========================
 
 [![Build Status](https://api.cirrus-ci.com/github/SonarSource/sonarlint-intellij.svg?branch=master)](https://cirrus-ci.com/github/SonarSource/sonarlint-intellij)
 [![Quality Gate](https://next.sonarqube.com/sonarqube/api/project_badges/measure?project=org.sonarsource.sonarlint.intellij%3Asonarlint-intellij&metric=alert_status)](https://next.sonarqube.com/sonarqube/dashboard?id=org.sonarsource.sonarlint.intellij%3Asonarlint-intellij)
 
-SonarLint is an IDE extension that helps you detect and fix quality issues as you write code.
-Like a spell checker, SonarLint squiggles flaws so they can be fixed before committing code.
+Codescan is an IDE extension that helps you detect and fix quality issues as you write code.
+Like a spell checker, Codescan squiggles flaws so they can be fixed before committing code.
 
 Useful links
 ------------
 
-- [SonarLint website](https://www.sonarlint.org)
-- [Features](https://www.sonarlint.org/features/)
-- List of static code analysis rules per language:
-    - [Java](https://rules.sonarsource.com/java)
-    - [JavaScript](https://rules.sonarsource.com/javascript)
-    - [TypeScript](https://rules.sonarsource.com/typescript)
-    - [Python](https://rules.sonarsource.com/python)
-    - [Kotlin](https://rules.sonarsource.com/kotlin)
-    - [Ruby](https://rules.sonarsource.com/ruby)
-    - [PHP](https://rules.sonarsource.com/php)
-    - [HTML](https://rules.sonarsource.com/html)
-    - [Go](https://rules.sonarsource.com/go)
-- [SonarLint community](https://community.sonarsource.com/c/help/sl)
+[CodeScan website](https://www.app.codescan.io)
 
 How to install
 --------------
 
-You can install SonarLint from the [JetBrains Plugin Repository](https://plugins.jetbrains.com/plugin/7973-sonarlint), directly available in the IDE preferences.
+You can install Codescan from the [JetBrains Plugin Repository](https://plugins.jetbrains.com/plugin/7973-sonarlint), directly available in the IDE preferences.
 
 Node.js >= 14.20 is required to perform JavaScript or TypeScript analysis (Node.js >= 16 is recommended).
 
 Have Question or Feedback?
 --------------------------
 
-For SonarLint support questions ("How do I?", "I got this error, why?", ...), please first read the [FAQ](https://community.sonarsource.com/t/frequently-asked-questions/7204) and then head to the [SonarSource forum](https://community.sonarsource.com/c/help/sl). There are chances that a question similar to yours has already been answered. 
+For Codescan support questions ("How do I?", "I got this error, why?", ...), please first read the [FAQ](https://community.sonarsource.com/t/frequently-asked-questions/7204) and then head to the [SonarSource forum](https://community.sonarsource.com/c/help/sl). There are chances that a question similar to yours has already been answered. 
 
 Be aware that this forum is a community, so the standard pleasantries ("Hi", "Thanks", ...) are expected. And if you don't get an answer to your thread, you should sit on your hands for at least three days before bumping it. Operators are not standing by. :-)
 
@@ -67,7 +55,7 @@ How to run ITs
 
     ./gradlew :its:runIdeForUiTests &
 
-The above will start an IDE instance with the SonarLint plugin. Wait for the UI robot server to start, then run the ITs:
+The above will start an IDE instance with the Codescan plugin. Wait for the UI robot server to start, then run the ITs:
 
     ./gradlew :its:check
 

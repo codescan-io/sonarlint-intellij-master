@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -138,10 +138,6 @@ public class FindingPersistence<T extends LiveFinding> {
     }
     if (liveFinding.getLine() != null) {
       builder.setLine(liveFinding.getLine());
-    }
-    var id = liveFinding.getId();
-    if (id != null) {
-      builder.setId(id.toString());
     }
     return builder.build();
   }

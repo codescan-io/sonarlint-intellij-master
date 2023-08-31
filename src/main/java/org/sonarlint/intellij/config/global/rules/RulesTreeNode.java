@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -21,17 +21,19 @@ package org.sonarlint.intellij.config.global.rules;
 
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import javax.swing.tree.DefaultMutableTreeNode;
-import org.sonarsource.sonarlint.core.clientapi.backend.rules.RuleDefinitionDto;
-import org.sonarsource.sonarlint.core.commons.CleanCodeAttribute;
-import org.sonarsource.sonarlint.core.commons.ImpactSeverity;
+import org.sonarsource.sonarlint.core.client.api.standalone.StandaloneRuleDetails;
+import org.sonarsource.sonarlint.core.client.api.standalone.StandaloneRuleParam;
+import org.sonarsource.sonarlint.core.client.api.standalone.StandaloneRuleParamType;
 import org.sonarsource.sonarlint.core.commons.IssueSeverity;
 import org.sonarsource.sonarlint.core.commons.RuleType;
-import org.sonarsource.sonarlint.core.commons.SoftwareQuality;
 
 public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
   protected Boolean activated;
@@ -100,10 +102,10 @@ public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
   }
 
   public static class Rule extends RulesTreeNode {
-    private final RuleDefinitionDto details;
+    private final StandaloneRuleDetails details;
     private final Map<String, String> nonDefaultParams;
 
-    public Rule(RuleDefinitionDto details, boolean activated, Map<String, String> nonDefaultParams) {
+    public Rule(StandaloneRuleDetails details, boolean activated, Map<String, String> nonDefaultParams) {
       this.details = details;
       this.activated = activated;
       this.nonDefaultParams = new HashMap<>(nonDefaultParams);
@@ -111,6 +113,10 @@ public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
 
     public String getKey() {
       return details.getKey();
+    }
+
+    public String getHtmlDescription() {
+      return details.getHtmlDescription();
     }
 
     public String getName() {
@@ -121,16 +127,8 @@ public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
       return details.isActiveByDefault();
     }
 
-    public CleanCodeAttribute attribute() {
-      return details.getCleanCodeAttribute().orElse(null);
-    }
-
-    public Map<SoftwareQuality, ImpactSeverity> impacts() {
-      return details.getDefaultImpacts();
-    }
-
     public IssueSeverity severity() {
-      return details.getSeverity();
+      return details.getDefaultSeverity();
     }
 
     public RuleType type() {
@@ -149,6 +147,17 @@ public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
     @Override
     public String toString() {
       return getName();
+    }
+
+    public boolean hasParameters() {
+      return !getParamDetails().isEmpty();
+    }
+
+    public List<RuleParam> getParamDetails() {
+      return details.paramDetails()
+        .stream()
+        .map(RuleParam::new)
+        .collect(Collectors.toList());
     }
 
     public Map<String, String> getCustomParams() {
@@ -172,5 +181,28 @@ public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
       return Objects.hash(details.getKey(), activated, nonDefaultParams);
     }
   }
+  public static class RuleParam {
+    final String key;
+    final String name;
+    final String description;
+    final StandaloneRuleParamType type;
+    final boolean isMultiple;
+    @CheckForNull
+    final String defaultValue;
+    final String[] options;
 
+    public RuleParam(StandaloneRuleParam p) {
+      this(p.key(), p.name(), p.description(), p.type(), p.multiple(), p.defaultValue(), p.possibleValues().toArray(new String[0]));
+    }
+
+    public RuleParam(String key, String name, String description, StandaloneRuleParamType type, boolean isMultiple, @Nullable String defaultValue, String... options) {
+      this.key = key;
+      this.name = name;
+      this.description = description;
+      this.type = type;
+      this.isMultiple = isMultiple;
+      this.defaultValue = defaultValue;
+      this.options = options;
+    }
+  }
 }

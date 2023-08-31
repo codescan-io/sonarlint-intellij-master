@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "org.sonarsource.sonarlint.intellij.its"
-description = "ITs for SonarLint IntelliJ"
+description = "ITs for Codescan IntelliJ"
 
 java {
     toolchain {
@@ -24,7 +24,7 @@ repositories {
     mavenCentral()
 }
 
-val remoteRobotVersion = "0.11.19"
+val remoteRobotVersion = "0.11.18"
 
 dependencies {
     testImplementation("org.sonarsource.orchestrator:sonar-orchestrator:3.40.0.183") {

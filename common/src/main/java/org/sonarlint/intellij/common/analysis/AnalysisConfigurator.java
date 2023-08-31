@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -31,7 +31,7 @@ import org.sonarsource.sonarlint.core.commons.Language;
 
 public interface AnalysisConfigurator {
   // Name is constructed from plugin-id.extension-point-name
-  ExtensionPointName<AnalysisConfigurator> EP_NAME = ExtensionPointName.create("org.sonarlint.idea.analysisConfiguration");
+  ExtensionPointName<AnalysisConfigurator> EP_NAME = ExtensionPointName.create("com.code-scan.intellij.analysisConfiguration");
 
   AnalysisConfiguration configure(Module module, Collection<VirtualFile> filesToAnalyze);
 

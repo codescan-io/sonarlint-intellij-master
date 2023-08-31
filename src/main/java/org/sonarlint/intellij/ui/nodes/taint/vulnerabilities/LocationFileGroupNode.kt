@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -39,7 +39,6 @@ class LocationFileGroupNode(private val position: Int, private val location: Loc
     if (file == null || !file.isValid) {
       renderer.append(" (unreachable in local code)", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
     }
-    renderer.toolTipText = null
   }
 
   override fun equals(other: Any?): Boolean {

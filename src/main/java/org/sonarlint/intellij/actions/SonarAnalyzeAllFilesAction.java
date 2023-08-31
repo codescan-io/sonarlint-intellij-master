@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -37,9 +37,9 @@ import org.sonarlint.intellij.common.util.SonarLintUtils;
 import static org.sonarlint.intellij.util.ProjectUtils.hasFiles;
 
 public class SonarAnalyzeAllFilesAction extends AbstractSonarAction {
-  private static final String HIDE_WARNING_PROPERTY = "SonarLint.analyzeAllFiles.hideWarning";
+  private static final String HIDE_WARNING_PROPERTY = "Codescan.analyzeAllFiles.hideWarning";
   public static final String WARNING_MESSAGE = "Analysing all files may take a considerable amount of time to complete.\n"
-    + "To get the best from SonarLint, you should preferably use the automatic analysis of the file you're working on.";
+    + "To get the best from Codescan, you should preferably use the automatic analysis of the file you're working on.";
 
   public SonarAnalyzeAllFilesAction() {
     super();

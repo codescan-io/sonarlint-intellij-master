@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -35,7 +35,6 @@ import com.intellij.ui.components.JBPanelWithEmptyText;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.ui.tree.TreeUtil;
 import java.awt.BorderLayout;
-import java.awt.Dimension;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import javax.swing.Box;
@@ -137,7 +136,6 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
     setToolbar(createActionGroup());
     disableEmptyDisplay(false);
 
-    findingDetailsPanel.setMinimumSize(new Dimension(350, 200));
     // Put everything together
     super.setContent(createSplitter(project, this, this, findingsPanel, findingDetailsPanel, SPLIT_PROPORTION_PROPERTY, 0.5f));
   }

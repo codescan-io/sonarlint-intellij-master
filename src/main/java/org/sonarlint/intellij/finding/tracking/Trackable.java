@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -19,14 +19,11 @@
  */
 package org.sonarlint.intellij.finding.tracking;
 
-import java.util.UUID;
 import javax.annotation.CheckForNull;
 import org.sonarsource.sonarlint.core.commons.IssueSeverity;
 import org.sonarsource.sonarlint.core.commons.RuleType;
 
 public interface Trackable {
-  @CheckForNull
-  UUID getId();
 
   /**
    * The line index, starting with 1. Null means that

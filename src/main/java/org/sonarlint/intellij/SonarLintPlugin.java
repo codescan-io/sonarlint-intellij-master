@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -40,7 +40,7 @@ public final class SonarLintPlugin implements Disposable {
 
   private IdeaPluginDescriptor getPlugin() {
     if (plugin == null) {
-      plugin = PluginManagerCore.getPlugin(PluginId.getId("org.sonarlint.idea"));
+      plugin = PluginManagerCore.getPlugin(PluginId.getId("com.code-scan.intellij"));
     }
     return plugin;
   }

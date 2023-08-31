@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -67,5 +67,6 @@ class RuleHtmlViewer(scrollable: Boolean) : JBPanel<RuleHtmlViewer>(BorderLayout
     fun updateHtml(html: String) {
         SwingHelper.setHtml(editor, html, UIUtil.getLabelForeground())
     }
+
 
 }

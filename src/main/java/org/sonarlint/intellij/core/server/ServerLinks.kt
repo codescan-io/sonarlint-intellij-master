@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -19,8 +19,8 @@
  */
 package org.sonarlint.intellij.core.server
 
-import org.sonarlint.intellij.common.util.SonarLintUtils.SONARCLOUD_URL
 import org.sonarlint.intellij.common.util.SonarLintUtils.withTrailingSlash
+import org.sonarlint.intellij.config.global.ServerConnection.SONARCLOUD_URL
 
 sealed interface ServerLinks {
     fun formattingSyntaxDoc(): String

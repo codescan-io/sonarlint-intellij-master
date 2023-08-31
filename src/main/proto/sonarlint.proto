@@ -21,7 +21,6 @@ message Findings {
         // values carried forward
         int64 introductionDate = 7;
         bool resolved = 8;
-        string id = 9;
     }
 }
 

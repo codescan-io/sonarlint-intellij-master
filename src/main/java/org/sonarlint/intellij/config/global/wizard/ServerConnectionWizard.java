@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -92,7 +92,7 @@ public class ServerConnectionWizard {
     }
 
     @Override
-    protected void doHelpAction() {
+    protected void helpAction() {
       BrowserUtil.browse(SonarLintDocumentation.CONNECTED_MODE_LINK);
     }
 

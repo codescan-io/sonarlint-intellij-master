@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -21,7 +21,6 @@ package org.sonarlint.intellij
 
 import com.intellij.openapi.util.IconLoader
 import com.intellij.ui.JBColor
-import org.sonarsource.sonarlint.core.commons.ImpactSeverity
 import org.sonarsource.sonarlint.core.commons.IssueSeverity
 import org.sonarsource.sonarlint.core.commons.RuleType
 import org.sonarsource.sonarlint.core.commons.VulnerabilityProbability
@@ -42,23 +41,23 @@ object SonarLintIcons {
     private val yellow60Color = colorWithAlpha(0xf4af3d, 60)
 
     @JvmField
-    val ICON_SONARQUBE = getIcon("/images/SonarQube.png")
+    val ICON_CODESCAN = getIcon("/images/CodeScan.png")
+//    @JvmField
+//    val ICON_SONARCLOUD = getIcon("/images/SonarCloud.png")
     @JvmField
-    val ICON_SONARCLOUD = getIcon("/images/SonarCloud.png")
+    val ICON_SONARQUBE_16 = getIcon("/images/codescan-16.png")
     @JvmField
-    val ICON_SONARQUBE_16 = getIcon("/images/onde-sonar-16.png")
+    val ICON_SONARCLOUD_16 = getIcon("/images/codescan-16.png")
     @JvmField
-    val ICON_SONARCLOUD_16 = getIcon("/images/sonarcloud-16.png")
+    val SONARLINT_TOOLWINDOW = getIcon("/images/codescanToolWindow.svg")
     @JvmField
-    val SONARLINT_TOOLWINDOW = getIcon("/images/sonarlintToolWindow.svg")
-    @JvmField
-    val SONARLINT_ACTION = getIcon("/images/sonarlintAction.svg")
+    val SONARLINT_ACTION = getIcon("/images/codescanAction.svg")
     @JvmField
     val SONARLINT_TOOLWINDOW_EMPTY = getIcon("/images/sonarlintToolWindowEmpty.svg")
     @JvmField
-    val SONARLINT = getIcon("/images/sonarlint.png")
+    val SONARLINT = getIcon("/images/codescan-round.png")
     @JvmField
-    val SONARLINT_32 = getIcon("/images/sonarlint@2x.png")
+    val SONARLINT_32 = getIcon("/images/codescan@2x.png")
     @JvmField
     val PLAY = getIcon("/images/execute.png")
     @JvmField
@@ -91,20 +90,12 @@ object SonarLintIcons {
         IssueSeverity.MAJOR to getIcon("/images/severity/major.svg"),
         IssueSeverity.MINOR to getIcon("/images/severity/minor.svg")
     )
-
-    private val IMPACT_ICONS = mapOf(
-        ImpactSeverity.HIGH to getIcon("/images/impact/high.svg"),
-        ImpactSeverity.MEDIUM to getIcon("/images/impact/medium.svg"),
-        ImpactSeverity.LOW to getIcon("/images/impact/low.svg")
-    )
-
     private val TYPE_ICONS = mapOf(
         RuleType.BUG to getIcon("/images/type/bug.svg"),
         RuleType.CODE_SMELL to getIcon("/images/type/codeSmell.svg"),
         RuleType.VULNERABILITY to getIcon("/images/type/vulnerability.svg"),
         RuleType.SECURITY_HOTSPOT to getIcon("/images/type/hotspot.svg")
     )
-
     private val PROBABILITY_ICONS = mapOf(
         VulnerabilityProbability.HIGH to getIcon("/images/type/hotspotHigh.svg"),
         VulnerabilityProbability.MEDIUM to getIcon("/images/type/hotspotMedium.svg"),
@@ -129,11 +120,6 @@ object SonarLintIcons {
     @JvmStatic
     fun type(type: RuleType): Icon {
         return TYPE_ICONS[type]!!
-    }
-
-    @JvmStatic
-    fun impact(impact: ImpactSeverity): Icon {
-        return IMPACT_ICONS[impact]!!
     }
 
     @JvmStatic

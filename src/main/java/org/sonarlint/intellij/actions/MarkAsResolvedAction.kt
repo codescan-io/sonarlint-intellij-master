@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -47,7 +47,6 @@ import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerabil
 import org.sonarlint.intellij.tasks.FutureAwaitingTask
 import org.sonarlint.intellij.ui.UiUtils.Companion.runOnUiThread
 import org.sonarlint.intellij.ui.resolve.MarkAsResolvedDialog
-import org.sonarlint.intellij.util.DataKeys.Companion.ISSUE_DATA_KEY
 import org.sonarlint.intellij.util.DataKeys.Companion.TAINT_VULNERABILITY_DATA_KEY
 import org.sonarlint.intellij.util.displayErrorNotification
 import org.sonarlint.intellij.util.displaySuccessfulNotification
@@ -69,11 +68,6 @@ class MarkAsResolvedAction(
 
         val GROUP: NotificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("SonarLint: Mark Issue as Resolved")
 
-        fun canBeMarkedAsResolved(project: Project, issue: Issue) : Boolean {
-            val serverConnection = serverConnection(project)
-            return issue.isValid() && serverConnection != null && (serverConnection.isSonarQube || issue.getServerKey() != null)
-        }
-
         fun openMarkAsResolvedDialog(project: Project, issue: Issue) {
             val connection = serverConnection(project) ?: return displayErrorNotification(
                 project,
@@ -86,7 +80,7 @@ class MarkAsResolvedAction(
                 project, errorTitle, "No module could be found for this file", GROUP
             )
             val serverKey =
-                issue.getServerKey() ?: issue.getId()?.toString() ?: return displayErrorNotification(project, errorTitle, "The issue key could not be found", GROUP)
+                issue.getServerKey() ?: return displayErrorNotification(project, errorTitle, "The issue key could not be found", GROUP)
             val response = checkPermission(project, connection, serverKey) ?: return
 
             val resolution = MarkAsResolvedDialog(
@@ -170,9 +164,8 @@ class MarkAsResolvedAction(
     }
 
     override fun isEnabled(e: AnActionEvent, project: Project, status: AnalysisStatus): Boolean {
-        // always disabled for standalone mode
-        // the checks will be done inside the popup for connected mode
-        return serverConnection(project) != null
+        return (e.getData(DisableRuleAction.ISSUE_DATA_KEY) != null && e.getData(DisableRuleAction.ISSUE_DATA_KEY)?.serverFindingKey != null
+            && e.getData(DisableRuleAction.ISSUE_DATA_KEY)?.isValid() == true) || (e.getData(TAINT_VULNERABILITY_DATA_KEY) != null)
     }
 
     override fun updatePresentation(e: AnActionEvent, project: Project) {
@@ -183,7 +176,7 @@ class MarkAsResolvedAction(
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        var issue: Issue? = e.getData(ISSUE_DATA_KEY)
+        var issue: Issue? = e.getData(DisableRuleAction.ISSUE_DATA_KEY)
         if (issue == null) {
             issue = e.getData(TAINT_VULNERABILITY_DATA_KEY)
         }

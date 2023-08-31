@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -24,6 +24,6 @@ import com.intellij.openapi.components.State;
 public class SonarLintGlobalSettingsPresentableName extends State.NameGetter {
   @Override
   public String get() {
-    return "SonarLint settings";
+    return "Codescan settings";
   }
 }

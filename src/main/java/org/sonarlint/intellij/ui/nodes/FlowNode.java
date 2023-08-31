@@ -1,5 +1,5 @@
 /*
- * SonarLint for IntelliJ IDEA
+ * Codescan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -40,7 +40,7 @@ public class FlowNode extends AbstractNode {
 
   @Override
   public void render(TreeCellRenderer renderer) {
-    renderer.setIpad(JBUI.insets(3));
+    renderer.setIpad(JBUI.insets(3, 3, 3, 3));
     renderer.setBorder(new BottomLineBorder());
     renderer.append(label, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES, true);
   }
