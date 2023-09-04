@@ -1,5 +1,6 @@
 plugins {
     id("org.jetbrains.intellij")
+    id("com.github.hierynomus.license")
     kotlin("jvm")
 }
 
@@ -47,6 +48,11 @@ tasks.test {
 }
 
 license {
+    mapping(
+        mapOf(
+            "kt" to "SLASHSTAR_STYLE"
+        )
+    )
     // exclude file from resources (workaround for https://github.com/hierynomus/license-gradle-plugin/issues/145)
     exclude("**.xml")
 }

@@ -28,7 +28,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.swing.Icon;
 import org.sonarlint.intellij.SonarLintIcons;
-import org.sonarlint.intellij.SonarLintIcons.*;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.core.BackendService;
 import org.sonarlint.intellij.core.server.ServerLinks;

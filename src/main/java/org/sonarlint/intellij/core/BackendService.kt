@@ -100,14 +100,14 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
         migrateStoragePath()
         val serverConnections = getGlobalSettings().serverConnections
         val sonarCloudConnections =
-            serverConnections.filter { it.isSonarCloud }.map { toSonarCloudBackendConnection(it) }
+            serverConnections.filter { it.isCodeScanCloud }.map { toSonarCloudBackendConnection(it) }
         val sonarQubeConnections =
-            serverConnections.filter { !it.isSonarCloud }.map { toSonarQubeBackendConnection(it) }
+            serverConnections.filter { !it.isCodeScanCloud }.map { toSonarQubeBackendConnection(it) }
         backend.initialize(
             InitializeParams(
                 ClientInfoDto(
                     ApplicationInfo.getInstance().versionName,
-                    TelemetryManagerProvider.TELEMETRY_PRODUCT_KEY,
+                    "idea",
                     "SonarLint IntelliJ " + getService(SonarLintPlugin::class.java).version
                 ),
                 FeatureFlagsDto(true, true, true, true, true),
@@ -172,8 +172,8 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     private fun getLocalStoragePath(): Path = Paths.get(PathManager.getSystemPath()).resolve("sonarlint/storage")
 
     fun connectionsUpdated(serverConnections: List<ServerConnection>) {
-        val scConnections = serverConnections.filter { it.isSonarCloud }.map { toSonarCloudBackendConnection(it) }
-        val sqConnections = serverConnections.filter { !it.isSonarCloud }.map { toSonarQubeBackendConnection(it) }
+        val scConnections = serverConnections.filter { it.isCodeScanCloud }.map { toSonarCloudBackendConnection(it) }
+        val sqConnections = serverConnections.filter { !it.isCodeScanCloud }.map { toSonarQubeBackendConnection(it) }
         backend.connectionService.didUpdateConnections(DidUpdateConnectionsParams(sqConnections, scConnections))
     }
 
@@ -385,7 +385,7 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     fun checkSmartNotificationsSupported(server: ServerConnection): CompletableFuture<CheckSmartNotificationsSupportedResponse> {
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
-        val params: CheckSmartNotificationsSupportedParams = if (server.isSonarCloud) {
+        val params: CheckSmartNotificationsSupportedParams = if (server.isCodeScanCloud) {
             CheckSmartNotificationsSupportedParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials))
         } else {
             CheckSmartNotificationsSupportedParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))
@@ -396,7 +396,7 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     fun validateConnection(server: ServerConnection): CompletableFuture<ValidateConnectionResponse> {
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
-        val params: ValidateConnectionParams = if (server.isSonarCloud) {
+        val params: ValidateConnectionParams = if (server.isCodeScanCloud) {
             ValidateConnectionParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials))
         } else {
             ValidateConnectionParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))

@@ -319,7 +319,7 @@ class SonarLintRulePanel(private val project: Project, private val parent: Dispo
         projectKey: String,
         serverFindingKey: String,
     ): String {
-        val prefixPath = if (serverConnection.isSonarCloud) "project/" else ""
+        val prefixPath = if (serverConnection.isCodeScanCloud) "project/" else ""
         return "${serverConnection.hostUrl}/${prefixPath}security_hotspots?id=${urlEncode(projectKey)}&hotspots=${
             urlEncode(
                 serverFindingKey

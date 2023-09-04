@@ -18,7 +18,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
  */
 package org.sonarlint.intellij.config.global.wizard;
-
 import com.intellij.openapi.progress.ProgressManager;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,8 +29,6 @@ import org.sonarlint.intellij.tasks.CheckNotificationsSupportedTask;
 import org.sonarlint.intellij.tasks.GetOrganizationTask;
 import org.sonarlint.intellij.tasks.GetOrganizationsTask;
 import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.OrganizationDto;
-
-import static org.sonarlint.intellij.config.global.ServerConnection.SONARCLOUD_URL;
 
 public class WizardModel {
   private ServerType serverType;
@@ -237,11 +234,11 @@ public class WizardModel {
   }
 
   public ServerConnection createConnectionWithoutOrganization() {
-    return createConnection(null);
+    return createConnection();
   }
 
   public ServerConnection createConnection() {
-    return createConnection(organizationKey);
+    return createConnection();
   }
 
   private ServerConnection.Builder createUnauthenticatedConnection(@Nullable String organizationKey) {
@@ -249,19 +246,7 @@ public class WizardModel {
       .setOrganizationKey(organizationKey)
       .setEnableProxy(proxyEnabled)
       .setName(name);
-
-    if (serverType == ServerType.SONARCLOUD) {
-      builder.setHostUrl(SONARCLOUD_URL);
-
-    } else {
-      builder.setHostUrl(serverUrl);
-    }
-    builder.setDisableNotifications(notificationsDisabled);
-    return builder;
-  }
-
-  private ServerConnection createConnection(@Nullable String organizationKey) {
-    var builder = createUnauthenticatedConnection(organizationKey);
+    builder.setHostUrl(serverUrl);
 
     if (token != null) {
       builder.setToken(token)
@@ -272,6 +257,7 @@ public class WizardModel {
         .setLogin(login)
         .setPassword(new String(password));
     }
-    return builder.build();
+    builder.setDisableNotifications(notificationsDisabled);
+    return builder;
   }
 }

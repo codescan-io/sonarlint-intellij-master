@@ -14,7 +14,7 @@ import java.util.zip.ZipOutputStream
 
 plugins {
     kotlin("jvm") version "1.8.10"
-    id("org.jetbrains.intellij") version "1.14.1"
+    id("org.jetbrains.intellij") version "1.15.0"
     id("org.sonarqube") version "3.4.0.2513"
     java
     jacoco
@@ -45,11 +45,11 @@ val jettyVersion: String by project
 val intellijBuildVersion: String by project
 val omnisharpVersion: String by project
 
-// The environment variables ARTIFACTORY_PRIVATE_USERNAME and ARTIFACTORY_PRIVATE_PASSWORD are used on CI env
+// The environment variables ARTIFACTORY_PRIVATE_USERNAME and ARTIFACTORY_PRIVATE_PASSWORD are used on CI env (Azure)
 // On local box, please add artifactoryUsername and artifactoryPassword to ~/.gradle/gradle.properties
-val artifactoryUsername = System.getenv("ARTIFACTORY_PRIVATE_USERNAME")
+val artifactoryUsername = System.getenv("ARTIFACTORY_PRIVATE_READER_USERNAME")
     ?: (if (project.hasProperty("artifactoryUsername")) project.property("artifactoryUsername").toString() else "")
-val artifactoryPassword = System.getenv("ARTIFACTORY_PRIVATE_PASSWORD")
+val artifactoryPassword = System.getenv("ARTIFACTORY_PRIVATE_READER_PASSWORD")
     ?: (if (project.hasProperty("artifactoryPassword")) project.property("artifactoryPassword").toString() else "")
 
 allprojects {
@@ -137,7 +137,7 @@ intellij {
 
 tasks.runPluginVerifier {
     // Test oldest supported, and latest
-    ideVersions.set(listOf("IC-2021.3", "IC-2022.3.2"))
+    ideVersions.set(listOf("IC-2021.3", "IC-2023.2.1"))
     failureLevel.set(
         EnumSet.complementOf(
             EnumSet.of(

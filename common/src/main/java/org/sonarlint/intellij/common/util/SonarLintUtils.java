@@ -43,6 +43,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
+import java.util.Set;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import javax.swing.Icon;
@@ -54,6 +56,11 @@ public class SonarLintUtils {
   private static final String CODESCAN_HEALTH_ENDPOINT = "/_codescan/actuator/health";
   private static final String CODESCAN_HEALTH_JSON_RESPONSE = "{\"status\":\"UP\"}";
   private static final Logger LOG = Logger.getInstance(SonarLintUtils.class);
+  public static final String DEFAULT_SONARCLOUD_URL = "https://app.codescan.io";
+  public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_SONARCLOUD_URL);
+  private static final Set<String> SONARCLOUD_ALIAS = Set.copyOf(
+          List.of("https://codescan.io", "https://www.codescan.io",
+    "https://www.codescan.io", DEFAULT_SONARCLOUD_URL, SONARCLOUD_URL));
 
   private SonarLintUtils() {
     // Utility class
