@@ -281,8 +281,6 @@ public class AuthStep extends AbstractWizardStepEx {
       }
     } catch (Exception e) {
       Messages.showErrorDialog(panel, e.getMessage(), "Unable to Generate Token");
-    } finally {
-      Disposer.dispose(this);
     }
   }
 

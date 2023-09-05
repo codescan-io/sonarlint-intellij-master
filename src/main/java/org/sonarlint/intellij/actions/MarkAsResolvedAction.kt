@@ -52,7 +52,7 @@ import org.sonarlint.intellij.util.displayErrorNotification
 import org.sonarlint.intellij.util.displaySuccessfulNotification
 import org.sonarlint.intellij.util.displayWarningNotification
 import org.sonarsource.sonarlint.core.clientapi.backend.issue.CheckStatusChangePermittedResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.issue.IssueStatus
+import org.sonarsource.sonarlint.core.clientapi.backend.issue.ResolutionStatus
 
 private const val SKIP_CONFIRM_DIALOG_PROPERTY = "SonarLint.markIssueAsResolved.hideConfirmation"
 
@@ -66,7 +66,12 @@ class MarkAsResolvedAction(
         private const val errorTitle = "<b>SonarLint - Unable to mark the issue as resolved</b>"
         private const val content = "The issue was successfully marked as resolved"
 
-        val GROUP: NotificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("SonarLint: Mark Issue as Resolved")
+        val GROUP: NotificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("CodeScan: Mark Issue as Resolved")
+
+        fun canBeMarkedAsResolved(project: Project, issue: Issue) : Boolean {
+            val serverConnection = serverConnection(project)
+            return issue.isValid() && serverConnection != null && (serverConnection.isCodeScanCloud || issue.getServerKey() != null)
+        }
 
         fun openMarkAsResolvedDialog(project: Project, issue: Issue) {
             val connection = serverConnection(project) ?: return displayErrorNotification(
@@ -80,7 +85,7 @@ class MarkAsResolvedAction(
                 project, errorTitle, "No module could be found for this file", GROUP
             )
             val serverKey =
-                issue.getServerKey() ?: return displayErrorNotification(project, errorTitle, "The issue key could not be found", GROUP)
+                issue.getServerKey() ?: issue.getId()?.toString() ?: return displayErrorNotification(project, errorTitle, "The issue key could not be found", GROUP)
             val response = checkPermission(project, connection, serverKey) ?: return
 
             val resolution = MarkAsResolvedDialog(
@@ -144,7 +149,7 @@ class MarkAsResolvedAction(
             }
         }
 
-        private fun confirm(project: Project, productName: String, issueStatus: IssueStatus): Boolean {
+        private fun confirm(project: Project, productName: String, issueStatus: ResolutionStatus): Boolean {
             return shouldSkipConfirmationDialog() || MessageDialogBuilder.okCancel(
                 "Confirm marking issue as resolved",
                 "Are you sure you want to mark this issue as \"${issueStatus.title}\"? The status will be updated on $productName and synchronized with any contributor using SonarLint in connected mode"

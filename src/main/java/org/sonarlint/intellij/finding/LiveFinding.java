@@ -24,33 +24,45 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import org.apache.commons.codec.binary.Hex;
+import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.finding.tracking.Trackable;
-import org.sonarlint.intellij.ui.ReadActionUtils;
 import org.sonarsource.sonarlint.core.client.api.common.analysis.Issue;
+import org.sonarsource.sonarlint.core.commons.CleanCodeAttribute;
+import org.sonarsource.sonarlint.core.commons.ImpactSeverity;
 import org.sonarsource.sonarlint.core.commons.IssueSeverity;
+import org.sonarsource.sonarlint.core.commons.SoftwareQuality;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.commons.codec.digest.DigestUtils.md5;
+import static org.apache.commons.codec.digest.DigestUtils.md5Hex;
+import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
 
 public abstract class LiveFinding implements Trackable, Finding {
   private static final AtomicLong UID_GEN = new AtomicLong();
 
   private final long uid;
+  private UUID backendId;
   private final RangeMarker range;
   private final PsiFile psiFile;
   private final Integer textRangeHash;
+  private final String textRangeHashString;
   private final Integer lineHash;
+  private final String lineHashString;
   private final String message;
   private final String ruleKey;
 
   private final FindingContext context;
   private final List<QuickFix> quickFixes;
   private final String ruleDescriptionContextKey;
+  private final CleanCodeAttribute cleanCodeAttribute;
+  private final Map<SoftwareQuality, ImpactSeverity> impacts;
 
   // tracked fields (mutable)
   private IssueSeverity severity;
@@ -59,7 +71,8 @@ public abstract class LiveFinding implements Trackable, Finding {
   private boolean resolved;
 
 
-  protected LiveFinding(Issue issue, PsiFile psiFile, @Nullable RangeMarker range, @Nullable FindingContext context, List<QuickFix> quickFixes) {
+  protected LiveFinding(Issue issue, PsiFile psiFile, @Nullable RangeMarker range, @Nullable FindingContext context,
+    List<QuickFix> quickFixes) {
     this.range = range;
     this.message = issue.getMessage();
     this.ruleKey = issue.getRuleKey();
@@ -70,18 +83,42 @@ public abstract class LiveFinding implements Trackable, Finding {
     this.quickFixes = quickFixes;
     this.ruleDescriptionContextKey = issue.getRuleDescriptionContextKey().orElse(null);
 
+    this.cleanCodeAttribute = issue.getCleanCodeAttribute().orElse(null);
+    this.impacts = issue.getImpacts();
+
     if (range != null) {
       var document = range.getDocument();
-      this.textRangeHash = checksum(document.getText(new TextRange(range.getStartOffset(), range.getEndOffset())));
+      var lineContent = document.getText(new TextRange(range.getStartOffset(), range.getEndOffset()));
+      this.textRangeHash = checksum(lineContent);
+      this.textRangeHashString = md5Hex(lineContent.replaceAll("[\\s]", ""));
 
-      var line = range.getDocument().getLineNumber(range.getStartOffset());
+      var line = document.getLineNumber(range.getStartOffset());
       var lineStartOffset = document.getLineStartOffset(line);
       var lineEndOffset = document.getLineEndOffset(line);
-      this.lineHash = checksum(document.getText(new TextRange(lineStartOffset, lineEndOffset)));
+      var rangeContent = document.getText(new TextRange(lineStartOffset, lineEndOffset));
+      this.lineHash = checksum(rangeContent);
+      this.lineHashString = md5Hex(rangeContent.replaceAll("[\\s]", ""));
     } else {
       this.textRangeHash = null;
+      this.textRangeHashString = null;
       this.lineHash = null;
+      this.lineHashString = null;
     }
+  }
+
+  @CheckForNull
+  @Override
+  public UUID getId() {
+    return getBackendId();
+  }
+
+  public void setBackendId(UUID backendId) {
+    this.backendId = backendId;
+  }
+
+  @CheckForNull
+  public UUID getBackendId() {
+    return backendId;
   }
 
   private static int checksum(String content) {
@@ -100,7 +137,7 @@ public abstract class LiveFinding implements Trackable, Finding {
   @Override
   public Integer getLine() {
     if (range != null) {
-      return ReadActionUtils.Companion.runReadActionSafely(psiFile, () -> isValid() ? (range.getDocument().getLineNumber(range.getStartOffset()) + 1) : null);
+      return computeReadActionSafely(psiFile, () -> range.getDocument().getLineNumber(range.getStartOffset()) + 1);
     }
 
     return null;
@@ -116,12 +153,20 @@ public abstract class LiveFinding implements Trackable, Finding {
     return textRangeHash;
   }
 
+  public String getTextRangeHashString() {
+    return textRangeHashString;
+  }
+
   @Override
   public Integer getLineHash() {
     return lineHash;
   }
 
-  @org.jetbrains.annotations.NotNull
+  public String getLineHashString() {
+    return lineHashString;
+  }
+
+  @NotNull
   @Override
   public String getRuleKey() {
     return ruleKey;
@@ -197,6 +242,17 @@ public abstract class LiveFinding implements Trackable, Finding {
   @Override
   public boolean isResolved() {
     return resolved;
+  }
+
+  @Override
+  public CleanCodeAttribute getCleanCodeAttribute() {
+    return this.cleanCodeAttribute;
+  }
+
+  @NotNull
+  @Override
+  public Map<SoftwareQuality, ImpactSeverity> getImpacts() {
+    return this.impacts;
   }
 
   // mutable fields

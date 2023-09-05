@@ -129,7 +129,7 @@ class TaintVulnerabilitiesPresenter(private val project: Project) {
   }
 
     companion object {
-        val GROUP: NotificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("SonarLint: Taint vulnerabilities")
+        val GROUP: NotificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("CodeScan: Taint vulnerabilities")
     }
 
 }
