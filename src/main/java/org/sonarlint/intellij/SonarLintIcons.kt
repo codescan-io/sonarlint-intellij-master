@@ -43,8 +43,6 @@ object SonarLintIcons {
 
     @JvmField
     val ICON_CODESCAN = getIcon("/images/CodeScan.png")
-//    @JvmField
-//    val ICON_SONARCLOUD = getIcon("/images/SonarCloud.png")
     @JvmField
     val ICON_SONARQUBE_16 = getIcon("/images/codescan-16.png")
     @JvmField

@@ -47,6 +47,7 @@ import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerabil
 import org.sonarlint.intellij.tasks.FutureAwaitingTask
 import org.sonarlint.intellij.ui.UiUtils.Companion.runOnUiThread
 import org.sonarlint.intellij.ui.resolve.MarkAsResolvedDialog
+import org.sonarlint.intellij.util.DataKeys.Companion.ISSUE_DATA_KEY
 import org.sonarlint.intellij.util.DataKeys.Companion.TAINT_VULNERABILITY_DATA_KEY
 import org.sonarlint.intellij.util.displayErrorNotification
 import org.sonarlint.intellij.util.displaySuccessfulNotification
@@ -169,8 +170,9 @@ class MarkAsResolvedAction(
     }
 
     override fun isEnabled(e: AnActionEvent, project: Project, status: AnalysisStatus): Boolean {
-        return (e.getData(DisableRuleAction.ISSUE_DATA_KEY) != null && e.getData(DisableRuleAction.ISSUE_DATA_KEY)?.serverFindingKey != null
-            && e.getData(DisableRuleAction.ISSUE_DATA_KEY)?.isValid() == true) || (e.getData(TAINT_VULNERABILITY_DATA_KEY) != null)
+        // always disabled for standalone mode
+        // the checks will be done inside the popup for connected mode
+        return serverConnection(project) != null
     }
 
     override fun updatePresentation(e: AnActionEvent, project: Project) {
@@ -181,7 +183,7 @@ class MarkAsResolvedAction(
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        var issue: Issue? = e.getData(DisableRuleAction.ISSUE_DATA_KEY)
+        var issue: Issue? = e.getData(ISSUE_DATA_KEY)
         if (issue == null) {
             issue = e.getData(TAINT_VULNERABILITY_DATA_KEY)
         }

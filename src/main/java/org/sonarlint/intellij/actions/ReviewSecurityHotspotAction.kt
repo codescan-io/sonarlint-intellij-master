@@ -54,7 +54,7 @@ class ReviewSecurityHotspotAction(private var serverFindingKey: String? = null, 
     ), IntentionAction, PriorityAction, Iconable {
 
     companion object {
-        val GROUP: NotificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("SonarLint: Security Hotspot Review")
+        val GROUP: NotificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("CodeScan: Security Hotspot Review")
         val SECURITY_HOTSPOT_KEY = DataKey.create<LiveSecurityHotspot>("sonarlint_security_hotspot")
         private const val errorTitle = "<b>SonarLint - Unable to review the Security Hotspot</b>"
         private const val content = "The Security Hotspot status was successfully updated"

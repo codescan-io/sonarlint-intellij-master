@@ -1,5 +1,5 @@
 /*
- * Codescan for IntelliJ IDEA
+ * CodeScan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -18,7 +18,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
  */
 package org.sonarlint.intellij.config.global.wizard;
+
 import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.ui.Messages;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.CheckForNull;
@@ -54,7 +56,7 @@ public class WizardModel {
   }
 
   public WizardModel(ServerConnection connectionToEdit) {
-    if (SonarLintUtils.isCodeScanCloudAlias(connectionToEdit.getHostUrl())) {
+    if (SonarLintUtils.isCodescanCloudAlias(connectionToEdit.getHostUrl())) {
       serverType = ServerType.SONARCLOUD;
     } else {
       serverType = ServerType.SONARQUBE;
@@ -108,6 +110,7 @@ public class WizardModel {
   public void queryOrganizations() throws Exception {
     if (isSonarCloud()) {
       final ServerConnection partialConnection = createConnectionWithoutOrganization();
+
       final var task = buildAndRunGetOrganizationsTask(partialConnection);
       setOrganizationList(task.organizations());
       final var presetOrganizationKey = getOrganizationKey();
@@ -234,11 +237,11 @@ public class WizardModel {
   }
 
   public ServerConnection createConnectionWithoutOrganization() {
-    return createConnection();
+    return createConnection(null);
   }
 
   public ServerConnection createConnection() {
-    return createConnection();
+    return createConnection(organizationKey);
   }
 
   private ServerConnection.Builder createUnauthenticatedConnection(@Nullable String organizationKey) {
@@ -246,7 +249,19 @@ public class WizardModel {
       .setOrganizationKey(organizationKey)
       .setEnableProxy(proxyEnabled)
       .setName(name);
-    builder.setHostUrl(serverUrl);
+
+    if (serverType == ServerType.SONARCLOUD) {
+      builder.setHostUrl("https://app.codescan.io");
+
+    } else {
+      builder.setHostUrl(serverUrl);
+    }
+    builder.setDisableNotifications(notificationsDisabled);
+    return builder;
+  }
+
+  private ServerConnection createConnection(@Nullable String organizationKey) {
+    var builder = createUnauthenticatedConnection(organizationKey);
 
     if (token != null) {
       builder.setToken(token)
@@ -257,7 +272,6 @@ public class WizardModel {
         .setLogin(login)
         .setPassword(new String(password));
     }
-    builder.setDisableNotifications(notificationsDisabled);
-    return builder;
+    return builder.build();
   }
 }

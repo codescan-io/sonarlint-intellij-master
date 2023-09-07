@@ -27,7 +27,7 @@ import com.intellij.openapi.project.Project;
 public class SecretsNotifications {
 
   public static final NotificationGroup GROUP = NotificationGroupManager.getInstance()
-    .getNotificationGroup("SonarLint: Secrets detection");
+    .getNotificationGroup("CodeScan: Secrets detection");
 
   private SecretsNotifications() {
     // utility class

@@ -154,8 +154,8 @@
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="CodeScan" anchor="bottom" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_TOOLWINDOW_EMPTY" factoryClass="org.sonarlint.intellij.ui.SonarLintToolWindowFactory" canCloseContents="true"/>
         <applicationConfigurable groupId="tools" id="sonarlint" displayName="SonarLint" instance="org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable"/>
-        <projectConfigurable parentId="sonarlint" displayName="Project Settings" instance="org.sonarlint.intellij.config.project.SonarLintProjectConfigurable" nonDefaultProject="true"/>
-        <moduleConfigurable id="CodeScan" displayName="SonarLint" instance="org.sonarlint.intellij.config.module.SonarLintModuleConfigurable"/>
+        <projectConfigurable parentId="CodeScan" displayName="Project Settings" instance="org.sonarlint.intellij.config.project.SonarLintProjectConfigurable" nonDefaultProject="true"/>
+        <moduleConfigurable id="CodeScan" displayName="CodeScan" instance="org.sonarlint.intellij.config.module.SonarLintModuleConfigurable"/>
         <colorSettingsPage implementation="org.sonarlint.intellij.config.SonarLintColorSettingsPage"/>
         <checkinHandlerFactory implementation="org.sonarlint.intellij.trigger.SonarLintCheckinHandlerFactory"/>
         <additionalTextAttributes scheme="Default" file="colorSchemes/SonarLintDefault.xml"/>
@@ -244,7 +244,7 @@
 
     <actions>
         <!-- Some actions are defined in SonarLintActions so that they aren't registered in ActionManager -->
-        <group id="CodeScan.AnalyzeMenu" searchable="false" text="CodeScan" popup="false" icon="SonarLintIcons.SONARLINT_ACTION">
+        <group id="CodeScan.AnalyzeMenu" searchable="false" text="CodeScan" popup="false" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
             <separator/>
             <!-- This group is programmatically added to AnalyzeMenu if it exists -->
         </group>
@@ -253,19 +253,19 @@
                 class="org.sonarlint.intellij.actions.SonarAnalyzeFilesAction"
                 text="Analyze with CodeScan"
                 description="Run CodeScan analysis on selected file(s)"
-                icon="SonarLintIcons.SONARLINT_ACTION">
+                icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
             <keyboard-shortcut first-keystroke="shift ctrl S" keymap="$default"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 
-        <group id="CodeScan.ProjectViewPopupMenu" text="CodeScan" popup="true" icon="SonarLintIcons.SONARLINT_ACTION">
+        <group id="CodeScan.ProjectViewPopupMenu" text="CodeScan" popup="true" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
             <reference ref="CodeScan.AnalyzeFiles"/>
             <action id="CodeScan.Exclude"
                     class="org.sonarlint.intellij.actions.ExcludeFileAction"
                     text="Exclude from CodeScan analysis"
                     description="Adds resources to the list exclusions in the CodeScan project settings"
-                    icon="SonarLintIcons.SONARLINT_ACTION">
+                    icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
             </action>
             <add-to-group group-id="ProjectViewPopupMenu"/>
         </group>
@@ -274,7 +274,7 @@
                 class="org.sonarlint.intellij.actions.SonarAnalyzeChangedFilesAction"
                 text="Analyze VCS Changed Files with CodeScan"
                 description="Run a CodeScan analysis on VCS changed files"
-                icon="SonarLintIcons.SONARLINT_ACTION">
+                icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
             <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 
@@ -282,7 +282,7 @@
                 class="org.sonarlint.intellij.actions.SonarAnalyzeAllFilesAction"
                 text="Analyze All Files with CodeScan"
                 description="Run a CodeScan analysis on all files in the project"
-                icon="SonarLintIcons.SONARLINT_ACTION">
+                icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
             <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 
@@ -290,14 +290,14 @@
                 class="org.sonarlint.intellij.actions.SonarCancelAction"
                 text="Cancel CodeScan Analysis"
                 description="Cancel the CodeScan analysis running"
-                icon="SonarLintIcons.SUSPEND">
+                icon="org.sonarlint.intellij.SonarLintIcons.SUSPEND">
         </action>
 
         <action id="CodeScan.toolwindow.Configure"
                 class="org.sonarlint.intellij.actions.SonarConfigureProject"
                 text="Configure CodeScan"
                 description="Configure CodeScan"
-                icon="SonarLintIcons.TOOLS">
+                icon="org.sonarlint.intellij.SonarLintIcons.TOOLS">
         </action>
     </actions>
 </idea-plugin>

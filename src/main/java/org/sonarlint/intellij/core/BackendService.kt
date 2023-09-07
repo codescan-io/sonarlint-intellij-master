@@ -199,7 +199,7 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     private fun toSonarCloudBackendConnection(createdConnection: ServerConnection): SonarCloudConnectionConfigurationDto {
         return SonarCloudConnectionConfigurationDto(
             createdConnection.name,
-            createdConnection.organizationKey!!,
+            createdConnection.organizationKey,
             createdConnection.isDisableNotifications
         )
     }

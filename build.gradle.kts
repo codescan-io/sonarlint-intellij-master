@@ -41,7 +41,6 @@ description = "CodeScan for IntelliJ IDEA"
 
 val sonarlintCoreVersion: String by project
 val protobufVersion: String by project
-val jettyVersion: String by project
 val intellijBuildVersion: String by project
 val omnisharpVersion: String by project
 
@@ -105,7 +104,7 @@ allprojects {
 
     val bomFile = layout.buildDirectory.file("reports/bom.json")
     artifacts.add("archives", bomFile.get().asFile) {
-        name = "codescan-intellij"
+        name = "CodeScan-intellij"
         type = "json"
         classifier = "cyclonedx"
         builtBy("cyclonedxBom")
@@ -130,7 +129,7 @@ allprojects {
 
 intellij {
     version.set(intellijBuildVersion)
-    pluginName.set("Codescan")
+    pluginName.set("CodeScan")
     updateSinceUntilBuild.set(false)
     plugins.set(listOf("java", "git4idea"))
 }
@@ -181,6 +180,7 @@ tasks.runIde {
         ideDir.set(File(runIdeDirectory))
     }
     maxHeapSize = "2g"
+    debug=true
 }
 
 configurations {
@@ -194,26 +194,26 @@ configurations {
 dependencies {
     implementation("org.sonarsource.sonarlint.core:sonarlint-core:$sonarlintCoreVersion")
     implementation("commons-lang:commons-lang:2.6")
-    compileOnly("com.google.code.findbugs:jsr305:3.0.2")
-    // Actual runtime dependency is shaded by sonarlint-core but seems invisible to IntelliJ
-    compileOnly("com.google.protobuf:protobuf-java:$protobufVersion")
-    implementation("org.apache.httpcomponents.client5:httpclient5:5.2.1") {
-        exclude(module = "slf4j-api")
-    }
     implementation(project(":common"))
+    compileOnly("com.google.code.findbugs:jsr305:3.0.2")
     runtimeOnly(project(":clion"))
     runtimeOnly(project(":rider"))
     runtimeOnly(project(":git"))
     testImplementation(platform("org.junit:junit-bom:5.9.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("org.junit.platform:junit-platform-launcher")
     testImplementation(libs.assertj.core)
     testImplementation(libs.mockito.core)
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0") {
+        exclude(module = "junit")
+    }
     testImplementation("org.mockito.kotlin:mockito-kotlin:4.1.0")
-    testImplementation("org.eclipse.jetty:jetty-server:$jettyVersion")
-    testImplementation("org.eclipse.jetty:jetty-servlet:$jettyVersion")
-    testImplementation("org.eclipse.jetty:jetty-proxy:$jettyVersion")
+    "sqplugins"("org.sonarsource.java:sonar-java-plugin:7.22.0.31918")
+    "sqplugins"("org.sonarsource.javascript:sonar-javascript-plugin:10.3.2.22047")
+    "sqplugins"("org.sonarsource.php:sonar-php-plugin:3.30.0.9766")
+    "sqplugins"("org.sonarsource.python:sonar-python-plugin:4.5.0.11949")
+    "sqplugins"("org.sonarsource.kotlin:sonar-kotlin-plugin:2.15.0.2579")
+    "sqplugins"("org.sonarsource.slang:sonar-ruby-plugin:1.13.0.4374")
+    "sqplugins"("org.sonarsource.html:sonar-html-plugin:3.7.1.3306")
     "sqplugins"("org.sonarsource.xml:sonar-xml-plugin:2.9.0.4055")
     "sqplugins"("org.sonarsource.sonarlint.omnisharp:sonarlint-omnisharp-plugin:1.12.0.74959")
     "sqplugins"("org.sonarsource.text:sonar-text-plugin:2.1.0.1163")
@@ -222,6 +222,7 @@ dependencies {
     if (artifactoryUsername.isNotEmpty() && artifactoryPassword.isNotEmpty()) {
         "sqplugins"("com.sonarsource.cpp:sonar-cfamily-plugin:6.47.0.62356")
     }
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     // workaround for light tests in 2020.3, might remove later
     testRuntimeOnly("org.jetbrains.kotlin:kotlin-reflect")
     constraints {
@@ -348,18 +349,18 @@ tasks.artifactoryPublish {
 
 sonarqube {
     properties {
-        property("sonar.projectName", "Codescan for IntelliJ IDEA")
+        property("sonar.projectName", "CodeScan for IntelliJ IDEA")
     }
 }
 
 artifactory {
-    clientConfig.info.buildName = "codescan-intellij"
+    clientConfig.info.buildName = "CodeScan-intellij"
     clientConfig.info.buildNumber = System.getenv("BUILD_ID")
     clientConfig.isIncludeEnvVars = true
     clientConfig.envVarsExcludePatterns = "*password*,*PASSWORD*,*secret*,*MAVEN_CMD_LINE_ARGS*,sun.java.command,*token*,*TOKEN*,*LOGIN*,*login*,*key*,*KEY*,*PASSPHRASE*,*signing*"
     clientConfig.info.addEnvironmentProperty(
         "ARTIFACTS_TO_DOWNLOAD",
-        "org.sonarsource.sonarlint.intellij:codescan-intellij:zip,org.sonarsource.sonarlint.intellij:codescan-intellij:json:cyclonedx"
+        "org.sonarsource.sonarlint.intellij:CodeScan-intellij:zip,org.sonarsource.sonarlint.intellij:codescan-intellij:json:cyclonedx"
     )
     setContextUrl(System.getenv("ARTIFACTORY_URL"))
     publish(delegateClosureOf<PublisherConfig> {

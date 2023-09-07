@@ -1,5 +1,5 @@
 /*
- * Codescan for IntelliJ IDEA
+ * CodeScan for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -23,7 +23,6 @@ import com.intellij.lang.Language;
 import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
-import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
@@ -37,12 +36,6 @@ import com.intellij.psi.PsiFile;
 import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.Transparency;
-import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Set;
 import javax.annotation.CheckForNull;
@@ -53,71 +46,47 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 
 public class SonarLintUtils {
-  private static final String CODESCAN_HEALTH_ENDPOINT = "/_codescan/actuator/health";
-  private static final String CODESCAN_HEALTH_JSON_RESPONSE = "{\"status\":\"UP\"}";
+
   private static final Logger LOG = Logger.getInstance(SonarLintUtils.class);
-  public static final String DEFAULT_SONARCLOUD_URL = "https://app.codescan.io";
-  public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_SONARCLOUD_URL);
-  private static final Set<String> SONARCLOUD_ALIAS = Set.copyOf(
-          List.of("https://codescan.io", "https://www.codescan.io",
-    "https://www.codescan.io", DEFAULT_SONARCLOUD_URL, SONARCLOUD_URL));
+  public static final String DEFAULT_CODESCANCLOUD_URL = "https://app.codescan.io";
+  public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_CODESCANCLOUD_URL);
+  private static final Set<String> SONARCLOUD_ALIAS = Set.copyOf(List.of("https://codescan.com", "https://www.codescan.com",
+    "https://www.codescan.io", DEFAULT_CODESCANCLOUD_URL, SONARCLOUD_URL));
 
   private SonarLintUtils() {
     // Utility class
   }
 
   public static <T> T getService(Class<T> clazz) {
-    T t = ServiceManager.getService(clazz);
-    if (t == null) {
-      LOG.error("Could not find service: " + clazz.getName());
-      throw new IllegalArgumentException("Class not found: " + clazz.getName());
-    }
+    var t = ApplicationManager.getApplication().getService(clazz);
+    logAndThrowIfServiceNotFound(t, clazz.getName());
 
     return t;
   }
 
   public static <T> T getService(@NotNull Project project, Class<T> clazz) {
-    T t = ServiceManager.getService(project, clazz);
-    if (t == null) {
-      LOG.error("Could not find service: " + clazz.getName());
-      throw new IllegalArgumentException("Class not found: " + clazz.getName());
-    }
+    var t = project.getService(clazz);
+    logAndThrowIfServiceNotFound(t, clazz.getName());
 
     return t;
   }
 
   public static <T> T getService(@NotNull Module module, Class<T> clazz) {
-    T t = ModuleServiceManager.getService(module, clazz);
-    if (t == null) {
-      LOG.error("Could not find service: " + clazz.getName());
-      throw new IllegalArgumentException("Class not found: " + clazz.getName());
-    }
+    var t = ModuleServiceManager.getService(module, clazz);
+    logAndThrowIfServiceNotFound(t, clazz.getName());
 
     return t;
   }
 
-  public static boolean isCodeScanCloudAlias(@Nullable String url) {
-    if (url.contains("codescan.io")) {
-      return true;
+  private static <T> void logAndThrowIfServiceNotFound(T t, String name) {
+    if (t == null) {
+      LOG.error("Could not find service: " + name);
+      throw new IllegalArgumentException("Class not found: " + name);
     }
-    HttpClient httpClient = HttpClient.newHttpClient();
-    HttpRequest httpRequest = HttpRequest.newBuilder()
-            .uri(URI.create(url + CODESCAN_HEALTH_ENDPOINT))
-            .build();
-    try {
-      HttpResponse<String> httpResponse = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-      int statusCode = httpResponse.statusCode();
-      if (statusCode == 200 && CODESCAN_HEALTH_JSON_RESPONSE.equals(httpResponse.body())) {
-        return true;
-      } else {
-        LOG.debug("isCodeScanCloudAlias health check request for host: {} failed with status code: {}.", url,
-                statusCode);
-        return false;
-      }
-    } catch (IOException | InterruptedException e) {
-      LOG.error("isCodeScanCloudAlias health check request for host: {} gave an exception.", e, url);
-      return false;
-    }
+  }
+
+  public static boolean isCodescanCloudAlias(@Nullable String url) {
+    return url != null && SONARCLOUD_ALIAS.contains(url);
   }
 
   public static boolean isEmpty(@Nullable String str) {

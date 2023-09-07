@@ -26,7 +26,6 @@ import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.net.HttpConfigurable;
 import com.intellij.util.ui.SwingHelper;
-import org.sonarlint.intellij.SonarLintIcons;
 import java.awt.event.MouseEvent;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -42,9 +41,10 @@ import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.MouseInputAdapter;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.sonarlint.intellij.SonarLintIcons;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 
 public class ServerStep extends AbstractWizardStepEx {
@@ -217,7 +217,7 @@ public class ServerStep extends AbstractWizardStepEx {
       String serverUrl = urlText.getText().trim();
       serverUrl = StringUtils.removeEnd(serverUrl, "/");
       model.setServerUrl(serverUrl);
-      if (SonarLintUtils.isCodeScanCloudAlias(serverUrl)) {
+      if (SonarLintUtils.isCodescanCloudAlias(serverUrl)) {
         model.setServerType(WizardModel.ServerType.SONARCLOUD);
       } else {
         model.setServerType(WizardModel.ServerType.SONARQUBE);

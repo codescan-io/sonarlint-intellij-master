@@ -40,7 +40,7 @@ public class FlowNode extends AbstractNode {
 
   @Override
   public void render(TreeCellRenderer renderer) {
-    renderer.setIpad(JBUI.insets(3, 3, 3, 3));
+    renderer.setIpad(JBUI.insets(3));
     renderer.setBorder(new BottomLineBorder());
     renderer.append(label, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES, true);
   }
