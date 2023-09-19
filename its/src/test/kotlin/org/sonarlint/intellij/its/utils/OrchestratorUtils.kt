@@ -51,7 +51,7 @@ class OrchestratorUtils {
                     .build()
             )
             wsClient.users()
-                .create(CreateRequest().setLogin(SONARLINT_USER).setPassword(SONARLINT_PWD).setName("SonarLint"))
+                .create(CreateRequest().setLogin(SONARLINT_USER).setPassword(SONARLINT_PWD).setName("CodeScan"))
 
             return wsClient;
         }

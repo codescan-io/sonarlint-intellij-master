@@ -199,6 +199,7 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     private fun toSonarCloudBackendConnection(createdConnection: ServerConnection): SonarCloudConnectionConfigurationDto {
         return SonarCloudConnectionConfigurationDto(
             createdConnection.name,
+            createdConnection.hostUrl,
             createdConnection.organizationKey,
             createdConnection.isDisableNotifications
         )
@@ -401,7 +402,7 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
         val params: CheckSmartNotificationsSupportedParams = if (server.isCodeScanCloud) {
-            CheckSmartNotificationsSupportedParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials))
+            CheckSmartNotificationsSupportedParams(TransientSonarCloudConnectionDto(server.hostUrl, server.organizationKey, credentials))
         } else {
             CheckSmartNotificationsSupportedParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))
         }
@@ -412,7 +413,7 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
         val params: ValidateConnectionParams = if (server.isCodeScanCloud) {
-            ValidateConnectionParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials))
+            ValidateConnectionParams(TransientSonarCloudConnectionDto(server.hostUrl, server.organizationKey, credentials))
         } else {
             ValidateConnectionParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))
         }
@@ -423,14 +424,14 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
         val params = ListUserOrganizationsParams(credentials)
-        return initializedBackend.connectionService.listUserOrganizations(params)
+        return initializedBackend.connectionService.listUserOrganizations(params, server.hostUrl)
     }
 
     fun getOrganization(server: ServerConnection, organizationKey: String): CompletableFuture<GetOrganizationResponse> {
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
         val params = GetOrganizationParams(credentials, organizationKey)
-        return initializedBackend.connectionService.getOrganization(params)
+        return initializedBackend.connectionService.getOrganization(params, server.hostUrl)
     }
 
     fun trackWithServerIssues(

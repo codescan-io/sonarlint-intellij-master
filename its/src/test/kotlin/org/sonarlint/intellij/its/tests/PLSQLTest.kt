@@ -59,7 +59,7 @@ class PLSQLTest : BaseUiTest() {
     private fun bindProjectFromPanel() {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tab("Current File") { select() }
                     content("CurrentFilePanel") {
@@ -78,7 +78,7 @@ class PLSQLTest : BaseUiTest() {
     private fun verifyIssueTreeContainsMessages(remoteRobot: RemoteRobot, vararg expectedMessages: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Current File") { select() }
                     content("IssueTree") {
@@ -92,7 +92,7 @@ class PLSQLTest : BaseUiTest() {
     private fun verifyNoIssuesFoundWhenNotConnected(remoteRobot: RemoteRobot) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Current File") { select() }
                     content("CurrentFilePanel") {

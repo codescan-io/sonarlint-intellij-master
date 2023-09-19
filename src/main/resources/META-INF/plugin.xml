@@ -153,7 +153,7 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="CodeScan" anchor="bottom" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_TOOLWINDOW_EMPTY" factoryClass="org.sonarlint.intellij.ui.SonarLintToolWindowFactory" canCloseContents="true"/>
-        <applicationConfigurable groupId="tools" id="sonarlint" displayName="SonarLint" instance="org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable"/>
+        <applicationConfigurable groupId="tools" id="sonarlint" displayName="CodeScan" instance="org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable"/>
         <projectConfigurable parentId="CodeScan" displayName="Project Settings" instance="org.sonarlint.intellij.config.project.SonarLintProjectConfigurable" nonDefaultProject="true"/>
         <moduleConfigurable id="CodeScan" displayName="CodeScan" instance="org.sonarlint.intellij.config.module.SonarLintModuleConfigurable"/>
         <colorSettingsPage implementation="org.sonarlint.intellij.config.SonarLintColorSettingsPage"/>

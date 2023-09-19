@@ -68,7 +68,7 @@ class TaintVulnerabilitiesTest : BaseUiTest() {
     private fun bindProjectFromPanel() {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tab("Taint Vulnerabilities") { select() }
                     content("TaintVulnerabilitiesPanel") {
@@ -88,7 +88,7 @@ class TaintVulnerabilitiesTest : BaseUiTest() {
     private fun verifyTaintTabContainsMessages(remoteRobot: RemoteRobot, vararg expectedMessages: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Taint Vulnerabilities") { select() }
                     content("TaintVulnerabilitiesPanel") {

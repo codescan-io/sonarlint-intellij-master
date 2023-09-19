@@ -246,16 +246,11 @@ public class WizardModel {
 
   private ServerConnection.Builder createUnauthenticatedConnection(@Nullable String organizationKey) {
     var builder = ServerConnection.newBuilder()
+      .setHostUrl(serverUrl)
       .setOrganizationKey(organizationKey)
       .setEnableProxy(proxyEnabled)
       .setName(name);
 
-    if (serverType == ServerType.SONARCLOUD) {
-      builder.setHostUrl("https://app.codescan.io");
-
-    } else {
-      builder.setHostUrl(serverUrl);
-    }
     builder.setDisableNotifications(notificationsDisabled);
     return builder;
   }

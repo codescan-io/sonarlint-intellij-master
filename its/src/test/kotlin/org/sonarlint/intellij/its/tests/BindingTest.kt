@@ -113,7 +113,7 @@ class BindingTest : BaseUiTest() {
                 pressFinishOrCreate()
             }
             tree {
-                clickPath("Tools", "SonarLint", "Project Settings")
+                clickPath("Tools", "CodeScan", "Project Settings")
             }
             checkBox("Bind project to SonarQube / SonarCloud").select()
             pressOk()

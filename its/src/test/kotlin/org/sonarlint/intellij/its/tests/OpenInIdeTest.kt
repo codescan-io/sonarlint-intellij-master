@@ -127,7 +127,7 @@ class OpenInIdeTest : BaseUiTest() {
     private fun verifyToolWindowFilled(robot: RemoteRobot) {
         with(robot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     tabTitleContains("Security Hotspots") {
                         content("SecurityHotspotsPanel") {
                             assertThat(hasText("Make sure using this hardcoded IP address is safe here.")).isTrue()

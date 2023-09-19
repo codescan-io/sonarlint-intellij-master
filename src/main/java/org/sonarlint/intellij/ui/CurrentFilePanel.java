@@ -53,7 +53,7 @@ import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 public class CurrentFilePanel extends AbstractIssuesPanel {
 
-  public static final String SONARLINT_TOOLWINDOW_ID = "SonarLint";
+  public static final String SONARLINT_TOOLWINDOW_ID = "CodeScan";
   private static final String SPLIT_PROPORTION_PROPERTY = "SONARLINT_ISSUES_SPLIT_PROPORTION";
   private final JBPanelWithEmptyText issuesPanel;
   private final JScrollPane treeScrollPane;

@@ -42,7 +42,7 @@ class ProjectBindingUtils {
                     dialog("Project Settings") {
                         checkBox("Bind project to SonarQube / SonarCloud").select()
                         button("Configure the connection...").click()
-                        dialog("SonarLint") {
+                        dialog("CodeScan") {
                             actionButton(ActionButtonFixture.byTooltipText("Add")).clickWhenEnabled()
                             dialog("New Connection: Server Details") {
                                 keyboard { enterText("Orchestrator") }

@@ -62,7 +62,7 @@ class CurrentFileTabTest : BaseUiTest() {
     private fun bindProjectFromPanel() {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tab("Current File") { select() }
                     content("CurrentFilePanel") {
@@ -81,7 +81,7 @@ class CurrentFileTabTest : BaseUiTest() {
     private fun openReviewDialogFromList(remoteRobot: RemoteRobot, issueMessage: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Current File") { select() }
                     content("IssueTree") {
@@ -125,7 +125,7 @@ class CurrentFileTabTest : BaseUiTest() {
                 firstNotification() {
                     hasText("The issue was successfully marked as resolved")
                 }
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     content("CurrentFilePanel") {
                         hasText("No issues found in the current opened file")
                     }
@@ -137,7 +137,7 @@ class CurrentFileTabTest : BaseUiTest() {
     private fun verifyIssueTreeContainsMessages(remoteRobot: RemoteRobot, vararg expectedMessages: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Current File") { select() }
                     content("IssueTree") {

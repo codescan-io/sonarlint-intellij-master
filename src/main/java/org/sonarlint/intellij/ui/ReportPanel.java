@@ -63,7 +63,7 @@ import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
   private static final String SPLIT_PROPORTION_PROPERTY = "SONARLINT_ANALYSIS_RESULTS_SPLIT_PROPORTION";
-  private static final String ID = "SonarLint";
+  private static final String ID = "CodeScan";
   protected final Project project;
   private final LastAnalysisPanel lastAnalysisPanel;
   protected Tree tree;

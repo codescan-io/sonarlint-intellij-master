@@ -53,7 +53,6 @@ public class ServerStep extends AbstractWizardStepEx {
   private final Collection<String> existingNames;
 
   private JRadioButton radioCodeScanCloud;
-  private JRadioButton radioCodeScan;
   private JPanel panel;
   private JTextField urlText;
   private JLabel urlLabel;
@@ -70,7 +69,6 @@ public class ServerStep extends AbstractWizardStepEx {
     this.model = model;
     this.existingNames = existingNames;
     radioCodeScanCloud.addChangeListener(e -> selectionChanged());
-    radioCodeScan.addChangeListener(e -> selectionChanged());
 
     DocumentListener listener = new DocumentAdapter() {
       @Override protected void textChanged(DocumentEvent e) {
@@ -82,8 +80,7 @@ public class ServerStep extends AbstractWizardStepEx {
 
     nameField.setToolTipText("Name of this configuration (mandatory field)");
 
-    String cloudText = "To connect to <a href=\"" + CodescanCloudConstants.CODESCAN_US_URL + "\">"
-            + CodescanCloudConstants.CODESCAN_US_URL + "</a>";
+    String cloudText = "To connect to CodeScan server";
     sonarcloudText.setText(cloudText);
     sonarcloudText.addHyperlinkListener(new BrowserHyperlinkListener());
 
@@ -91,12 +88,6 @@ public class ServerStep extends AbstractWizardStepEx {
     sonarqubeText.setText(sqText);
 
     if (!editing) {
-      sonarqubeIcon.addMouseListener(new MouseInputAdapter() {
-        @Override public void mouseClicked(MouseEvent e) {
-          super.mouseClicked(e);
-          radioCodeScan.setSelected(true);
-        }
-      });
       sonarcloudIcon.addMouseListener(new MouseInputAdapter() {
         @Override public void mouseClicked(MouseEvent e) {
           super.mouseClicked(e);
@@ -125,14 +116,9 @@ public class ServerStep extends AbstractWizardStepEx {
     if ((model.getServerType() == WizardModel.ServerType.SONARCLOUD &&
             CodescanCloudConstants.CODESCAN_US_URL.equals(model.getServerUrl())) || model.getServerType() == null) {
       radioCodeScanCloud.setSelected(true);
-      if (editing) {
-        sqIcon = SonarLintIcons.toDisabled(sqIcon);
-      }
-    } else {
-      radioCodeScan.setSelected(true);
       urlText.setText(model.getServerUrl());
       if (editing) {
-        clIcon = SonarLintIcons.toDisabled(clIcon);
+        sqIcon = SonarLintIcons.toDisabled(sqIcon);
       }
     }
 
@@ -140,7 +126,6 @@ public class ServerStep extends AbstractWizardStepEx {
 
     if (editing) {
       nameField.setEnabled(false);
-      radioCodeScan.setEnabled(false);
       radioCodeScanCloud.setEnabled(false);
     }
 
@@ -149,7 +134,7 @@ public class ServerStep extends AbstractWizardStepEx {
   }
 
   private void selectionChanged() {
-    boolean sq = radioCodeScan.isSelected();
+    boolean sq = radioCodeScanCloud.isSelected();
 
     urlText.setEnabled(sq);
     urlLabel.setEnabled(sq);
@@ -197,7 +182,7 @@ public class ServerStep extends AbstractWizardStepEx {
   }
 
   private void validateUrl() throws CommitStepException {
-    if (radioCodeScan.isSelected()) {
+    if (radioCodeScanCloud.isSelected()) {
       try {
         URL url = new URL(urlText.getText());
         if (SonarLintUtils.isBlank(url.getHost())) {
@@ -211,17 +196,13 @@ public class ServerStep extends AbstractWizardStepEx {
 
   private void save() {
     if (radioCodeScanCloud.isSelected()) {
-      model.setServerType(WizardModel.ServerType.SONARCLOUD);
-      model.setServerUrl(CodescanCloudConstants.CODESCAN_US_URL);
-    } else {
       String serverUrl = urlText.getText().trim();
       serverUrl = StringUtils.removeEnd(serverUrl, "/");
       model.setServerUrl(serverUrl);
       if (SonarLintUtils.isCodescanCloudAlias(serverUrl)) {
         model.setServerType(WizardModel.ServerType.SONARCLOUD);
-      } else {
-        model.setServerType(WizardModel.ServerType.SONARQUBE);
       }
+      model.setServerType(WizardModel.ServerType.SONARCLOUD);
     }
     model.setName(nameField.getText().trim());
   }

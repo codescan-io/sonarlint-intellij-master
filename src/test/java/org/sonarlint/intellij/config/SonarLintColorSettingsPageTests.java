@@ -38,7 +38,7 @@ class SonarLintColorSettingsPageTests {
   void testGetters() {
     assertThat(colorSettingsPage).isNotNull();
     assertThat(colorSettingsPage.getColorDescriptors()).isEmpty();
-    assertThat(colorSettingsPage.getDisplayName()).isEqualTo("SonarLint");
+    assertThat(colorSettingsPage.getDisplayName()).isEqualTo("CodeScan");
     assertThat(colorSettingsPage.getHighlighter()).isInstanceOf(PlainSyntaxHighlighter.class);
   }
 
