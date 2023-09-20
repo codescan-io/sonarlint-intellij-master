@@ -48,6 +48,7 @@ object EmbeddedPlugins {
         Language.DOCKER,
         Language.KUBERNETES,
         Language.TERRAFORM,
+        Language.APEX,
     )
     private val ADDITIONAL_ENABLED_LANGUAGES_IN_CONNECTED_MODE: Set<Language> = EnumSet.of(
         Language.SCALA,

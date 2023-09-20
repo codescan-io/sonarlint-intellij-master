@@ -154,13 +154,15 @@
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="CodeScan" anchor="bottom" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_TOOLWINDOW_EMPTY" factoryClass="org.sonarlint.intellij.ui.SonarLintToolWindowFactory" canCloseContents="true"/>
         <applicationConfigurable groupId="tools" id="sonarlint" displayName="CodeScan" instance="org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable"/>
-        <projectConfigurable parentId="CodeScan" displayName="Project Settings" instance="org.sonarlint.intellij.config.project.SonarLintProjectConfigurable" nonDefaultProject="true"/>
+        <projectConfigurable parentId="sonarlint" displayName="Project Settings" instance="org.sonarlint.intellij.config.project.SonarLintProjectConfigurable" nonDefaultProject="true"/>
         <moduleConfigurable id="CodeScan" displayName="CodeScan" instance="org.sonarlint.intellij.config.module.SonarLintModuleConfigurable"/>
         <colorSettingsPage implementation="org.sonarlint.intellij.config.SonarLintColorSettingsPage"/>
         <checkinHandlerFactory implementation="org.sonarlint.intellij.trigger.SonarLintCheckinHandlerFactory"/>
         <additionalTextAttributes scheme="Default" file="colorSchemes/SonarLintDefault.xml"/>
         <additionalTextAttributes scheme="Darcula" file="colorSchemes/SonarLintDarcula.xml"/>
         <editorActionHandler action="EditorEscape" implementationClass="org.sonarlint.intellij.editor.EscapeHandler"/>
+        <projectService serviceImplementation="org.sonarlint.intellij.editor.EditorDecorator"/>
+        <projectService serviceImplementation="org.sonarlint.intellij.actions.SonarLintToolWindow"/>
         <errorHandler implementation="org.sonarlint.intellij.errorsubmitter.BlameSonarSource"/>
         <iw.actionProvider implementation="org.sonarlint.intellij.editor.SonarLintEditorWidgetActionProvider"/>
 
