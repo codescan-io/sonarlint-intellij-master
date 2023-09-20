@@ -1,4 +1,4 @@
-rootProject.name = "sonarlint-intellij"
+rootProject.name = "codescan-intellij"
 include("its", "clion", "common", "git", "rider")
 
 dependencyResolutionManagement {

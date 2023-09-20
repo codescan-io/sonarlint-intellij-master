@@ -44,7 +44,6 @@ import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.config.global.SonarLintGlobalSettings
 import org.sonarlint.intellij.finding.issue.LiveIssue
 import org.sonarlint.intellij.messages.GlobalConfigurationListener
-import org.sonarlint.intellij.telemetry.TelemetryManagerProvider
 import org.sonarlint.intellij.util.GlobalLogOutput
 import org.sonarlint.intellij.util.ProjectUtils.getRelativePaths
 import org.sonarsource.sonarlint.core.SonarLintBackendImpl
@@ -119,7 +118,7 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
                 ClientInfoDto(
                     ApplicationInfo.getInstance().versionName,
                     "idea",
-                    "SonarLint IntelliJ " + getService(SonarLintPlugin::class.java).version
+                    "CodeScan IntelliJ " + getService(SonarLintPlugin::class.java).version
                 ),
                 FeatureFlagsDto(true, true, true, true, true),
                 getLocalStoragePath(),
