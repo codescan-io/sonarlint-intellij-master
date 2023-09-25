@@ -1,5 +1,5 @@
 /*
- * Codescan for IntelliJ IDEA
+ * SonarLint for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -19,9 +19,6 @@
  */
 package org.sonarlint.intellij.finding
 
-import java.util.UUID
-
 interface Issue : Finding {
-    fun getId(): UUID?
     fun resolve()
 }

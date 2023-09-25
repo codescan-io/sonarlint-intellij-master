@@ -1,5 +1,5 @@
 /*
- * Codescan for IntelliJ IDEA
+ * SonarLint for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -63,7 +63,6 @@ import org.sonarlint.intellij.ui.tree.TaintVulnerabilityTreeModelBuilder
 import org.sonarlint.intellij.util.DataKeys.Companion.TAINT_VULNERABILITY_DATA_KEY
 import org.sonarlint.intellij.util.SonarLintActions
 import java.awt.BorderLayout
-import java.awt.Dimension
 import java.awt.event.ActionEvent
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
@@ -218,10 +217,6 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
         { it is LocalTaintVulnerabilityNode && it.issue.key() == vulnerability.key() }
             ?: return
         TreeUtil.selectPath(tree, TreePath(vulnerabilityNode.path))
-    }
-
-    fun remove(taintVulnerability: LocalTaintVulnerability) {
-        treeBuilder.remove(taintVulnerability)
     }
 
     private fun updateRulePanelContent() {

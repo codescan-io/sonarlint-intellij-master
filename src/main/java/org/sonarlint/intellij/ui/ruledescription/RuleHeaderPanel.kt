@@ -1,5 +1,5 @@
 /*
- * Codescan for IntelliJ IDEA
+ * SonarLint for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -21,27 +21,23 @@ package org.sonarlint.intellij.ui.ruledescription
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.panels.HorizontalLayout
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.WrapLayout
 import org.sonarlint.intellij.SonarLintIcons
-import org.sonarlint.intellij.actions.MarkAsResolvedAction.Companion.canBeMarkedAsResolved
-import org.sonarlint.intellij.actions.MarkAsResolvedAction.Companion.openMarkAsResolvedDialog
 import org.sonarlint.intellij.actions.ReviewSecurityHotspotAction
-import org.sonarlint.intellij.finding.Issue
-import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot
-import org.sonarsource.sonarlint.core.commons.CleanCodeAttribute
-import org.sonarsource.sonarlint.core.commons.ImpactSeverity
+import org.sonarlint.intellij.finding.Finding
+import org.sonarlint.intellij.finding.issue.LiveIssue
+import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability
+import org.sonarsource.sonarlint.core.commons.HotspotReviewStatus
 import org.sonarsource.sonarlint.core.commons.IssueSeverity
 import org.sonarsource.sonarlint.core.commons.RuleType
-import org.sonarsource.sonarlint.core.commons.SoftwareQuality
-import java.awt.BorderLayout
+import org.sonarsource.sonarlint.core.commons.VulnerabilityProbability
 import java.awt.FlowLayout
 import java.awt.event.ActionEvent
-import java.util.LinkedList
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
 import javax.swing.JButton
@@ -49,14 +45,11 @@ import javax.swing.JPanel
 import javax.swing.SwingConstants
 
 
-class RuleHeaderPanel : JBPanel<RuleHeaderPanel>(BorderLayout()) {
+class RuleHeaderPanel : JBPanel<RuleHeaderPanel>(FlowLayout(FlowLayout.LEFT)) {
     companion object {
-        private const val MARK_AS_RESOLVED = "Mark Issue as..."
+        val MARK_AS_RESOLVED = "Mark as Resolved"
     }
 
-    private val wrappedPanel = JBPanel<JBPanel<*>>(WrapLayout(FlowLayout.LEFT))
-    private val attributeLabel = JBLabel()
-    private val qualityLabels = LinkedList<JBLabel>()
     private val ruleTypeIcon = JBLabel()
     private val ruleTypeLabel = JBLabel()
     private val ruleSeverityIcon = JBLabel()
@@ -66,9 +59,32 @@ class RuleHeaderPanel : JBPanel<RuleHeaderPanel>(BorderLayout()) {
     private val ruleKeyLabel = JBLabel()
     private val changeStatusButton = JButton()
 
+    init {
+        add(ruleTypeIcon)
+        add(ruleTypeLabel.apply {
+            border = JBUI.Borders.emptyRight(10)
+        })
+        add(ruleSeverityIcon)
+        add(ruleSeverityLabel)
+        add(hotspotVulnerabilityLabel)
+        add(hotspotVulnerabilityValueLabel.apply {
+            font = JBFont.label().asBold()
+            verticalTextPosition = SwingConstants.CENTER
+            isOpaque = true
+            border = BorderFactory.createEmptyBorder(0, 15, 0, 15)
+        })
+        add(ruleKeyLabel.apply {
+            border = JBUI.Borders.emptyLeft(10)
+        }, HorizontalLayout.CENTER)
+
+        val changeStatusPanel = JPanel(FlowLayout(FlowLayout.CENTER, 0, 0))
+        changeStatusPanel.apply { border = BorderFactory.createEmptyBorder(0, 15, 0, 0) }
+
+        changeStatusPanel.add(changeStatusButton)
+        add(changeStatusPanel)
+    }
+
     fun clear() {
-        attributeLabel.text = ""
-        qualityLabels.clear()
         ruleTypeIcon.icon = null
         ruleTypeLabel.text = ""
         ruleKeyLabel.text = ""
@@ -77,31 +93,48 @@ class RuleHeaderPanel : JBPanel<RuleHeaderPanel>(BorderLayout()) {
         hotspotVulnerabilityLabel.isVisible = false
         hotspotVulnerabilityValueLabel.text = ""
         changeStatusButton.isVisible = false
-        wrappedPanel.removeAll()
-        removeAll()
-        repaint()
     }
 
-    fun updateForRuleConfiguration(ruleKey: String, type: RuleType, severity: IssueSeverity,
-               attribute: CleanCodeAttribute?, qualities: Map<SoftwareQuality, ImpactSeverity>) {
+    fun update(ruleKey: String, type: RuleType, severity: IssueSeverity) {
         clear()
-        updateCommonFields(type, attribute, qualities, ruleKey)
+        updateCommonFields(type, ruleKey)
         updateRuleSeverity(severity)
     }
 
-    fun updateForIssue(project: Project, type: RuleType, severity: IssueSeverity, issue: Issue) {
+    fun update(ruleKey: String, type: RuleType, severity: IssueSeverity, finding: Finding) {
         clear()
-        updateCommonFields(type, issue.getCleanCodeAttribute(), issue.getImpacts(), issue.getRuleKey())
+        updateCommonFields(type, ruleKey)
         updateRuleSeverity(severity)
+        val serverFindingKey: String
+        val isIssueValid: Boolean
 
-        if (canBeMarkedAsResolved(project, issue)) {
-            changeStatusButton.isVisible = true
-            changeStatusButton.action = object : AbstractAction(MARK_AS_RESOLVED) {
-                override fun actionPerformed(e: ActionEvent?) {
-                    openMarkAsResolvedDialog(project, issue)
-                }
+        when (finding) {
+            is LiveIssue -> {
+                serverFindingKey = finding.serverFindingKey ?: return
+                isIssueValid = finding.isValid
+            }
+
+            is LocalTaintVulnerability -> {
+                serverFindingKey = finding.key() ?: return
+                isIssueValid = finding.isValid()
+            }
+
+            else -> {
+                return
             }
         }
+
+        listenIssueButton(isIssueValid)
+    }
+
+    private fun listenIssueButton(isValid: Boolean) {
+        changeStatusButton.action = object : AbstractAction(MARK_AS_RESOLVED) {
+            override fun actionPerformed(e: ActionEvent?) {
+                System.out.println("Open Dialog")
+            }
+        }
+
+        changeStatusButton.isVisible = isValid
     }
 
     private fun updateRuleSeverity(severity: IssueSeverity) {
@@ -110,77 +143,43 @@ class RuleHeaderPanel : JBPanel<RuleHeaderPanel>(BorderLayout()) {
         ruleSeverityLabel.setCopyable(true)
     }
 
-    fun updateForSecurityHotspot(project: Project, ruleKey: String, type: RuleType, securityHotspot: LiveSecurityHotspot) {
+    fun update(
+        project: Project,
+        securityHotspotKey: String?,
+        status: HotspotReviewStatus,
+        isValid: Boolean,
+        file: VirtualFile,
+        ruleKey: String,
+        type: RuleType,
+        vulnerabilityProbability: VulnerabilityProbability,
+    ) {
         clear()
-        updateCommonFields(type, securityHotspot.getCleanCodeAttribute(), securityHotspot.getImpacts(), ruleKey)
-        ruleTypeIcon.icon = SonarLintIcons.hotspotTypeWithProbability(securityHotspot.vulnerabilityProbability)
+        updateCommonFields(type, ruleKey)
         hotspotVulnerabilityLabel.isVisible = true
         hotspotVulnerabilityValueLabel.apply {
-            text = securityHotspot.vulnerabilityProbability.name
+            text = vulnerabilityProbability.name
             setCopyable(true)
-            background = SonarLintIcons.colorsByProbability[securityHotspot.vulnerabilityProbability]
+            background = SonarLintIcons.colorsByProbability[vulnerabilityProbability]
         }
 
-        securityHotspot.serverFindingKey?.let {
+        securityHotspotKey?.let {
             changeStatusButton.action = object : AbstractAction("Change Status") {
                 override fun actionPerformed(e: ActionEvent?) {
-                    ReviewSecurityHotspotAction(it, securityHotspot.status).openReviewingDialog(project, securityHotspot.file)
+                    ReviewSecurityHotspotAction(securityHotspotKey, status).openReviewingDialog(project, file)
                 }
             }
-            changeStatusButton.isVisible = securityHotspot.isValid()
+            changeStatusButton.isVisible = isValid
         }
     }
 
-    private fun updateCommonFields(type: RuleType, attribute: CleanCodeAttribute?, qualities: Map<SoftwareQuality, ImpactSeverity>, ruleKey: String) {
-        val newCctEnabled = attribute != null && qualities.isNotEmpty()
-        if (newCctEnabled) {
-            attributeLabel.text = "<html><b>" + clean(attribute!!.attributeCategory.issueLabel) + " issue</b> | Not " + clean(attribute.toString()) + "<br></html>"
-            qualities.entries.forEach {
-                qualityLabels.addAll(listOf(
-                    JBLabel().apply { icon = SonarLintIcons.impact(it.value) },
-                    JBLabel(clean(it.key.toString())).apply { setCopyable(true) })
-                )
-            }
-        } else {
-            ruleTypeIcon.icon = SonarLintIcons.type(type)
-            ruleTypeLabel.text = clean(type.toString())
-            ruleTypeLabel.setCopyable(true)
-        }
+    private fun updateCommonFields(type: RuleType, ruleKey: String) {
+        ruleTypeIcon.icon = SonarLintIcons.type(type)
+        ruleTypeLabel.text = clean(type.toString())
+        ruleTypeLabel.setCopyable(true)
         ruleKeyLabel.text = ruleKey
         ruleKeyLabel.setCopyable(true)
-
-        organizeHeader(newCctEnabled)
     }
 
-    private fun organizeHeader(newCct: Boolean) {
-        if (newCct) {
-            wrappedPanel.add(attributeLabel.apply { border = BorderFactory.createEmptyBorder(0, 0, 0, 15) })
-            qualityLabels.forEach { wrappedPanel.add(it) }
-        } else {
-            wrappedPanel.add(ruleTypeIcon)
-            wrappedPanel.add(ruleTypeLabel.apply {
-                border = JBUI.Borders.emptyRight(0)
-            })
-            wrappedPanel.add(ruleSeverityIcon)
-            wrappedPanel.add(ruleSeverityLabel)
-            wrappedPanel.add(hotspotVulnerabilityLabel)
-            wrappedPanel.add(hotspotVulnerabilityValueLabel.apply {
-                font = JBFont.label().asBold()
-                verticalTextPosition = SwingConstants.CENTER
-                isOpaque = true
-                border = BorderFactory.createEmptyBorder(0, 15, 0, 15)
-            })
-        }
-        wrappedPanel.add(ruleKeyLabel.apply {
-            border = JBUI.Borders.emptyLeft(10)
-        }, HorizontalLayout.CENTER)
-        val changeStatusPanel = JPanel(FlowLayout(FlowLayout.CENTER, 0, 0))
-        changeStatusPanel.apply { border = BorderFactory.createEmptyBorder(0, 15, 0, 0) }
-
-        changeStatusPanel.add(changeStatusButton)
-        wrappedPanel.add(changeStatusPanel)
-        add(wrappedPanel, BorderLayout.CENTER)
-    }
 
     fun showMessage(msg: String) {
         clear()

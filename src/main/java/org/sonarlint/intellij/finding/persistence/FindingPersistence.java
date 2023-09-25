@@ -1,5 +1,5 @@
 /*
- * Codescan for IntelliJ IDEA
+ * SonarLint for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -103,16 +103,16 @@ public class FindingPersistence<T extends LiveFinding> {
 
   private static Collection<LocalFindingTrackable> transform(Sonarlint.Findings protoFindings) {
     return protoFindings.getFindingList().stream()
-      .map(FindingPersistence::transform)
-      .collect(Collectors.toList());
+            .map(FindingPersistence::transform)
+            .collect(Collectors.toList());
   }
 
   private Sonarlint.Findings transform(Collection<T> localFindings) {
     var builder = Sonarlint.Findings.newBuilder();
     ReadAction.run(() -> localFindings.stream()
-      .filter(LiveFinding::isValid)
-      .map(this::transform)
-      .forEach(builder::addFinding));
+            .filter(LiveFinding::isValid)
+            .map(this::transform)
+            .forEach(builder::addFinding));
 
     return builder.build();
   }
@@ -123,9 +123,9 @@ public class FindingPersistence<T extends LiveFinding> {
 
   private Sonarlint.Findings.Finding transform(T liveFinding) {
     var builder = Sonarlint.Findings.Finding.newBuilder()
-      .setRuleKey(liveFinding.getRuleKey())
-      .setMessage(liveFinding.getMessage())
-      .setResolved(liveFinding.isResolved());
+            .setRuleKey(liveFinding.getRuleKey())
+            .setMessage(liveFinding.getMessage())
+            .setResolved(liveFinding.isResolved());
 
     if (liveFinding.getIntroductionDate() != null) {
       builder.setIntroductionDate(liveFinding.getIntroductionDate());
@@ -138,10 +138,6 @@ public class FindingPersistence<T extends LiveFinding> {
     }
     if (liveFinding.getLine() != null) {
       builder.setLine(liveFinding.getLine());
-    }
-    var id = liveFinding.getId();
-    if (id != null) {
-      builder.setId(id.toString());
     }
     return builder.build();
   }

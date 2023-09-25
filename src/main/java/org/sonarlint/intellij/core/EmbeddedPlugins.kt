@@ -33,6 +33,9 @@ import java.util.function.Consumer
 
 object EmbeddedPlugins {
     private val ENABLED_LANGUAGES_IN_STANDALONE_MODE_IN_IDEA: Set<Language> = EnumSet.of(
+        Language.APEX,
+        Language.SF_META,
+        Language.VF,
         Language.HTML,
         Language.XML,
         Language.JS,
@@ -48,7 +51,6 @@ object EmbeddedPlugins {
         Language.DOCKER,
         Language.KUBERNETES,
         Language.TERRAFORM,
-        Language.APEX,
     )
     private val ADDITIONAL_ENABLED_LANGUAGES_IN_CONNECTED_MODE: Set<Language> = EnumSet.of(
         Language.SCALA,

@@ -1,5 +1,5 @@
 /*
- * Codescan for IntelliJ IDEA
+ * SonarLint for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -34,14 +34,12 @@ import java.util.ArrayList;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.NotNull;
-import org.sonarlint.intellij.actions.MarkAsResolvedAction;
 import org.sonarlint.intellij.actions.ReviewSecurityHotspotAction;
 import org.sonarlint.intellij.actions.SonarLintToolWindow;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.SonarLintTextAttributes;
 import org.sonarlint.intellij.finding.LiveFinding;
 import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot;
-import org.sonarlint.intellij.finding.issue.LiveIssue;
 import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability;
 import org.sonarlint.intellij.finding.issue.vulnerabilities.TaintVulnerabilitiesPresenter;
 import org.sonarlint.intellij.finding.persistence.FindingsCache;
@@ -69,31 +67,30 @@ public class SonarExternalAnnotator extends ExternalAnnotator<SonarExternalAnnot
     var issueManager = getService(project, FindingsCache.class);
     var issues = issueManager.getIssuesForFile(file.getVirtualFile());
     issues.stream()
-      .filter(issue -> !issue.isResolved())
-      .forEach(issue -> {
-        // reject ranges that are no longer valid. It probably means that they were deleted from the file, or the file was deleted
-        var validTextRange = issue.getValidTextRange();
-        if (validTextRange != null) {
-          addAnnotation(project, issue, validTextRange, holder);
-        }
-      });
+            .filter(issue -> !issue.isResolved())
+            .forEach(issue -> {
+              // reject ranges that are no longer valid. It probably means that they were deleted from the file, or the file was deleted
+              var validTextRange = issue.getValidTextRange();
+              if (validTextRange != null) {
+                addAnnotation(project, issue, validTextRange, holder);
+              }
+            });
 
     // only annotate the hotspots currently displayed in the tree
     var toolWindowService = getService(project, SonarLintToolWindow.class);
     toolWindowService.getDisplayedSecurityHotspotsForFile(file.getVirtualFile())
-      .forEach(securityHotspot -> {
-        // reject ranges that are no longer valid. It probably means that they were deleted from the file, or the file was deleted
-        var validTextRange = securityHotspot.getValidTextRange();
-        if (validTextRange != null) {
-          addAnnotation(project, securityHotspot, validTextRange, holder);
-        }
-      });
+            .forEach(securityHotspot -> {
+              // reject ranges that are no longer valid. It probably means that they were deleted from the file, or the file was deleted
+              var validTextRange = securityHotspot.getValidTextRange();
+              if (validTextRange != null) {
+                addAnnotation(project, securityHotspot, validTextRange, holder);
+              }
+            });
 
     if (SonarLintUtils.isTaintVulnerabilitiesEnabled()) {
       getService(project, TaintVulnerabilitiesPresenter.class).getCurrentVulnerabilitiesByFile()
-        .getOrDefault(file.getVirtualFile(), emptyList())
-        .stream().filter(vulnerability -> !vulnerability.isResolved())
-        .forEach(vulnerability -> addAnnotation(vulnerability, holder));
+              .getOrDefault(file.getVirtualFile(), emptyList())
+              .forEach(vulnerability -> addAnnotation(vulnerability, holder));
     }
   }
 
@@ -133,15 +130,11 @@ public class SonarExternalAnnotator extends ExternalAnnotator<SonarExternalAnnot
       intentionActions.add(new ReviewSecurityHotspotAction(finding.getServerFindingKey(), ((LiveSecurityHotspot) finding).getStatus()));
     }
 
-    if (finding instanceof LiveIssue) {
-      intentionActions.add(new MarkAsResolvedAction((LiveIssue) finding));
-    }
-
     finding.context().ifPresent(c -> intentionActions.add(new ShowLocationsIntentionAction(finding, c)));
 
     var annotationBuilder = annotationHolder
-      .newAnnotation(getSeverity(finding.getUserSeverity()), finding.getMessage())
-      .range(validTextRange);
+            .newAnnotation(getSeverity(finding.getUserSeverity()), finding.getMessage())
+            .range(validTextRange);
     for (IntentionAction action : intentionActions) {
       annotationBuilder = annotationBuilder.withFix(action);
     }
@@ -153,7 +146,7 @@ public class SonarExternalAnnotator extends ExternalAnnotator<SonarExternalAnnot
     }
 
     annotationBuilder.highlightType(getType(finding.getUserSeverity()))
-      .create();
+            .create();
   }
 
   private static boolean shouldSuggestQuickFix(LiveFinding issue) {
@@ -166,12 +159,11 @@ public class SonarExternalAnnotator extends ExternalAnnotator<SonarExternalAnnot
       return;
     }
     annotationHolder.newAnnotation(getSeverity(vulnerability.severity()), vulnerability.message())
-      .range(textRange)
-      .withFix(new ShowTaintVulnerabilityRuleDescriptionIntentionAction(vulnerability))
-      .withFix(new MarkAsResolvedAction(vulnerability))
-      .textAttributes(getTextAttrsKey(vulnerability.severity()))
-      .highlightType(getType(vulnerability.severity()))
-      .create();
+            .range(textRange)
+            .withFix(new ShowTaintVulnerabilityRuleDescriptionIntentionAction(vulnerability))
+            .textAttributes(getTextAttrsKey(vulnerability.severity()))
+            .highlightType(getType(vulnerability.severity()))
+            .create();
   }
 
   static TextAttributesKey getTextAttrsKey(@Nullable IssueSeverity severity) {

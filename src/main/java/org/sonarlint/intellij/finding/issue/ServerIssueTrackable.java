@@ -1,5 +1,5 @@
 /*
- * Codescan for IntelliJ IDEA
+ * SonarLint for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -17,87 +17,88 @@
  * License along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
  */
-package org.sonarlint.intellij.finding.hotspot;
+package org.sonarlint.intellij.finding.issue;
 
-import java.util.UUID;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
+
 import org.sonarlint.intellij.finding.tracking.Trackable;
-import org.sonarsource.sonarlint.core.commons.HotspotReviewStatus;
 import org.sonarsource.sonarlint.core.commons.IssueSeverity;
 import org.sonarsource.sonarlint.core.commons.RuleType;
-import org.sonarsource.sonarlint.core.serverapi.hotspot.ServerHotspot;
+import org.sonarsource.sonarlint.core.serverconnection.issues.LineLevelServerIssue;
+import org.sonarsource.sonarlint.core.serverconnection.issues.RangeLevelServerIssue;
+import org.sonarsource.sonarlint.core.serverconnection.issues.ServerIssue;
 
-public class ServerSecurityHotspotTrackable implements Trackable {
+public class ServerIssueTrackable implements Trackable {
 
-  private final ServerHotspot serverHotspot;
+  private final ServerIssue<?> serverIssue;
 
-  public ServerSecurityHotspotTrackable(ServerHotspot serverHotspot) {
-    this.serverHotspot = serverHotspot;
-  }
-
-  @CheckForNull
-  public UUID getId() {
-    return null;
+  public ServerIssueTrackable(ServerIssue<?> serverIssue) {
+    this.serverIssue = serverIssue;
   }
 
   @CheckForNull
   @Override
   public Integer getLine() {
-    return serverHotspot.getTextRange().getStartLine();
+    if (serverIssue instanceof LineLevelServerIssue) {
+      return ((LineLevelServerIssue) serverIssue).getLine();
+    }
+    if (serverIssue instanceof RangeLevelServerIssue) {
+      return ((RangeLevelServerIssue) serverIssue).getTextRange().getStartLine();
+    }
+    return null;
   }
 
   @Override
   public String getMessage() {
-    return serverHotspot.getMessage();
+    return serverIssue.getMessage();
   }
 
   @CheckForNull
   @Override
   public Integer getTextRangeHash() {
+    if (serverIssue instanceof RangeLevelServerIssue) {
+      return ((RangeLevelServerIssue) serverIssue).getTextRange().getHash().hashCode();
+    }
     return null;
   }
 
   @CheckForNull
   @Override
   public Integer getLineHash() {
+    if (serverIssue instanceof LineLevelServerIssue) {
+      return ((LineLevelServerIssue) serverIssue).getLineHash().hashCode();
+    }
     return null;
   }
 
   @Override
   public String getRuleKey() {
-    return serverHotspot.getRuleKey();
+    return serverIssue.getRuleKey();
   }
 
   @CheckForNull
   @Override
   public String getServerFindingKey() {
-    return serverHotspot.getKey();
+    return serverIssue.getKey();
   }
 
   @CheckForNull
   @Override
   public Long getIntroductionDate() {
-    return serverHotspot.getCreationDate().toEpochMilli();
+    return serverIssue.getCreationDate().toEpochMilli();
   }
 
   @Override
   public boolean isResolved() {
-    return serverHotspot.getStatus().isResolved();
+    return serverIssue.isResolved();
   }
 
-  public HotspotReviewStatus getStatus() {
-    return serverHotspot.getStatus();
+  @Override public IssueSeverity getUserSeverity() {
+    return serverIssue.getUserSeverity();
   }
 
-  @Override
-  public IssueSeverity getUserSeverity() {
-    return null;
-  }
-
-  @Nullable
-  @Override
-  public RuleType getType() {
-    return RuleType.SECURITY_HOTSPOT;
+  @Nullable @Override public RuleType getType() {
+    return serverIssue.getType();
   }
 }

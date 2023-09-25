@@ -1,5 +1,5 @@
 /*
- * Codescan for IntelliJ IDEA
+ * SonarLint for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -41,7 +41,6 @@ import org.sonarlint.intellij.actions.filters.SecurityHotspotFilters;
 import org.sonarlint.intellij.analysis.AnalysisResult;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.editor.CodeAnalyzerRestarter;
-import org.sonarlint.intellij.finding.Issue;
 import org.sonarlint.intellij.finding.LiveFinding;
 import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot;
 import org.sonarlint.intellij.finding.hotspot.SecurityHotspotsLocalDetectionSupport;
@@ -145,10 +144,6 @@ public final class SonarLintToolWindow implements ContentManagerListenerAdapter 
     openTab(getSecurityHotspotContent());
   }
 
-  public void openLogTab() {
-    openTab(SonarLintToolWindowFactory.LOG_TAB_TITLE);
-  }
-
   private void openTab(String name) {
     ApplicationManager.getApplication().assertIsDispatchThread();
     var toolWindow = getToolWindow();
@@ -173,7 +168,7 @@ public final class SonarLintToolWindow implements ContentManagerListenerAdapter 
     var toolWindow = getToolWindow();
     if (taintVulnerabilitiesContent == null && toolWindow != null) {
       taintVulnerabilitiesContent = toolWindow.getContentManager()
-        .findContent(buildTabName(0, SonarLintToolWindowFactory.TAINT_VULNERABILITIES_TAB_TITLE));
+              .findContent(buildTabName(0, SonarLintToolWindowFactory.TAINT_VULNERABILITIES_TAB_TITLE));
     }
     return taintVulnerabilitiesContent;
   }
@@ -191,7 +186,7 @@ public final class SonarLintToolWindow implements ContentManagerListenerAdapter 
     var toolWindow = getToolWindow();
     if (securityHotspotsContent == null && toolWindow != null) {
       securityHotspotsContent = toolWindow.getContentManager()
-        .findContent(buildTabName(0, SonarLintToolWindowFactory.SECURITY_HOTSPOTS_TAB_TITLE));
+              .findContent(buildTabName(0, SonarLintToolWindowFactory.SECURITY_HOTSPOTS_TAB_TITLE));
     }
     return securityHotspotsContent;
   }
@@ -210,7 +205,7 @@ public final class SonarLintToolWindow implements ContentManagerListenerAdapter 
       return tabName;
     }
     return "<html><body>" + tabName + "<font color=\"" + ColorUtil.toHtmlColor(UIUtil.getInactiveTextColor()) + "\"> " + count
-      + "</font></body></html>";
+            + "</font></body></html>";
   }
 
   public void showTaintVulnerabilityDescription(LocalTaintVulnerability vulnerability) {
@@ -328,19 +323,6 @@ public final class SonarLintToolWindow implements ContentManagerListenerAdapter 
       return securityHotspotPanel.getDisplayedNodesForFile(file).stream().map(LiveSecurityHotspotNode::getHotspot).collect(Collectors.toList());
     }
     return Collections.emptyList();
-  }
-
-  public void markAsResolved(Issue issue) {
-    if (issue instanceof LiveIssue) {
-      var liveIssue = (LiveIssue) issue;
-      this.<CurrentFilePanel>updateTab(SonarLintToolWindowFactory.CURRENT_FILE_TAB_TITLE, panel -> panel.remove(liveIssue));
-      this.<ReportPanel>updateTab(SonarLintToolWindowFactory.REPORT_TAB_TITLE, panel -> panel.remove(liveIssue));
-    } else {
-      var content = getTaintVulnerabilitiesContent();
-      if (content != null) {
-        ((TaintVulnerabilitiesPanel) content.getComponent()).remove((LocalTaintVulnerability) issue);
-      }
-    }
   }
 
   @Override

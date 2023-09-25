@@ -34,7 +34,6 @@ public class LocalFindingTrackable implements Trackable {
   }
 
   @CheckForNull
-  @Override
   public UUID getId() {
     try {
       return UUID.fromString(finding.getId());
