@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,6 +20,7 @@
 package org.sonarlint.intellij.config.project
 
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.DocumentAdapter
@@ -27,18 +28,17 @@ import com.intellij.ui.IdeBorderFactory
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBList
+import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.COLUMNS_MEDIUM
 import com.intellij.ui.dsl.builder.columns
-import com.intellij.ui.dsl.builder.panel
-import com.intellij.ui.dsl.gridLayout.HorizontalAlign
 import org.sonarsource.sonarlint.core.serverapi.component.ServerProject
 import java.awt.Component
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.Locale
 import javax.swing.DefaultListModel
+import javax.swing.JComponent
 import javax.swing.JList
 import javax.swing.ListSelectionModel
 import javax.swing.event.DocumentEvent
@@ -53,34 +53,34 @@ class SearchProjectKeyDialog(
 ) : DialogWrapper(
     parent, false
 ) {
+    private lateinit var mainPanel: JBPanel<JBPanel<*>>
     private lateinit var projectList: JBList<ServerProject>
     private lateinit var searchTextField: SearchTextField
 
     init {
-        title = "Select " + (if (isSonarCloud) "CodeScanCloud" else "CodeScan") + " Project To Bind"
+        title = "Select " + (if (isSonarCloud) "SonarCloud" else "SonarQube") + " Project To Bind"
         init()
     }
 
-    override fun createCenterPanel() = panel {
-        row {
-            searchTextField = SearchTextField()
-            searchTextField.textEditor.emptyText.text = "Search by project key or name"
-            searchTextField.addDocumentListener(object : DocumentAdapter() {
-                override fun textChanged(e: DocumentEvent) {
-                    updateProjectsInList()
-                }
-            })
-            searchTextField.textEditor.columns(COLUMNS_MEDIUM)
-            cell(searchTextField)
-        }
-        row {
-            projectList = createProjectList()
-            updateProjectsInList()
-            cell(JBScrollPane(projectList))
-                .resizableColumn()
-                // deprecated in 2022.3, replace with align
-                .align(Align.FILL)
-        }
+    override fun createCenterPanel(): JComponent {
+        mainPanel = JBPanel<JBPanel<*>>(VerticalFlowLayout())
+
+        searchTextField = SearchTextField()
+        searchTextField.textEditor.emptyText.text = "Search by project key or name"
+        searchTextField.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) {
+                updateProjectsInList()
+            }
+        })
+        searchTextField.textEditor.columns(COLUMNS_MEDIUM)
+
+        projectList = createProjectList()
+        updateProjectsInList()
+
+        mainPanel.add(searchTextField)
+        mainPanel.add(JBScrollPane(projectList))
+
+        return mainPanel
     }
 
     private fun updateOk(): Boolean {
