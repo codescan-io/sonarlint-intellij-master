@@ -32,7 +32,7 @@ dependencies {
         exclude(group = "org.slf4j", module = "log4j-over-slf4j")
     }
     testImplementation("org.sonarsource.slang:sonar-scala-plugin:1.8.3.2219")
-    testImplementation("org.sonarsource.sonarqube:sonar-ws:8.5.1.38104")
+    testImplementation("org.sonarsource.sonarqube:sonar-ws:9.9.0.65466")
     testImplementation("com.intellij.remoterobot:remote-robot:$remoteRobotVersion")
     testImplementation("com.intellij.remoterobot:remote-fixtures:$remoteRobotVersion")
     testImplementation(libs.junit.api)
