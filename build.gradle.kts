@@ -1,4 +1,3 @@
-
 import com.jetbrains.plugin.blockmap.core.BlockMap
 import de.undercouch.gradle.tasks.download.Download
 import groovy.lang.GroovyObject
@@ -47,9 +46,9 @@ val omnisharpVersion: String by project
 // The environment variables ARTIFACTORY_PRIVATE_USERNAME and ARTIFACTORY_PRIVATE_PASSWORD are used on CI env (Azure)
 // On local box, please add artifactoryUsername and artifactoryPassword to ~/.gradle/gradle.properties
 val artifactoryUsername = System.getenv("ARTIFACTORY_PRIVATE_READER_USERNAME")
-    ?: (if (project.hasProperty("artifactoryUsername")) project.property("artifactoryUsername").toString() else "")
+        ?: (if (project.hasProperty("artifactoryUsername")) project.property("artifactoryUsername").toString() else "")
 val artifactoryPassword = System.getenv("ARTIFACTORY_PRIVATE_READER_PASSWORD")
-    ?: (if (project.hasProperty("artifactoryPassword")) project.property("artifactoryPassword").toString() else "")
+        ?: (if (project.hasProperty("artifactoryPassword")) project.property("artifactoryPassword").toString() else "")
 
 allprojects {
     apply {
@@ -83,14 +82,14 @@ allprojects {
 
     java {
         toolchain {
-            languageVersion.set(JavaLanguageVersion.of(11))
+            languageVersion.set(JavaLanguageVersion.of(17))
         }
     }
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         kotlinOptions {
             apiVersion = "1.7"
-            jvmTarget = "11"
+            jvmTarget = "17"
         }
     }
 
@@ -98,7 +97,7 @@ allprojects {
         setIncludeConfigs(listOf("runtimeClasspath", "sqplugins_deps"))
         inputs.files(configurations.runtimeClasspath, configurations.archives.get())
         mustRunAfter(
-            getTasksByName("buildPluginBlockmap", true)
+                getTasksByName("buildPluginBlockmap", true)
         )
     }
 
@@ -113,17 +112,26 @@ allprojects {
     license {
         header = rootProject.file("HEADER")
         mapping(
-            mapOf(
-                "java" to "SLASHSTAR_STYLE",
-                "kt" to "SLASHSTAR_STYLE",
-                "svg" to "XML_STYLE",
-                "form" to "XML_STYLE"
-            )
+                mapOf(
+                        "java" to "SLASHSTAR_STYLE",
+                        "kt" to "SLASHSTAR_STYLE",
+                        "svg" to "XML_STYLE",
+                        "form" to "XML_STYLE"
+                )
         )
         excludes(
-            listOf("**/*.jar", "**/*.png", "**/README", "**/proto/*.java")
+                listOf("**/*.jar", "**/*.png", "**/README", "**/proto/*.java")
         )
         strictCheck = true
+    }
+}
+
+subprojects {
+    tasks {
+        buildSearchableOptions {
+            // the only module contributing settings is the root one
+            enabled = false
+        }
     }
 }
 
@@ -131,26 +139,26 @@ intellij {
     version.set(intellijBuildVersion)
     pluginName.set("CodeScan")
     updateSinceUntilBuild.set(false)
-    plugins.set(listOf("java", "git4idea"))
+    plugins.set(listOf("java", "Git4Idea"))
 }
 
 tasks.runPluginVerifier {
     // Test oldest supported, and latest
-    ideVersions.set(listOf("IC-2021.3", "IC-2023.2.1"))
+    ideVersions.set(listOf("IC-2022.3.1", "IC-2023.2.3"))
     failureLevel.set(
-        EnumSet.complementOf(
-            EnumSet.of(
-                // these are the only issues we tolerate
-                RunPluginVerifierTask.FailureLevel.DEPRECATED_API_USAGES,
-                RunPluginVerifierTask.FailureLevel.EXPERIMENTAL_API_USAGES,
-                RunPluginVerifierTask.FailureLevel.NOT_DYNAMIC,
-                RunPluginVerifierTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
-                // TODO Workaround for CLion
-                RunPluginVerifierTask.FailureLevel.MISSING_DEPENDENCIES,
-                // needed because of UpdateInBackground usages in recent versions, replacement is available from 2022.2
-                RunPluginVerifierTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
+            EnumSet.complementOf(
+                    EnumSet.of(
+                            // these are the only issues we tolerate
+                            RunPluginVerifierTask.FailureLevel.DEPRECATED_API_USAGES,
+                            RunPluginVerifierTask.FailureLevel.EXPERIMENTAL_API_USAGES,
+                            RunPluginVerifierTask.FailureLevel.NOT_DYNAMIC,
+                            RunPluginVerifierTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
+                            // TODO Workaround for CLion
+                            RunPluginVerifierTask.FailureLevel.MISSING_DEPENDENCIES,
+                            // needed because of UpdateInBackground usages in recent versions, replacement is available from 2022.2
+                            RunPluginVerifierTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
+                    )
             )
-        )
     )
 }
 
@@ -165,7 +173,7 @@ protobuf {
 tasks.test {
     java {
         toolchain {
-            languageVersion.set(JavaLanguageVersion.of(11))
+            languageVersion.set(JavaLanguageVersion.of(17))
         }
     }
     useJUnitPlatform()
@@ -180,7 +188,7 @@ tasks.runIde {
         ideDir.set(File(runIdeDirectory))
     }
     maxHeapSize = "2g"
-    debug=true
+    debug = true
 }
 
 configurations {
@@ -194,6 +202,7 @@ configurations {
 dependencies {
     implementation("org.sonarsource.sonarlint.core:sonarlint-core:$sonarlintCoreVersion")
     implementation("commons-lang:commons-lang:2.6")
+    implementation("org.sonarsource.sonarqube:sonar-plugin-api-impl:9.9.0.65466")
     implementation(project(":common"))
     compileOnly("com.google.code.findbugs:jsr305:3.0.2")
     runtimeOnly(project(":clion"))
@@ -207,6 +216,7 @@ dependencies {
         exclude(module = "junit")
     }
     testImplementation("org.mockito.kotlin:mockito-kotlin:4.1.0")
+    testImplementation("org.awaitility:awaitility:4.2.0")
     "sqplugins"("org.sonarsource.java:sonar-java-plugin:7.22.0.31918")
     "sqplugins"("org.sonarsource.javascript:sonar-javascript-plugin:10.3.2.22047")
     "sqplugins"("org.sonarsource.php:sonar-php-plugin:3.30.0.9766")
@@ -224,7 +234,12 @@ dependencies {
     }
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     // workaround for light tests in 2020.3, might remove later
-    testRuntimeOnly("org.jetbrains.kotlin:kotlin-reflect")
+//    testRuntimeOnly("org.jetbrains.kotlin:kotlin-reflect")
+    testRuntimeOnly("org.jetbrains.kotlin:kotlin-reflect") {
+        exclude(module = "jsr305")
+        exclude(module = "jsr250")
+    }
+    implementation("javax.annotation:javax.annotation-api:1.3.2")
     constraints {
         testImplementation("com.squareup.okio:okio-jvm:3.4.0") {
             because("this transitive dependency of okhttp3 has a high severity vulnerability not yet patched")
@@ -295,7 +310,7 @@ tasks {
         doLast {
             val distribZip = buildPlugin.get().archiveFile.get().asFile
             val blockMapBytes =
-                com.fasterxml.jackson.databind.ObjectMapper().writeValueAsBytes(BlockMap(distribZip.inputStream()))
+                    com.fasterxml.jackson.databind.ObjectMapper().writeValueAsBytes(BlockMap(distribZip.inputStream()))
             val blockMapFile = File(distribZip.parentFile, "blockmap.json")
             blockMapFile.writeBytes(blockMapBytes)
             val blockMapFileZipFile = file(distribZip.absolutePath + ".blockmap.zip")
@@ -314,7 +329,7 @@ tasks {
                 builtBy("buildPluginBlockmap")
             }
             val fileHash = com.fasterxml.jackson.databind.ObjectMapper()
-                .writeValueAsString(com.jetbrains.plugin.blockmap.core.FileHash(distribZip.inputStream()))
+                    .writeValueAsString(com.jetbrains.plugin.blockmap.core.FileHash(distribZip.inputStream()))
             val fileHashJsonFile = file(distribZip.absolutePath + ".hash.json")
             fileHashJsonFile.writeText(fileHash)
             artifacts.add("archives", fileHashJsonFile) {
@@ -341,9 +356,9 @@ tasks {
 
 tasks.artifactoryPublish {
     mustRunAfter(
-        getTasksByName("cyclonedxBom", true),
-        tasks.buildPlugin,
-        getTasksByName("buildPluginBlockmap", true)
+            getTasksByName("cyclonedxBom", true),
+            tasks.buildPlugin,
+            getTasksByName("buildPluginBlockmap", true)
     )
 }
 
@@ -359,8 +374,8 @@ artifactory {
     clientConfig.isIncludeEnvVars = true
     clientConfig.envVarsExcludePatterns = "*password*,*PASSWORD*,*secret*,*MAVEN_CMD_LINE_ARGS*,sun.java.command,*token*,*TOKEN*,*LOGIN*,*login*,*key*,*KEY*,*PASSPHRASE*,*signing*"
     clientConfig.info.addEnvironmentProperty(
-        "ARTIFACTS_TO_DOWNLOAD",
-        "org.sonarsource.sonarlint.intellij:CodeScan-intellij:zip,org.sonarsource.sonarlint.intellij:codescan-intellij:json:cyclonedx"
+            "ARTIFACTS_TO_DOWNLOAD",
+            "org.sonarsource.sonarlint.intellij:CodeScan-intellij:zip,org.sonarsource.sonarlint.intellij:codescan-intellij:json:cyclonedx"
     )
     setContextUrl(System.getenv("ARTIFACTORY_URL"))
     publish(delegateClosureOf<PublisherConfig> {
@@ -371,13 +386,13 @@ artifactory {
         })
         defaults(delegateClosureOf<GroovyObject> {
             setProperty(
-                "properties", mapOf(
+                    "properties", mapOf(
                     "vcs.revision" to System.getenv("CIRRUS_CHANGE_IN_REPO"),
                     "vcs.branch" to (System.getenv("CIRRUS_BASE_BRANCH")
-                        ?: System.getenv("CIRRUS_BRANCH")),
+                            ?: System.getenv("CIRRUS_BRANCH")),
                     "build.name" to "codescan-intellij",
                     "build.number" to System.getenv("BUILD_ID")
-                )
+            )
             )
             invokeMethod("publishConfigs", "archives")
             setProperty("publishPom", true) // Publish generated POM files to Artifactory (true by default)
@@ -391,8 +406,8 @@ signing {
         val branch = System.getenv("CIRRUS_BRANCH") ?: ""
         val pr = System.getenv("CIRRUS_PR") ?: ""
         (branch == "master" || branch.matches("branch-[\\d.]+".toRegex())) &&
-            pr == "" &&
-            gradle.taskGraph.hasTask(":artifactoryPublish")
+                pr == "" &&
+                gradle.taskGraph.hasTask(":artifactoryPublish")
     }
     val signingKeyId: String? by project
     val signingKey: String? by project

@@ -38,8 +38,8 @@ import java.awt.Image;
 import java.awt.Transparency;
 import java.util.List;
 import java.util.Set;
-import javax.annotation.CheckForNull;
-import javax.annotation.Nullable;
+//import javax.annotation.CheckForNull;
+//import javax.annotation.Nullable;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import org.jetbrains.annotations.NotNull;
@@ -85,15 +85,15 @@ public class SonarLintUtils {
     }
   }
 
-  public static boolean isCodescanCloudAlias(@Nullable String url) {
+  public static boolean isCodescanCloudAlias(String url) {
     return url != null && SONARCLOUD_ALIAS.contains(url);
   }
 
-  public static boolean isEmpty(@Nullable String str) {
+  public static boolean isEmpty(String str) {
     return str == null || str.isEmpty();
   }
 
-  public static boolean isBlank(@Nullable String str) {
+  public static boolean isBlank(String str) {
     return str == null || str.trim().isEmpty();
   }
 
@@ -130,7 +130,7 @@ public class SonarLintUtils {
    * on which one of the split editors is selected.
    * This seems to work well with split editors.
    */
-  @CheckForNull
+//  @CheckForNull
   public static VirtualFile getSelectedFile(Project project) {
     if (project.isDisposed()) {
       return null;
@@ -154,8 +154,7 @@ public class SonarLintUtils {
     return (properties != null && properties.isForGeneratedSources()) || (resourceProperties != null && resourceProperties.isForGeneratedSources());
   }
 
-  @Nullable
-  public static SourceFolder getSourceFolder(@CheckForNull VirtualFile source, Module module) {
+  public static SourceFolder getSourceFolder(VirtualFile source, Module module) {
     if (source == null) {
       return null;
     }
@@ -188,7 +187,7 @@ public class SonarLintUtils {
     return "php".equalsIgnoreCase(file.getFileType().getName());
   }
 
-  @CheckForNull
+//  @CheckForNull
   public static String getIdeVersionForTelemetry() {
     String ideVersion;
     try {

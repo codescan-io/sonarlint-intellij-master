@@ -19,14 +19,14 @@
  */
 package org.sonarlint.intellij.common.analysis;
 
-import javax.annotation.Nullable;
+//import javax.annotation.Nullable;
 
 public class ExcludeResult {
   private final boolean excluded;
-  @Nullable
+//  @Nullable
   private final String excludeReason;
 
-  private ExcludeResult(boolean excluded, @Nullable String excludeReason) {
+  private ExcludeResult(boolean excluded, String excludeReason) {
     this.excluded = excluded;
     this.excludeReason = excludeReason;
   }

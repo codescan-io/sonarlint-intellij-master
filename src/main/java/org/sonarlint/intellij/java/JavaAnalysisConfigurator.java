@@ -1,5 +1,5 @@
 /*
- * Codescan for IntelliJ IDEA
+ * SonarLint for IntelliJ IDEA
  * Copyright (C) 2015-2023 SonarSource
  * sonarlint@sonarsource.com
  *
@@ -43,6 +43,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -53,6 +54,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JpsJavaSdkType;
 import org.sonarlint.intellij.common.analysis.AnalysisConfigurator;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
+import org.sonarlint.intellij.config.Settings;
+import org.sonarlint.intellij.config.global.ServerConnection;
 
 import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.isEmpty;
@@ -67,6 +70,11 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
   private static final String JAVA_TEST_BINARIES_PROPERTY = "sonar.java.test.binaries";
   private static final String JAVA_JDK_HOME_PROPERTY = "sonar.java.jdkHome";
   private static final String JAVA_ENABLE_PREVIEW = "sonar.java.enablePreview";
+  private static final String SONAR_HOST_URL = "sonar.host.url";
+  private static final String SONAR_ORGANIZATION = "sonar.organization";
+  private static final String SONAR_LOGIN = "sonar.login";
+  private static final String SONAR_PASSWORD = "sonar.password";
+
 
   private static final char SEPARATOR = ',';
 
@@ -82,9 +90,24 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
     setMultiValuePropertyIfNonEmpty(properties, JAVA_BINARIES_PROPERTY, moduleClasspath.binaries());
     setMultiValuePropertyIfNonEmpty(properties, JAVA_TEST_BINARIES_PROPERTY, moduleClasspath.testBinaries());
     configureJavaSourceTarget(ijModule, properties);
+
     if (moduleClasspath.getJdkHome() != null) {
       properties.put(JAVA_JDK_HOME_PROPERTY, moduleClasspath.getJdkHome());
     }
+
+    // Add project & connection specific sonar configurations
+    String connectionName = Settings.getSettingsFor(ijModule.getProject()).getConnectionName();
+    if (StringUtils.isNotEmpty(connectionName)) {
+      Optional<ServerConnection> currentConnection = Settings.getGlobalSettings().getServerConnectionByName(connectionName);
+
+      if (currentConnection.isPresent()) {
+        properties.put(SONAR_HOST_URL, currentConnection.get().getHostUrl());
+        properties.put(SONAR_ORGANIZATION, currentConnection.get().getOrganizationKey());
+        properties.put(SONAR_LOGIN, currentConnection.get().getToken());
+        properties.put(SONAR_PASSWORD, "");
+      }
+    }
+
     return config;
   }
 
