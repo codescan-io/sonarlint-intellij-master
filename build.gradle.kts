@@ -14,16 +14,16 @@ import java.util.zip.ZipOutputStream
 plugins {
     kotlin("jvm") version "1.8.10"
     id("org.jetbrains.intellij") version "1.15.0"
-    id("org.sonarqube") version "3.4.0.2513"
+    id("org.sonarqube") version "4.4.1.3373"
     java
     jacoco
     id("com.github.hierynomus.license") version "0.16.1"
     id("com.jfrog.artifactory") version "4.30.1"
-    id("com.google.protobuf") version "0.9.1"
+    id("com.google.protobuf") version "0.9.4"
     idea
     signing
-    id("de.undercouch.download") version "5.3.0"
-    id("org.cyclonedx.bom") version "1.7.3"
+    id("de.undercouch.download") version "5.5.0"
+    id("org.cyclonedx.bom") version "1.7.4"
 }
 
 buildscript {
@@ -217,20 +217,20 @@ dependencies {
     }
     testImplementation("org.mockito.kotlin:mockito-kotlin:4.1.0")
     testImplementation("org.awaitility:awaitility:4.2.0")
-    "sqplugins"("org.sonarsource.java:sonar-java-plugin:7.22.0.31918")
-    "sqplugins"("org.sonarsource.javascript:sonar-javascript-plugin:10.3.2.22047")
-    "sqplugins"("org.sonarsource.php:sonar-php-plugin:3.30.0.9766")
-    "sqplugins"("org.sonarsource.python:sonar-python-plugin:4.5.0.11949")
-    "sqplugins"("org.sonarsource.kotlin:sonar-kotlin-plugin:2.15.0.2579")
-    "sqplugins"("org.sonarsource.slang:sonar-ruby-plugin:1.13.0.4374")
-    "sqplugins"("org.sonarsource.html:sonar-html-plugin:3.7.1.3306")
-    "sqplugins"("org.sonarsource.xml:sonar-xml-plugin:2.9.0.4055")
-    "sqplugins"("org.sonarsource.sonarlint.omnisharp:sonarlint-omnisharp-plugin:1.12.0.74959")
-    "sqplugins"("org.sonarsource.text:sonar-text-plugin:2.1.0.1163")
-    "sqplugins"("org.sonarsource.slang:sonar-go-plugin:1.13.0.4374")
-    "sqplugins"("org.sonarsource.iac:sonar-iac-plugin:1.18.0.4757")
+    "sqplugins"("org.sonarsource.java:sonar-java-plugin:7.28.0.33738")
+    "sqplugins"("org.sonarsource.javascript:sonar-javascript-plugin:10.10.0.24774")
+    "sqplugins"("org.sonarsource.php:sonar-php-plugin:3.33.0.11274")
+    "sqplugins"("org.sonarsource.python:sonar-python-plugin:4.12.0.13917")
+    "sqplugins"("org.sonarsource.kotlin:sonar-kotlin-plugin:2.17.0.2902")
+    "sqplugins"("org.sonarsource.slang:sonar-ruby-plugin:1.15.0.4655")
+    "sqplugins"("org.sonarsource.html:sonar-html-plugin:3.9.0.3600")
+    "sqplugins"("org.sonarsource.xml:sonar-xml-plugin:2.10.0.4108")
+    "sqplugins"("org.sonarsource.sonarlint.omnisharp:sonarlint-omnisharp-plugin:1.15.0.80820")
+    "sqplugins"("org.sonarsource.text:sonar-text-plugin:2.7.1.1388")
+    "sqplugins"("org.sonarsource.slang:sonar-go-plugin:1.15.0.4655")
+    "sqplugins"("org.sonarsource.iac:sonar-iac-plugin:1.22.0.7057")
     if (artifactoryUsername.isNotEmpty() && artifactoryPassword.isNotEmpty()) {
-        "sqplugins"("com.sonarsource.cpp:sonar-cfamily-plugin:6.47.0.62356")
+        "sqplugins"("com.sonarsource.cpp:sonar-cfamily-plugin:6.50.0.64514")
     }
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     // workaround for light tests in 2020.3, might remove later
