@@ -62,15 +62,6 @@ allprojects {
     repositories {
         mavenCentral()
         mavenLocal()
-//        maven("https://repox.jfrog.io/repox/sonarsource") {
-//            content { excludeGroup("typescript") }
-//            if (artifactoryUsername.isNotEmpty() && artifactoryPassword.isNotEmpty()) {
-//                credentials {
-//                    username = artifactoryUsername
-//                    password = artifactoryPassword
-//                }
-//            }
-//        }
         ivy("https://repox.jfrog.io/repox/api/npm/npm") {
             patternLayout {
                 artifact("[organization]/-/[module]-[revision].[ext]")
@@ -369,7 +360,7 @@ sonarqube {
 }
 
 artifactory {
-    clientConfig.info.buildName = "CodeScan-intellij"
+    clientConfig.info.buildName = "codescan-intellij"
     clientConfig.info.buildNumber = System.getenv("BUILD_ID")
     clientConfig.isIncludeEnvVars = true
     clientConfig.envVarsExcludePatterns = "*password*,*PASSWORD*,*secret*,*MAVEN_CMD_LINE_ARGS*,sun.java.command,*token*,*TOKEN*,*LOGIN*,*login*,*key*,*KEY*,*PASSPHRASE*,*signing*"

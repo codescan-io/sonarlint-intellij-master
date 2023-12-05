@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -48,9 +48,9 @@ object SonarLintIcons {
     @JvmField
     val ICON_SONARCLOUD_16 = getIcon("/images/codescan-16.png")
     @JvmField
-    val SONARLINT_TOOLWINDOW = getIcon("/images/codescanToolWindow.svg")
+    val SONARLINT_TOOLWINDOW = getIcon("/images/CodeScanToolWindow.svg")
     @JvmField
-    val SONARLINT_ACTION = getIcon("/images/codescanAction.svg")
+    val SONARLINT_ACTION = getIcon("/images/CodeScanAction.svg")
     @JvmField
     val SONARLINT_TOOLWINDOW_EMPTY = getIcon("/images/sonarlintToolWindowEmpty.svg")
     @JvmField
