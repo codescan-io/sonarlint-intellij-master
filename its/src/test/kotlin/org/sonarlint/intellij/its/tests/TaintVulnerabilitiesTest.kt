@@ -47,7 +47,7 @@ class TaintVulnerabilitiesTest : BaseUiTest() {
     fun should_request_the_user_to_bind_project_when_not_bound() = uiTest {
         openExistingProject("sample-java-taint-vulnerability", true)
 
-        verifyTaintTabContainsMessages(this, "The project is not bound to SonarQube/SonarCloud")
+        verifyTaintTabContainsMessages(this, "The project is not bound to CodeScan/CodeScanCloud")
     }
 
     @Test

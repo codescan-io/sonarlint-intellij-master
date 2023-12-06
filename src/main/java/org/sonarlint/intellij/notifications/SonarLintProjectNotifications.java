@@ -151,7 +151,7 @@ public final class SonarLintProjectNotifications {
     }
     boolean isSonarCloud = connection.map(ServerConnection::isCodeScanCloud).orElse(false);
 
-    String label = isSonarCloud ? "SonarCloud" : "SonarQube";
+    String label = isSonarCloud ? "CodeScanCloud" : "CodeScan";
     var notification = SERVER_NOTIFICATIONS_GROUP.createNotification(
       String.format("<b>%s Notification</b>", label),
       smartNotificationParams.getText(),

@@ -223,7 +223,7 @@ public class SonarLintProjectBindPanel {
     bindPanel = new JPanel(new GridBagLayout());
 
     boolean pluralizeProject = ProjectAttachProcessor.canAttachToProject() && ModuleManager.getInstance(project).getModules().length > 1;
-    bindEnable = new JBCheckBox("Bind project" + (pluralizeProject ? "s" : "") + " to SonarQube / SonarCloud", true);
+    bindEnable = new JBCheckBox("Bind project" + (pluralizeProject ? "s" : "") + " to CodeScan / CodeScanCloud", true);
     bindEnable.addItemListener(new BindItemListener());
 
     configureConnectionButton = new JButton();
