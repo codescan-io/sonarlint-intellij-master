@@ -35,8 +35,8 @@ public class SecretsNotifications {
 
   public static void sendNotification(Project project) {
     var notification = GROUP.createNotification(
-      "SonarLint: secret(s) detected",
-      "SonarLint detected some secrets in one of the open files. " +
+      "CodeScan: secret(s) detected",
+      "CodeScan detected some secrets in one of the open files. " +
         "We strongly advise you to review those secrets and ensure they are not committed into repositories. " +
         "Please refer to the SonarLint tool window for more information.",
       NotificationType.WARNING);

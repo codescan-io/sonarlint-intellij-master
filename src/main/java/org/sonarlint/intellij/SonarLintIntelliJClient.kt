@@ -206,7 +206,7 @@ object SonarLintIntelliJClient : SonarLintClient {
 
     private fun showBalloon(project: Project?, message: String, type: NotificationType) {
         val notification = GROUP.createNotification(
-            "SonarLint message",
+            "CodeScan message",
             message,
             type
         )

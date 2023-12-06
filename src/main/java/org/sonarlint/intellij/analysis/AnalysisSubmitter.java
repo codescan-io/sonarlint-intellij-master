@@ -46,7 +46,7 @@ import static org.sonarlint.intellij.util.ProjectUtils.getAllFiles;
 
 @Service(Service.Level.PROJECT)
 public final class AnalysisSubmitter {
-  public static final String ANALYSIS_TASK_TITLE = "SonarLint Analysis";
+  public static final String ANALYSIS_TASK_TITLE = "CodeScan Analysis";
   private final Project project;
   private final OnTheFlyFindingsHolder onTheFlyFindingsHolder;
   private Cancelable currentManualAnalysis;

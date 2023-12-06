@@ -60,7 +60,7 @@ public final class ConnectedModeStorageSynchronizer implements Disposable {
       return;
     }
     ProgressManager.getInstance()
-      .run(new Task.Backgroundable(myProject, "Checking SonarLint Binding Updates") {
+      .run(new Task.Backgroundable(myProject, "Checking CodeScan Binding Updates") {
         public void run(@NotNull ProgressIndicator progressIndicator) {
           ConnectedModeStorageSynchronizer.this.sync(progressIndicator);
         }

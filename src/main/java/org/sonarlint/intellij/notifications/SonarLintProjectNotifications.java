@@ -112,7 +112,7 @@ public final class SonarLintProjectNotifications {
 
   private void notifyBindingSuggestions(String message, AnAction... mainActions) {
     var notification = BINDING_SUGGESTION_GROUP.createNotification(
-      "<b>SonarLint suggestions</b>",
+      "<b>CodeScan suggestions</b>",
       message,
       NotificationType.INFORMATION);
     Arrays.stream(mainActions).forEach(notification::addAction);

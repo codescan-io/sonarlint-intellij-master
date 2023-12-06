@@ -190,7 +190,7 @@ public class Analysis implements Cancelable {
       console.error(message, e);
 
       if (indicator.isShowing()) {
-        var dialogMsg = "SonarLint analysis failed: " + e.getMessage();
+        var dialogMsg = "CodeScan analysis failed: " + e.getMessage();
         runOnUiThreadAndWait(project, () -> Messages.showErrorDialog(dialogMsg, "Error Running SonarLint Analysis"));
       }
 

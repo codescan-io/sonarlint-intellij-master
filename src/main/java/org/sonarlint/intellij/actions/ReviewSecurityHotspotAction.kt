@@ -132,9 +132,9 @@ class ReviewSecurityHotspotAction(private var serverFindingKey: String? = null, 
 
     override fun startInWriteAction() = false
 
-    override fun getText() = "SonarLint: Change Security Hotspot status"
+    override fun getText() = "CodeScan: Change Security Hotspot status"
 
-    override fun getFamilyName() = "SonarLint review"
+    override fun getFamilyName() = "CodeScan review"
 
     override fun isAvailable(project: Project, editor: Editor?, file: PsiFile?) = serverFindingKey != null
 
