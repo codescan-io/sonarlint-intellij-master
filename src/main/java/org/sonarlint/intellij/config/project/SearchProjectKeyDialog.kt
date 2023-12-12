@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -56,7 +56,7 @@ class SearchProjectKeyDialog(
     private lateinit var searchTextField: SearchTextField
 
     init {
-        title = "Select " + (if (isSonarCloud) "SonarCloud" else "SonarQube") + " Project To Bind"
+        title = "Select " + (if (isSonarCloud) "CodeScanCloud" else "CodeScan") + " Project To Bind"
         init()
     }
 

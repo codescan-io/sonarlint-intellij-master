@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@ import org.sonarsource.sonarlint.core.commons.log.SonarLintLogger;
 
 public interface ModuleVcsRepoProvider {
   // Name is constructed from plugin-id.extension-point-name
-  ExtensionPointName<ModuleVcsRepoProvider> EP_NAME = ExtensionPointName.create("org.sonarlint.idea.vcsProvider");
+  ExtensionPointName<ModuleVcsRepoProvider> EP_NAME = ExtensionPointName.create("com.code-scan.intellij.vcsProvider");
 
   VcsRepo getRepoFor(Module module, SonarLintLogger logger);
 }

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -57,12 +57,12 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
   }
 
   private JComponent createSonarLintPanel() {
-    var sonarlintIcon = new JBLabel(SonarLintIcons.SONARLINT_32);
-    var plugin = SonarLintUtils.getService(SonarLintPlugin.class);
-    var title = new JBLabel("<html><b>SonarLint " + plugin.getVersion() + "</b></html>");
-    var linkLabel = new HyperlinkLabel("https://www.sonarlint.org");
-    linkLabel.addHyperlinkListener(e -> BrowserUtil.browse("https://www.sonarlint.org/intellij"));
-    var copyrightLabel = new JBLabel("<html>&copy; " + LocalDate.now().getYear() + " SonarSource</html>");
+    JBLabel sonarlintIcon = new JBLabel(SonarLintIcons.SONARLINT_32);
+    SonarLintPlugin plugin = SonarLintUtils.getService(SonarLintPlugin.class);
+    JBLabel title = new JBLabel("<html><b>CodeScan IntelliJ " + plugin.getVersion() + "</b></html>");
+    HyperlinkLabel linkLabel = new HyperlinkLabel("codescan.io");
+    linkLabel.addHyperlinkListener(e -> BrowserUtil.browse("https://www.codescan.io"));
+    JBLabel copyrightLabel = new JBLabel("<html>&copy; " + LocalDate.now().getYear() + " CodeScan</html>");
 
     var infoPanel = new JPanel(new GridBagLayout());
     var constraints = new GridBagConstraints();
@@ -101,7 +101,7 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
           + "    \"days_since_installation\": 120,\n"
           + "    \"days_of_use\": 40,\n"
           + "    \"sonarlint_version\": \"2.9\",\n"
-          + "    \"sonarlint_product\": \"SonarLint IntelliJ\",\n"
+          + "    \"sonarlint_product\": \"CodeScan IntelliJ\",\n"
           + "    \"ide_version\": \"IntelliJ IDEA 2020.1 (Community Edition)\",\n"
           + "    \"os\": \"Linux\",\n"
           + "    \"arch\": \"amd64\",\n"
@@ -170,12 +170,12 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
     });
 
     // info
-    var info = new JBLabel("<html>By sharing anonymous SonarLint usage statistics, you help us understand how SonarLint is used so "
+    var info = new JBLabel("<html>By sharing anonymous CodeScan usage statistics, you help us understand how Codescan is used so "
       + "we can improve the plugin to work even better for you. We don't collect source code, IP addresses, or any personally identifying "
       + "information. And we don't share the data with anyone else.</html>");
 
     // checkbox
-    enableTelemetryCheckBox = new JCheckBox("Share anonymous SonarLint statistics");
+    enableTelemetryCheckBox = new JCheckBox("Share anonymous CodeScan statistics");
     enableTelemetryCheckBox.setFocusable(false);
     var tickOptions = new JPanel(new VerticalFlowLayout());
     tickOptions.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));

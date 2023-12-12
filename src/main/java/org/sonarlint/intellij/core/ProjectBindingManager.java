@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -105,7 +105,7 @@ public final class ProjectBindingManager {
   public ConnectedSonarLintEngine getConnectedEngine() throws InvalidBindingException {
     var projectSettings = getSettingsFor(myProject);
     if (!projectSettings.isBindingEnabled()) {
-      throw new IllegalStateException("Project is not bound to a SonarQube project");
+      throw new IllegalStateException("Project is not bound to a CodeScan project");
     }
     var notifications = getService(myProject, SonarLintProjectNotifications.class);
     var connectionName = projectSettings.getConnectionName();

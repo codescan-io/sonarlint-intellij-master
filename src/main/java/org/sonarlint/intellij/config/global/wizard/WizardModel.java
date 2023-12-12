@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,6 +20,7 @@
 package org.sonarlint.intellij.config.global.wizard;
 
 import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.ui.Messages;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.CheckForNull;
@@ -30,8 +31,6 @@ import org.sonarlint.intellij.tasks.CheckNotificationsSupportedTask;
 import org.sonarlint.intellij.tasks.GetOrganizationTask;
 import org.sonarlint.intellij.tasks.GetOrganizationsTask;
 import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.OrganizationDto;
-
-import static org.sonarlint.intellij.common.util.SonarLintUtils.SONARCLOUD_URL;
 
 public class WizardModel {
   private ServerType serverType;
@@ -57,7 +56,7 @@ public class WizardModel {
   }
 
   public WizardModel(ServerConnection connectionToEdit) {
-    if (SonarLintUtils.isSonarCloudAlias(connectionToEdit.getHostUrl())) {
+    if (SonarLintUtils.isCodescanCloudAlias(connectionToEdit.getHostUrl())) {
       serverType = ServerType.SONARCLOUD;
     } else {
       serverType = ServerType.SONARQUBE;
@@ -111,6 +110,7 @@ public class WizardModel {
   public void queryOrganizations() throws Exception {
     if (isSonarCloud()) {
       final ServerConnection partialConnection = createConnectionWithoutOrganization();
+
       final var task = buildAndRunGetOrganizationsTask(partialConnection);
       setOrganizationList(task.organizations());
       final var presetOrganizationKey = getOrganizationKey();
@@ -246,16 +246,11 @@ public class WizardModel {
 
   private ServerConnection.Builder createUnauthenticatedConnection(@Nullable String organizationKey) {
     var builder = ServerConnection.newBuilder()
+      .setHostUrl(serverUrl)
       .setOrganizationKey(organizationKey)
       .setEnableProxy(proxyEnabled)
       .setName(name);
 
-    if (serverType == ServerType.SONARCLOUD) {
-      builder.setHostUrl(SONARCLOUD_URL);
-
-    } else {
-      builder.setHostUrl(serverUrl);
-    }
     builder.setDisableNotifications(notificationsDisabled);
     return builder;
   }

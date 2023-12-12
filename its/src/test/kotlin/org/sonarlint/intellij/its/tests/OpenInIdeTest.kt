@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -127,7 +127,7 @@ class OpenInIdeTest : BaseUiTest() {
     private fun verifyToolWindowFilled(robot: RemoteRobot) {
         with(robot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     tabTitleContains("Security Hotspots") {
                         content("SecurityHotspotsPanel") {
                             assertThat(hasText("Make sure using this hardcoded IP address is safe here.")).isTrue()

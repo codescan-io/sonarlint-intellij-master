@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -59,7 +59,7 @@ class PLSQLTest : BaseUiTest() {
     private fun bindProjectFromPanel() {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tab("Current File") { select() }
                     content("CurrentFilePanel") {
@@ -78,7 +78,7 @@ class PLSQLTest : BaseUiTest() {
     private fun verifyIssueTreeContainsMessages(remoteRobot: RemoteRobot, vararg expectedMessages: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Current File") { select() }
                     content("IssueTree") {
@@ -92,7 +92,7 @@ class PLSQLTest : BaseUiTest() {
     private fun verifyNoIssuesFoundWhenNotConnected(remoteRobot: RemoteRobot) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Current File") { select() }
                     content("CurrentFilePanel") {

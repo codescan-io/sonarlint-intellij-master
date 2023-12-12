@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -88,7 +88,7 @@ class TelemetryClientAttributeProviderImpl : TelemetryClientAttributesProvider {
         private fun isAnyProjectConnectedToSonarCloud(): Boolean = isAnyOpenProjectMatch { p: Project ->
             val bindingManager = SonarLintUtils.getService(p, ProjectBindingManager::class.java)
             bindingManager.tryGetServerConnection()
-                .filter { obj: ServerConnection -> obj.isSonarCloud }
+                .filter { obj: ServerConnection -> obj.isCodeScanCloud }
                 .isPresent
         }
 

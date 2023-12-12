@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -47,7 +47,7 @@ class TaintVulnerabilitiesTest : BaseUiTest() {
     fun should_request_the_user_to_bind_project_when_not_bound() = uiTest {
         openExistingProject("sample-java-taint-vulnerability", true)
 
-        verifyTaintTabContainsMessages(this, "The project is not bound to SonarQube/SonarCloud")
+        verifyTaintTabContainsMessages(this, "The project is not bound to CodeScan/CodeScanCloud")
     }
 
     @Test
@@ -68,7 +68,7 @@ class TaintVulnerabilitiesTest : BaseUiTest() {
     private fun bindProjectFromPanel() {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tab("Taint Vulnerabilities") { select() }
                     content("TaintVulnerabilitiesPanel") {
@@ -88,7 +88,7 @@ class TaintVulnerabilitiesTest : BaseUiTest() {
     private fun verifyTaintTabContainsMessages(remoteRobot: RemoteRobot, vararg expectedMessages: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Taint Vulnerabilities") { select() }
                     content("TaintVulnerabilitiesPanel") {

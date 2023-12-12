@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -125,7 +125,7 @@ open class BaseUiTest {
 
     private fun failTestIfUncaughtExceptions() {
         val uncaughtExceptions = getUncaughtExceptions()
-        val shouldFailTest = uncaughtExceptions.any { e -> e.contains("sonarlint", true) || e.contains("sonarsource", true) }
+        val shouldFailTest = uncaughtExceptions.any { e -> e.contains("CodeScan", true) || e.contains("sonarsource", true) }
         uncaughtExceptions.forEach { e -> println("Uncaught error during the test: $e") }
         clearExceptions()
         if (shouldFailTest) {
@@ -151,7 +151,7 @@ open class BaseUiTest {
     private fun sonarlintLogPanel(remoteRobot: RemoteRobot, function: TabContentFixture.() -> Unit = {}) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Log") { select() }
                     content("SonarLintLogPanel") {
@@ -200,7 +200,7 @@ open class BaseUiTest {
     protected fun verifyCurrentFileTabContainsMessages(vararg expectedMessages: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Current File") { select() }
                     content("CurrentFilePanel") {
@@ -216,7 +216,7 @@ open class BaseUiTest {
     protected fun clickCurrentFileIssue(issueMessage: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Current File") { select() }
                     content("CurrentFilePanel") {
@@ -230,7 +230,7 @@ open class BaseUiTest {
     protected fun verifyRuleDescriptionTabContains(expectedMessage: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     content("CurrentFilePanel") {
                         waitFor(Duration.ofSeconds(10), errorMessage = "Unable to find '$expectedMessage' in: ${findAllText()}") {
@@ -247,7 +247,7 @@ open class BaseUiTest {
     protected fun verifyCurrentFileShowsCard(expectedClass: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     Assertions.assertThat(findCard(expectedClass)).isNotNull
                 }
@@ -291,13 +291,13 @@ open class BaseUiTest {
             Pause.pause(2000)
 
             // Search for SonarLint because sometimes it is off the screen
-            search("SonarLint")
+            search("CodeScan")
 
             tree {
                 waitUntilLoaded()
                 // little trick to check if the search has been applied
                 waitFor(Duration.ofSeconds(10), Duration.ofSeconds(1)) { collectRows().size in 1..10 }
-                clickPath("Tools", "SonarLint")
+                clickPath("Tools", "CodeScan")
             }
 
             // let the SonarLint view settle (sometimes the UI thread blocks for a few seconds)
@@ -341,19 +341,6 @@ open class BaseUiTest {
                 actionMenu("File") {
                     open()
                     item("Close Project") {
-                        click()
-                    }
-                }
-            }
-        }
-    }
-
-    protected fun clickPowerSaveMode() {
-        with(remoteRobot) {
-            optionalIdeaFrame(this)?.apply {
-                actionMenu("File") {
-                    open()
-                    item("Power Save Mode") {
                         click()
                     }
                 }

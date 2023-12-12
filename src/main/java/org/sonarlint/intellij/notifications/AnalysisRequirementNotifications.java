@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -42,7 +42,7 @@ import static java.util.stream.Collectors.toSet;
 public class AnalysisRequirementNotifications {
 
   private static final NotificationGroup ANALYZER_REQUIREMENT_GROUP = NotificationGroupManager.getInstance()
-    .getNotificationGroup("SonarLint: Analyzer Requirement");
+    .getNotificationGroup("CodeScan: Analyzer Requirement");
 
   private static final Set<String> alreadyNotified = new HashSet<>();
 
@@ -64,21 +64,21 @@ public class AnalysisRequirementNotifications {
       correspondingPlugin.flatMap(PluginDetails::skipReason).ifPresent(skipReason -> {
         if (skipReason instanceof SkipReason.UnsatisfiedRuntimeRequirement) {
           final var runtimeRequirement = (SkipReason.UnsatisfiedRuntimeRequirement) skipReason;
-          final var title = "<b>SonarLint failed to analyze " + l.getLabel() + " code</b>";
+          final var title = "<b>CodeScan failed to analyze " + l.getLabel() + " code</b>";
           if (runtimeRequirement.getRuntime() == SkipReason.UnsatisfiedRuntimeRequirement.RuntimeRequirement.JRE) {
             var content = String.format(
-              "SonarLint requires Java runtime version %s or later to analyze %s code. Current version is %s.<br>" +
+              "CodeScan requires Java runtime version %s or later to analyze %s code. Current version is %s.<br>" +
                 "See <a href=\"https://intellij-support.jetbrains.com/hc/en-us/articles/206544879-Selecting-the-JDK-version-the-IDE-will-run-under\">" +
                 "how to select the JDK version the IDE will run under</a>.",
               runtimeRequirement.getMinVersion(), l.getLabel(), runtimeRequirement.getCurrentVersion());
             createNotificationOnce(project, title, content, new NotificationListener.UrlOpeningListener(true));
           } else if (runtimeRequirement.getRuntime() == SkipReason.UnsatisfiedRuntimeRequirement.RuntimeRequirement.NODEJS) {
             var content = new StringBuilder(
-              String.format("SonarLint requires Node.js runtime version %s or later to analyze %s code.", runtimeRequirement.getMinVersion(), l.getLabel()));
+              String.format("CodeScan requires Node.js runtime version %s or later to analyze %s code.", runtimeRequirement.getMinVersion(), l.getLabel()));
             if (runtimeRequirement.getCurrentVersion() != null) {
               content.append(String.format(" Current version is %s.", runtimeRequirement.getCurrentVersion()));
             }
-            content.append("<br>Please configure the Node.js path in the SonarLint settings.");
+            content.append("<br>Please configure the Node.js path in the CodeScan settings.");
             createNotificationOnce(project, title, content.toString(), null, new OpenGlobalSettingsAction(project));
           }
         }

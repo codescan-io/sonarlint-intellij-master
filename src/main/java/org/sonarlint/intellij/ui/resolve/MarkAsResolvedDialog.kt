@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@ import com.intellij.openapi.ui.DialogWrapper
 import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.ui.UiUtils
 import org.sonarsource.sonarlint.core.clientapi.backend.issue.CheckStatusChangePermittedResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.issue.IssueStatus
+import org.sonarsource.sonarlint.core.clientapi.backend.issue.ResolutionStatus
 import java.awt.event.ActionEvent
 
 class MarkAsResolvedDialog(
@@ -79,5 +79,5 @@ class MarkAsResolvedDialog(
         ) { close(OK_EXIT_CODE) }
     }
 
-    data class Resolution(val newStatus: IssueStatus, val comment: String?)
+    data class Resolution(val newStatus: ResolutionStatus, val comment: String?)
 }

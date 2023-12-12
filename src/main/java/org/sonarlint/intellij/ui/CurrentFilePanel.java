@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -53,11 +53,11 @@ import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 public class CurrentFilePanel extends AbstractIssuesPanel {
 
-  public static final String SONARLINT_TOOLWINDOW_ID = "SonarLint";
+  public static final String SONARLINT_TOOLWINDOW_ID = "CodeScan";
   private static final String SPLIT_PROPORTION_PROPERTY = "SONARLINT_ISSUES_SPLIT_PROPORTION";
   private final JBPanelWithEmptyText issuesPanel;
   private final JScrollPane treeScrollPane;
-  private final AnAction analyzeFilesAction = ActionManager.getInstance().getAction("SonarLint.AnalyzeFiles");
+  private final AnAction analyzeFilesAction = ActionManager.getInstance().getAction("CodeScan.AnalyzeFiles");
 
   public CurrentFilePanel(Project project) {
     super(project);
@@ -92,9 +92,9 @@ public class CurrentFilePanel extends AbstractIssuesPanel {
 
   private static Collection<AnAction> actions() {
     return List.of(
-      ActionManager.getInstance().getAction("SonarLint.AnalyzeFiles"),
-      ActionManager.getInstance().getAction("SonarLint.toolwindow.Cancel"),
-      ActionManager.getInstance().getAction("SonarLint.toolwindow.Configure"),
+      ActionManager.getInstance().getAction("CodeScan.AnalyzeFiles"),
+      ActionManager.getInstance().getAction("CodeScan.toolwindow.Cancel"),
+      ActionManager.getInstance().getAction("CodeScan.toolwindow.Configure"),
       SonarLintActions.getInstance().clearIssues());
   }
 

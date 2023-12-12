@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -91,12 +91,12 @@ class WizardModelTests {
       .setToken("token")
       .setOrganizationKey("org")
       .setEnableProxy(true)
-      .setHostUrl("https://www.sonarqube.com")
+      .setHostUrl(CodescanCloudConstants.CODESCAN_US_URL)
       .build();
     var model = new WizardModel(server);
 
     server = model.createConnection();
     assertThat(server.enableProxy()).isTrue();
-    assertThat(server.getHostUrl()).isEqualTo("https://sonarcloud.io");
+    assertThat(server.getHostUrl()).isEqualTo(CodescanCloudConstants.CODESCAN_US_URL);
   }
 }

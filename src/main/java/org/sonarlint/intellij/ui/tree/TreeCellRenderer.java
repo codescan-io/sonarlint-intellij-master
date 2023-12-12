@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@ import org.sonarlint.intellij.ui.nodes.AbstractNode;
 
 /**
  * Can't unit test this because the parent uses a service, depending on a pico container with a method
- * that doesn't exist in the pico container used by SonarLint (different versions), causing NoSuchMethodError.
+ * that doesn't exist in the pico container used by CodeScan (different versions), causing NoSuchMethodError.
  */
 public class TreeCellRenderer extends ColoredTreeCellRenderer {
   private String iconToolTip = null;

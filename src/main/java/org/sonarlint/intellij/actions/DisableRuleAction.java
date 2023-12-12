@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,17 +21,19 @@ package org.sonarlint.intellij.actions;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.DataKey;
 import com.intellij.openapi.project.Project;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.finding.issue.LiveIssue;
 import org.sonarlint.intellij.trigger.TriggerType;
 
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
-import static org.sonarlint.intellij.util.DataKeys.ISSUE_DATA_KEY;
 
 public class DisableRuleAction extends AbstractSonarAction {
+  public static final DataKey<LiveIssue> ISSUE_DATA_KEY = DataKey.create("sonarlint_issue");
 
   public DisableRuleAction() {
     super("Disable Rule", "Disable the SonarLint rule that activated this rule", AllIcons.Actions.Cancel);

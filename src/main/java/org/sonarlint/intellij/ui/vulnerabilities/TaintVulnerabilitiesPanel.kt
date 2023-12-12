@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -63,7 +63,6 @@ import org.sonarlint.intellij.ui.tree.TaintVulnerabilityTreeModelBuilder
 import org.sonarlint.intellij.util.DataKeys.Companion.TAINT_VULNERABILITY_DATA_KEY
 import org.sonarlint.intellij.util.SonarLintActions
 import java.awt.BorderLayout
-import java.awt.Dimension
 import java.awt.event.ActionEvent
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
@@ -96,11 +95,10 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
     private val noVulnerabilitiesPanel: JBPanelWithEmptyText
 
     init {
-        cards.add(centeredLabel("The project is not bound to SonarQube/SonarCloud", "Configure Binding", SonarConfigureProject()), NO_BINDING_CARD_ID)
+        cards.add(centeredLabel("The project is not bound to CodeScan/CodeScanCloud", "Configure Binding", SonarConfigureProject()), NO_BINDING_CARD_ID)
         cards.add(centeredLabel("The project binding is invalid", "Edit Binding", SonarConfigureProject()), INVALID_BINDING_CARD_ID)
         noVulnerabilitiesPanel = centeredLabel("", "", null)
         cards.add(noVulnerabilitiesPanel, NO_ISSUES_CARD_ID)
-        rulePanel.minimumSize = Dimension(350, 200)
         cards.add(createSplitter(project, this, this, ScrollPaneFactory.createScrollPane(createTree()), rulePanel, SPLIT_PROPORTION_PROPERTY, DEFAULT_SPLIT_PROPORTION),
             TREE_CARD_ID
         )
@@ -136,7 +134,7 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
     }
 
     private fun createDisclaimer(): StripePanel {
-        val stripePanel = StripePanel("This tab displays taint vulnerabilities detected by SonarQube or SonarCloud. SonarLint does not detect those issues locally.", Information)
+        val stripePanel = StripePanel("This tab displays taint vulnerabilities detected by CodeScan/CodeScanCloud. CodeScan does not detect those issues locally.", Information)
         stripePanel.addAction("Learn More", OpenTaintVulnerabilityDocumentationAction())
         stripePanel.addAction("Dismiss", object : AbstractSonarAction() {
             override fun actionPerformed(e: AnActionEvent) {
@@ -219,10 +217,6 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
         { it is LocalTaintVulnerabilityNode && it.issue.key() == vulnerability.key() }
             ?: return
         TreeUtil.selectPath(tree, TreePath(vulnerabilityNode.path))
-    }
-
-    fun remove(taintVulnerability: LocalTaintVulnerability) {
-        treeBuilder.remove(taintVulnerability)
     }
 
     private fun updateRulePanelContent() {

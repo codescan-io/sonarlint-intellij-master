@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -33,8 +33,8 @@ import org.sonarsource.sonarlint.core.telemetry.TelemetryPathManager;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 
 public class TelemetryManagerProvider {
-  public static final String TELEMETRY_PRODUCT_KEY = "idea";
-  private static final String PRODUCT = "SonarLint IntelliJ";
+  private static final String TELEMETRY_PRODUCT_KEY = "idea";
+  private static final String PRODUCT = "CodeScan IntelliJ";
 
   private static final String OLD_STORAGE_FILENAME = "sonarlint_usage";
 

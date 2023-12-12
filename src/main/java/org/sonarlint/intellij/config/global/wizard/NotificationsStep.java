@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -50,7 +50,7 @@ public class NotificationsStep extends AbstractWizardStepEx {
   @Override
   public void _init() {
     final boolean isSc = model.getServerType() == WizardModel.ServerType.SONARCLOUD;
-    final String sqOrSc = isSc ? "SonarCloud" : "SonarQube";
+    final String sqOrSc = isSc ? "CodeScanCloud" : "CodeScan";
     notificationsCheckBox.setText("Receive notifications from " + sqOrSc);
     notificationsCheckBox.setSelected(!model.isNotificationsDisabled());
     final String docUrl = isSc ? "https://docs.sonarcloud.io/advanced-setup/sonarlint-smart-notifications/" :

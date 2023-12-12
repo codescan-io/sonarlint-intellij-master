@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -24,6 +24,6 @@ import com.intellij.openapi.components.State;
 public class SonarLintGlobalSettingsPresentableName extends State.NameGetter {
   @Override
   public String get() {
-    return "SonarLint settings";
+    return "CodeScan settings";
   }
 }

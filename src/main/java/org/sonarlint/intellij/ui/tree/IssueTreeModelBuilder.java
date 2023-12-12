@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -39,12 +39,8 @@ import org.sonarlint.intellij.ui.nodes.AbstractNode;
 import org.sonarlint.intellij.ui.nodes.FileNode;
 import org.sonarlint.intellij.ui.nodes.IssueNode;
 import org.sonarlint.intellij.ui.nodes.SummaryNode;
-import org.sonarsource.sonarlint.core.commons.ImpactSeverity;
 import org.sonarsource.sonarlint.core.commons.IssueSeverity;
 
-import static org.sonarsource.sonarlint.core.commons.ImpactSeverity.HIGH;
-import static org.sonarsource.sonarlint.core.commons.ImpactSeverity.LOW;
-import static org.sonarsource.sonarlint.core.commons.ImpactSeverity.MEDIUM;
 import static org.sonarsource.sonarlint.core.commons.IssueSeverity.BLOCKER;
 import static org.sonarsource.sonarlint.core.commons.IssueSeverity.CRITICAL;
 import static org.sonarsource.sonarlint.core.commons.IssueSeverity.INFO;
@@ -57,7 +53,6 @@ import static org.sonarsource.sonarlint.core.commons.IssueSeverity.MINOR;
  */
 public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
   private static final List<IssueSeverity> SEVERITY_ORDER = List.of(BLOCKER, CRITICAL, MAJOR, MINOR, INFO);
-  private static final List<ImpactSeverity> IMPACT_ORDER = List.of(HIGH, MEDIUM, LOW);
   private static final Comparator<LiveIssue> ISSUE_COMPARATOR = new IssueComparator();
 
   private final FindingTreeIndex index;
@@ -168,8 +163,8 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
 
   private static List<LiveIssue> filter(Iterable<LiveIssue> issues) {
     return StreamSupport.stream(issues.spliterator(), false)
-      .filter(IssueTreeModelBuilder::accept)
-      .collect(Collectors.toList());
+            .filter(IssueTreeModelBuilder::accept)
+            .collect(Collectors.toList());
   }
 
   private static boolean accept(LiveIssue issue) {
@@ -184,12 +179,12 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
     var fileNode = index.getFileNode(issue.psiFile().getVirtualFile());
     if (fileNode != null) {
       fileNode.findChildren(child -> Objects.equals(issue.uid(), ((LiveIssue) child).uid()))
-        .ifPresent(issueNode -> {
-          model.removeNodeFromParent(issueNode);
-          if (!fileNode.hasChildren()) {
-            removeFileNode(fileNode);
-          }
-        });
+              .ifPresent(issueNode -> {
+                model.removeNodeFromParent(issueNode);
+                if (!fileNode.hasChildren()) {
+                  removeFileNode(fileNode);
+                }
+              });
     }
   }
 
@@ -213,19 +208,10 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
         return dateCompare;
       }
 
-      if (o1.getCleanCodeAttribute() != null && !o1.getImpacts().isEmpty()
-        && o2.getCleanCodeAttribute() != null && !o2.getImpacts().isEmpty()) {
-        var highestQualityImpactO1 = Collections.max(o1.getImpacts().entrySet(), Map.Entry.comparingByValue(Comparator.comparing(Enum::ordinal))).getValue();
-        var highestQualityImpactO2 = Collections.max(o2.getImpacts().entrySet(), Map.Entry.comparingByValue(Comparator.comparing(Enum::ordinal))).getValue();
-        var impactCompare = Ordering.explicit(IMPACT_ORDER).compare(highestQualityImpactO1, highestQualityImpactO2);
-        if (impactCompare != 0) {
-          return impactCompare;
-        }
-      } else {
-        var severityCompare = Ordering.explicit(SEVERITY_ORDER).compare(o1.getUserSeverity(), o2.getUserSeverity());
-        if (severityCompare != 0) {
-          return severityCompare;
-        }
+      var severityCompare = Ordering.explicit(SEVERITY_ORDER).compare(o1.getUserSeverity(), o2.getUserSeverity());
+
+      if (severityCompare != 0) {
+        return severityCompare;
       }
 
       var r1 = o1.getRange();
@@ -235,10 +221,10 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
       var rangeStart2 = (r2 == null) ? -1 : r2.getStartOffset();
 
       return ComparisonChain.start()
-        .compare(rangeStart1, rangeStart2)
-        .compare(o1.getRuleKey(), o2.getRuleKey())
-        .compare(o1.uid(), o2.uid())
-        .result();
+              .compare(rangeStart1, rangeStart2)
+              .compare(o1.getRuleKey(), o2.getRuleKey())
+              .compare(o1.uid(), o2.uid())
+              .result();
     }
   }
 

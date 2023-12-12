@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -59,26 +59,10 @@ class CurrentFileTabTest : BaseUiTest() {
         verifyStatusWasSuccessfullyChanged(this)
     }
 
-    @Test
-    fun should_not_analyze_when_power_save_mode_enabled() = uiTest {
-        openExistingProject("sample-java-issues")
-
-        clickPowerSaveMode()
-
-        openFile("src/main/java/foo/Foo.java", "Foo.java")
-
-        verifyCurrentFileTabContainsMessages(
-            "No analysis done on the current opened file",
-            "This file is not automatically analyzed because power save mode is enabled",
-        )
-
-        clickPowerSaveMode()
-    }
-
     private fun bindProjectFromPanel() {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tab("Current File") { select() }
                     content("CurrentFilePanel") {
@@ -97,7 +81,7 @@ class CurrentFileTabTest : BaseUiTest() {
     private fun openReviewDialogFromList(remoteRobot: RemoteRobot, issueMessage: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Current File") { select() }
                     content("IssueTree") {
@@ -141,7 +125,7 @@ class CurrentFileTabTest : BaseUiTest() {
                 firstNotification() {
                     hasText("The issue was successfully marked as resolved")
                 }
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     content("CurrentFilePanel") {
                         hasText("No issues found in the current opened file")
                     }
@@ -153,7 +137,7 @@ class CurrentFileTabTest : BaseUiTest() {
     private fun verifyIssueTreeContainsMessages(remoteRobot: RemoteRobot, vararg expectedMessages: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Current File") { select() }
                     content("IssueTree") {

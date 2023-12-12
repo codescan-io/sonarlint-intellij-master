@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@ import java.util.Collection;
  * Notifies about analysis tasks starting. It will be called for any analysis task, regardless of the trigger, if it is background or not, etc.
  */
 public interface AnalysisListener {
-  Topic<AnalysisListener> TOPIC = Topic.create("SonarLint analysis start", AnalysisListener.class);
+  Topic<AnalysisListener> TOPIC = Topic.create("CodeScan analysis start", AnalysisListener.class);
 
   void started(Collection<VirtualFile> files);
 

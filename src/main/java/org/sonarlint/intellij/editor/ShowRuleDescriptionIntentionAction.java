@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -48,12 +48,12 @@ public class ShowRuleDescriptionIntentionAction implements IntentionAction, Prio
 
   @Override
   public @Nls(capitalization = Nls.Capitalization.Sentence) @NotNull String getText() {
-    return "SonarLint: Show rule description '" + ruleKey + "'";
+    return "CodeScan: Show rule description '" + ruleKey + "'";
   }
 
   @Override
   public @NotNull @Nls(capitalization = Nls.Capitalization.Sentence) String getFamilyName() {
-    return "SonarLint show issue description";
+    return "CodeScan show issue description";
   }
 
   @Override

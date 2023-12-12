@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,16 +23,13 @@ import com.intellij.ui.scale.JBUIScale;
 import com.intellij.ui.treeStructure.treetable.TreeTable;
 import com.intellij.ui.treeStructure.treetable.TreeTableModel;
 import com.intellij.ui.treeStructure.treetable.TreeTableTree;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Map;
+import org.sonarlint.intellij.SonarLintIcons;
 import javax.swing.Icon;
 import javax.swing.JTree;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeNode;
 import org.jetbrains.annotations.Nullable;
-import org.sonarlint.intellij.SonarLintIcons;
 import org.sonarlint.intellij.util.CompoundIcon;
 
 import static org.sonarlint.intellij.config.global.rules.RulesTreeTable.ICONS_COLUMN;
@@ -82,12 +79,10 @@ public class RulesTreeTableModel extends DefaultTreeModel implements TreeTableMo
       if (node instanceof RulesTreeNode.Rule) {
         var rule = (RulesTreeNode.Rule) node;
         var gap = JBUIScale.isUsrHiDPI() ? 8 : 4;
-        var highestQualityImpact = Collections.max(rule.impacts().entrySet(), Map.Entry.comparingByValue(Comparator.comparing(Enum::ordinal)));
-        return new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, SonarLintIcons.impact(highestQualityImpact.getValue()));
+        return new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, SonarLintIcons.type(rule.type()), SonarLintIcons.severity(rule.severity()));
       }
       return null;
     }
-
     if (column == IS_ENABLED_COLUMN) {
       var treeNode = (RulesTreeNode) node;
       return treeNode.isActivated();

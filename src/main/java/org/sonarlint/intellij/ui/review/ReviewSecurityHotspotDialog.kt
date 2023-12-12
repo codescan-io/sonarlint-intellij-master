@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,6 +20,7 @@
 package org.sonarlint.intellij.ui.review
 
 import com.intellij.ide.BrowserUtil
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
@@ -32,7 +33,6 @@ import org.sonarlint.intellij.core.BackendService
 import org.sonarlint.intellij.documentation.SonarLintDocumentation.SECURITY_HOTSPOTS_LINK
 import org.sonarlint.intellij.editor.CodeAnalyzerRestarter
 import org.sonarlint.intellij.ui.UiUtils.Companion.runOnUiThread
-import org.sonarlint.intellij.util.displayErrorNotification
 import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.CheckStatusChangePermittedResponse
 import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.HotspotStatus
 import java.awt.event.ActionEvent
@@ -77,7 +77,15 @@ class ReviewSecurityHotspotDialog(
                     }
                     .exceptionally { error ->
                         SonarLintConsole.get(project).error("Error while changing the Security Hotspot status", error)
-                        displayErrorNotification(project, "Could not change the Security Hotspot status", ReviewSecurityHotspotAction.GROUP)
+
+                        val notification = ReviewSecurityHotspotAction.GROUP.createNotification(
+                            "<b>SonarLint - Unable to change status</b>",
+                            "Could not change the Security Hotspot status.",
+                            NotificationType.ERROR
+                        )
+                        notification.isImportant = true
+                        notification.notify(project)
+
                         closeDialog(project)
                         null
                     }

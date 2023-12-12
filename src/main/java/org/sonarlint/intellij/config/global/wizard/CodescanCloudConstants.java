@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -17,18 +17,11 @@
  * License along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
  */
-package org.sonarlint.intellij.actions
+package org.sonarlint.intellij.config.global.wizard;
 
-import com.intellij.openapi.actionSystem.AnActionEvent
-import org.sonarlint.intellij.common.util.SonarLintUtils.getService
-import org.sonarlint.intellij.ui.UiUtils.Companion.runOnUiThread
-
-class ShowLogAction : AbstractSonarAction("Show Log") {
-    override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project ?: return
-        runOnUiThread(project) {
-            getService(project, SonarLintToolWindow::class.java).openLogTab()
-        }
+public class CodescanCloudConstants {
+    public static final String CODESCAN_US_URL = "https://app.codescan.io";
+    public static final String CODESCAN_ERROR_ENDPOINT = CODESCAN_US_URL + "/_codescan/errors/intellij";
+    private CodescanCloudConstants() {
     }
-
 }

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -44,11 +44,11 @@ public class DisableRuleIntentionAction implements IntentionAction, LowPriorityA
   }
 
   @Nls @NotNull @Override public String getText() {
-    return "SonarLint: Disable rule '" + ruleKey + "'";
+    return "Disable CodeScan rule '" + ruleKey + "'";
   }
 
   @Nls @NotNull @Override public String getFamilyName() {
-    return "SonarLint disable rule";
+    return "CodeScan disable rule";
   }
 
   @Override public boolean isAvailable(@NotNull Project project, Editor editor, PsiFile file) {

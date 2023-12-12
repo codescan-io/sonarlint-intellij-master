@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -80,7 +80,7 @@ public class DefaultEngineManager implements EngineManager, Disposable {
     while (it.hasNext()) {
       var entry = it.next();
       if (!configuredStorageIds.contains(entry.getKey())) {
-        doInBackground("Stop SonarLint engine '" + entry.getKey() + "'", () -> entry.getValue().stop(false));
+        doInBackground("Stop CodeScan engine '" + entry.getKey() + "'", () -> entry.getValue().stop(false));
         it.remove();
       }
     }
@@ -91,7 +91,7 @@ public class DefaultEngineManager implements EngineManager, Disposable {
     AnalysisRequirementNotifications.resetCachedMessages();
     for (var entry : connectedEngines.entrySet()) {
       if (async) {
-        doInBackground("Stop SonarLint engine '" + entry.getKey() + "'", () -> entry.getValue().stop(false));
+        doInBackground("Stop CodeScan engine '" + entry.getKey() + "'", () -> entry.getValue().stop(false));
       } else {
         entry.getValue().stop(false);
       }
@@ -100,7 +100,7 @@ public class DefaultEngineManager implements EngineManager, Disposable {
     if (standalone != null) {
       if (async) {
         var standaloneCopy = this.standalone;
-        doInBackground("Stop standalone SonarLint engine", standaloneCopy::stop);
+        doInBackground("Stop standalone CodeScan engine", standaloneCopy::stop);
       } else {
         standalone.stop();
       }
@@ -119,7 +119,7 @@ public class DefaultEngineManager implements EngineManager, Disposable {
     var configOpt = getGlobalSettings().getServerConnectionByName(connectionId);
     if (configOpt.isPresent()) {
       var config = configOpt.get();
-      var engine = factory.createEngine(connectionId, config.isSonarCloud());
+      var engine = factory.createEngine(connectionId, config.isCodeScanCloud());
       getService(ServerEventsService.class).autoSubscribe(engine, config);
       return engine;
     }

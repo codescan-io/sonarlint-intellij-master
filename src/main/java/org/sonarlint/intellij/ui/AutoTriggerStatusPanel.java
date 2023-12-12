@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -53,7 +53,7 @@ public class AutoTriggerStatusPanel {
   private static final String POWER_SAVE_MODE_ENABLED = "POWER_SAVE_MODE_ENABLED";
   private static final String AUTO_TRIGGER_DISABLED = "AUTO_TRIGGER_DISABLED";
 
-  private static final String TOOLTIP = "Some files are not automatically analyzed. Check the SonarLint debug logs for details.";
+  private static final String TOOLTIP = "Some files are not automatically analyzed. Check the CodeScan debug logs for details.";
 
   private static final String POWER_SAVE_MODE_TOOLTIP = "Disable power save mode for automatic analysis";
 

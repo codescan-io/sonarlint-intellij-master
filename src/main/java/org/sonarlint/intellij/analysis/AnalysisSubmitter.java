@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -46,7 +46,7 @@ import static org.sonarlint.intellij.util.ProjectUtils.getAllFiles;
 
 @Service(Service.Level.PROJECT)
 public final class AnalysisSubmitter {
-  public static final String ANALYSIS_TASK_TITLE = "SonarLint Analysis";
+  public static final String ANALYSIS_TASK_TITLE = "CodeScan Analysis";
   private final Project project;
   private final OnTheFlyFindingsHolder onTheFlyFindingsHolder;
   private Cancelable currentManualAnalysis;

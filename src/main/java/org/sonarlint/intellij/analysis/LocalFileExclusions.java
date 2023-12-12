@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -117,10 +117,10 @@ public final class LocalFileExclusions {
       return ExcludeResult.excluded("Could not create a relative path");
     }
     if (globalExclusions.test(relativePath)) {
-      return ExcludeResult.excluded("file matches exclusions defined in the SonarLint Global Settings");
+      return ExcludeResult.excluded("file matches exclusions defined in the CodeScan Global Settings");
     }
     if (projectExclusions.test(relativePath)) {
-      return ExcludeResult.excluded("file matches exclusions defined in the SonarLint Project Settings");
+      return ExcludeResult.excluded("file matches exclusions defined in the CodeScan Project Settings");
     }
 
     return ExcludeResult.notExcluded();

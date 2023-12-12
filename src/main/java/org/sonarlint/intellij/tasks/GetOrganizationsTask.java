@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ public class GetOrganizationsTask extends Task.Modal {
   private List<OrganizationDto> organizations;
 
   public GetOrganizationsTask(ServerConnection connection) {
-    super(null, "Fetch organizations from SonarCloud", true);
+    super(null, "Fetch organizations from CodeScanCloud", true);
     this.connection = connection;
   }
 

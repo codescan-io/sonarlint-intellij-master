@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -42,23 +42,21 @@ object SonarLintIcons {
     private val yellow60Color = colorWithAlpha(0xf4af3d, 60)
 
     @JvmField
-    val ICON_SONARQUBE = getIcon("/images/SonarQube.png")
+    val ICON_CODESCAN = getIcon("/images/CodeScan.png")
     @JvmField
-    val ICON_SONARCLOUD = getIcon("/images/SonarCloud.png")
+    val ICON_SONARQUBE_16 = getIcon("/images/codescan-16.png")
     @JvmField
-    val ICON_SONARQUBE_16 = getIcon("/images/onde-sonar-16.png")
+    val ICON_SONARCLOUD_16 = getIcon("/images/codescan-16.png")
     @JvmField
-    val ICON_SONARCLOUD_16 = getIcon("/images/sonarcloud-16.png")
+    val SONARLINT_TOOLWINDOW = getIcon("/images/CodeScanToolWindow.svg")
     @JvmField
-    val SONARLINT_TOOLWINDOW = getIcon("/images/sonarlintToolWindow.svg")
+    val SONARLINT_ACTION = getIcon("/images/CodeScanAction.svg")
     @JvmField
-    val SONARLINT_ACTION = getIcon("/images/sonarlintAction.svg")
+    val SONARLINT_TOOLWINDOW_EMPTY = getIcon("/images/CodeScanToolWindow.svg")
     @JvmField
-    val SONARLINT_TOOLWINDOW_EMPTY = getIcon("/images/sonarlintToolWindowEmpty.svg")
+    val SONARLINT = getIcon("/images/codescan-round.png")
     @JvmField
-    val SONARLINT = getIcon("/images/sonarlint.png")
-    @JvmField
-    val SONARLINT_32 = getIcon("/images/sonarlint@2x.png")
+    val SONARLINT_32 = getIcon("/images/codescan@2x.png")
     @JvmField
     val PLAY = getIcon("/images/execute.png")
     @JvmField

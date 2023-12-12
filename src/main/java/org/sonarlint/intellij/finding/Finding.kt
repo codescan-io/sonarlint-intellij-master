@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,28 +19,13 @@
  */
 package org.sonarlint.intellij.finding
 
-import com.intellij.openapi.vfs.VirtualFile
-import org.sonarsource.sonarlint.core.commons.CleanCodeAttribute
-import org.sonarsource.sonarlint.core.commons.ImpactSeverity
 import org.sonarsource.sonarlint.core.commons.RuleType
-import org.sonarsource.sonarlint.core.commons.SoftwareQuality
 
 interface Finding {
-
-    fun getCleanCodeAttribute(): CleanCodeAttribute?
-
-    fun getImpacts(): Map<SoftwareQuality, ImpactSeverity>
-
-    fun getServerKey(): String?
 
     fun getRuleKey(): String
 
     fun getType(): RuleType
 
     fun getRuleDescriptionContextKey(): String?
-
-    fun file(): VirtualFile?
-
-    fun isValid(): Boolean
-
 }

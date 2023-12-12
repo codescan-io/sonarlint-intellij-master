@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -29,24 +29,19 @@ import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.project.ProjectManagerListener
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.serviceContainer.NonInjectable
 import org.apache.commons.io.FileUtils
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.sonarlint.intellij.SonarLintIntelliJClient
 import org.sonarlint.intellij.SonarLintPlugin
-import org.sonarlint.intellij.common.ui.ReadActionUtils
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.common.vcs.VcsService
 import org.sonarlint.intellij.config.Settings.getGlobalSettings
 import org.sonarlint.intellij.config.Settings.getSettingsFor
 import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.config.global.SonarLintGlobalSettings
-import org.sonarlint.intellij.finding.issue.LiveIssue
 import org.sonarlint.intellij.messages.GlobalConfigurationListener
-import org.sonarlint.intellij.telemetry.TelemetryManagerProvider
 import org.sonarlint.intellij.util.GlobalLogOutput
-import org.sonarlint.intellij.util.ProjectUtils.getRelativePaths
 import org.sonarsource.sonarlint.core.SonarLintBackendImpl
 import org.sonarsource.sonarlint.core.clientapi.SonarLintBackend
 import org.sonarsource.sonarlint.core.clientapi.backend.branch.DidChangeActiveSonarProjectBranchParams
@@ -82,26 +77,18 @@ import org.sonarsource.sonarlint.core.clientapi.backend.initialize.FeatureFlagsD
 import org.sonarsource.sonarlint.core.clientapi.backend.initialize.InitializeParams
 import org.sonarsource.sonarlint.core.clientapi.backend.issue.AddIssueCommentParams
 import org.sonarsource.sonarlint.core.clientapi.backend.issue.ChangeIssueStatusParams
-import org.sonarsource.sonarlint.core.clientapi.backend.issue.IssueStatus
+import org.sonarsource.sonarlint.core.clientapi.backend.issue.ResolutionStatus
 import org.sonarsource.sonarlint.core.clientapi.backend.rules.GetEffectiveRuleDetailsParams
 import org.sonarsource.sonarlint.core.clientapi.backend.rules.GetEffectiveRuleDetailsResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.rules.GetStandaloneRuleDescriptionParams
-import org.sonarsource.sonarlint.core.clientapi.backend.rules.GetStandaloneRuleDescriptionResponse
 import org.sonarsource.sonarlint.core.clientapi.backend.rules.ListAllStandaloneRulesDefinitionsResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.tracking.ClientTrackedIssueDto
-import org.sonarsource.sonarlint.core.clientapi.backend.tracking.LineWithHashDto
-import org.sonarsource.sonarlint.core.clientapi.backend.tracking.TextRangeWithHashDto
-import org.sonarsource.sonarlint.core.clientapi.backend.tracking.TrackWithServerIssuesParams
 import org.sonarsource.sonarlint.core.clientapi.common.TokenDto
 import org.sonarsource.sonarlint.core.clientapi.common.UsernamePasswordDto
 import org.sonarsource.sonarlint.core.http.HttpClient
-import org.sonarsource.sonarlint.core.serverconnection.IssueStorePaths
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.CompletableFuture
-import org.sonarsource.sonarlint.core.clientapi.backend.issue.CheckStatusChangePermittedResponse as CheckIssueStatusChangePermittedResponse
 
 @Service(Service.Level.APP)
 class BackendService @NonInjectable constructor(private val backend: SonarLintBackend) : Disposable {
@@ -111,15 +98,15 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
         migrateStoragePath()
         val serverConnections = getGlobalSettings().serverConnections
         val sonarCloudConnections =
-            serverConnections.filter { it.isSonarCloud }.map { toSonarCloudBackendConnection(it) }
+            serverConnections.filter { it.isCodeScanCloud }.map { toSonarCloudBackendConnection(it) }
         val sonarQubeConnections =
-            serverConnections.filter { !it.isSonarCloud }.map { toSonarQubeBackendConnection(it) }
+            serverConnections.filter { !it.isCodeScanCloud }.map { toSonarQubeBackendConnection(it) }
         backend.initialize(
             InitializeParams(
                 ClientInfoDto(
                     ApplicationInfo.getInstance().versionName,
-                    TelemetryManagerProvider.TELEMETRY_PRODUCT_KEY,
-                    "SonarLint IntelliJ " + getService(SonarLintPlugin::class.java).version
+                    "idea",
+                    "CodeScan IntelliJ " + getService(SonarLintPlugin::class.java).version
                 ),
                 FeatureFlagsDto(true, true, true, true, true),
                 getLocalStoragePath(),
@@ -183,8 +170,8 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     private fun getLocalStoragePath(): Path = Paths.get(PathManager.getSystemPath()).resolve("sonarlint/storage")
 
     fun connectionsUpdated(serverConnections: List<ServerConnection>) {
-        val scConnections = serverConnections.filter { it.isSonarCloud }.map { toSonarCloudBackendConnection(it) }
-        val sqConnections = serverConnections.filter { !it.isSonarCloud }.map { toSonarQubeBackendConnection(it) }
+        val scConnections = serverConnections.filter { it.isCodeScanCloud }.map { toSonarCloudBackendConnection(it) }
+        val sqConnections = serverConnections.filter { !it.isCodeScanCloud }.map { toSonarQubeBackendConnection(it) }
         backend.connectionService.didUpdateConnections(DidUpdateConnectionsParams(sqConnections, scConnections))
     }
 
@@ -199,7 +186,8 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     private fun toSonarCloudBackendConnection(createdConnection: ServerConnection): SonarCloudConnectionConfigurationDto {
         return SonarCloudConnectionConfigurationDto(
             createdConnection.name,
-            createdConnection.organizationKey!!,
+            createdConnection.hostUrl,
+            createdConnection.organizationKey,
             createdConnection.isDisableNotifications
         )
     }
@@ -318,10 +306,6 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
         return initializedBackend.rulesService.listAllStandaloneRulesDefinitions()
     }
 
-    fun getStandaloneRuleDetails(params: GetStandaloneRuleDescriptionParams): CompletableFuture<GetStandaloneRuleDescriptionResponse> {
-        return initializedBackend.rulesService.getStandaloneRuleDetails(params)
-    }
-
     fun helpGenerateUserToken(serverUrl: String, isSonarCloud: Boolean): CompletableFuture<HelpGenerateUserTokenResponse> {
         return initializedBackend.connectionService.helpGenerateUserToken(HelpGenerateUserTokenParams(serverUrl, isSonarCloud))
     }
@@ -360,7 +344,7 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
         )
     }
 
-    fun markAsResolved(module: Module, issueKey: String, newStatus: IssueStatus, isTaintVulnerability: Boolean): CompletableFuture<Void> {
+    fun markAsResolved(module: Module, issueKey: String, newStatus: ResolutionStatus, isTaintVulnerability: Boolean): CompletableFuture<Void> {
         return initializedBackend.issueService.changeStatus(
             ChangeIssueStatusParams(
                 moduleId(module),
@@ -379,14 +363,14 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
         return initializedBackend.hotspotService.checkStatusChangePermitted(CheckStatusChangePermittedParams(connectionId, hotspotKey))
     }
 
-    fun checkIssueStatusChangePermitted(
-        connectionId: String,
-        issueKey: String,
-    ): CompletableFuture<CheckIssueStatusChangePermittedResponse> {
-        return initializedBackend.issueService.checkStatusChangePermitted(
-            org.sonarsource.sonarlint.core.clientapi.backend.issue.CheckStatusChangePermittedParams(connectionId, issueKey)
-        )
-    }
+//    fun checkIssueStatusChangePermitted(
+//        connectionId: String,
+//        issueKey: String,
+//    ): CompletableFuture<CheckIssueStatusChangePermittedResponse> {
+//        return initializedBackend.issueService.checkStatusChangePermitted(
+//            org.sonarsource.sonarlint.core.clientapi.backend.issue.CheckStatusChangePermittedParams(connectionId, issueKey)
+//        )
+//    }
 
     fun branchChanged(module: Module, newActiveBranchName: String) {
         initializedBackend.sonarProjectBranchService.didChangeActiveSonarProjectBranch(
@@ -400,8 +384,8 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     fun checkSmartNotificationsSupported(server: ServerConnection): CompletableFuture<CheckSmartNotificationsSupportedResponse> {
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
-        val params: CheckSmartNotificationsSupportedParams = if (server.isSonarCloud) {
-            CheckSmartNotificationsSupportedParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials))
+        val params: CheckSmartNotificationsSupportedParams = if (server.isCodeScanCloud) {
+            CheckSmartNotificationsSupportedParams(TransientSonarCloudConnectionDto(server.hostUrl, server.organizationKey, credentials))
         } else {
             CheckSmartNotificationsSupportedParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))
         }
@@ -411,8 +395,8 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     fun validateConnection(server: ServerConnection): CompletableFuture<ValidateConnectionResponse> {
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
-        val params: ValidateConnectionParams = if (server.isSonarCloud) {
-            ValidateConnectionParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials))
+        val params: ValidateConnectionParams = if (server.isCodeScanCloud) {
+            ValidateConnectionParams(TransientSonarCloudConnectionDto(server.hostUrl, server.organizationKey, credentials))
         } else {
             ValidateConnectionParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))
         }
@@ -423,86 +407,14 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
         val params = ListUserOrganizationsParams(credentials)
-        return initializedBackend.connectionService.listUserOrganizations(params)
+        return initializedBackend.connectionService.listUserOrganizations(params, server.hostUrl)
     }
 
     fun getOrganization(server: ServerConnection, organizationKey: String): CompletableFuture<GetOrganizationResponse> {
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
         val params = GetOrganizationParams(credentials, organizationKey)
-        return initializedBackend.connectionService.getOrganization(params)
-    }
-
-    fun trackWithServerIssues(
-        module: Module,
-        liveIssuesByFile: Map<VirtualFile, Collection<LiveIssue>>,
-        shouldFetchIssuesFromServer: Boolean,
-    ) {
-        val binding = getService(module, ModuleBindingManager::class.java).binding ?: return
-        val serverRelativePathByVirtualFile = getRelativePaths(module.project, liveIssuesByFile.keys)
-            .mapValues { (_, ideRelativePath) -> IssueStorePaths.idePathToServerPath(binding, ideRelativePath) }
-            .mapNotNull { (key, value) -> value?.let { key to it } }
-            .toMap()
-        val virtualFileByServerRelativePath = serverRelativePathByVirtualFile.map { Pair(it.value, it.key) }.toMap()
-        val rawIssuesByRelativePath =
-            liveIssuesByFile
-                .filterKeys { file -> serverRelativePathByVirtualFile.containsKey(file) }
-                .entries.associate { (file, issues) ->
-                    serverRelativePathByVirtualFile[file]!! to issues.map {
-                        val textRangeWithHashDto = toTextRangeWithHashDto(module.project, it)
-                        ClientTrackedIssueDto(
-                            it.backendId,
-                            it.serverFindingKey,
-                            textRangeWithHashDto,
-                            textRangeWithHashDto?.let { range -> LineWithHashDto(range.startLine, it.lineHashString!!) },
-                            it.ruleKey,
-                            it.message
-                        )
-                    }
-                }
-
-        initializedBackend.issueTrackingService.trackWithServerIssues(
-            TrackWithServerIssuesParams(
-                moduleId(module),
-                rawIssuesByRelativePath,
-                shouldFetchIssuesFromServer
-            )
-        ).thenAccept { response ->
-            response.issuesByServerRelativePath.forEach { (serverRelativePath, trackedIssues) ->
-                val file = virtualFileByServerRelativePath[serverRelativePath] ?: return@forEach
-                val liveIssues = liveIssuesByFile[file] ?: return@forEach
-                liveIssues.zip(trackedIssues).forEach { (liveIssue, serverOrLocalIssue) ->
-                    if (serverOrLocalIssue.isLeft) {
-                        val serverIssue = serverOrLocalIssue.left
-                        liveIssue.backendId = serverIssue.id
-                        liveIssue.introductionDate = serverIssue.introductionDate
-                        liveIssue.serverFindingKey = serverIssue.serverKey
-                        liveIssue.isResolved = serverIssue.isResolved
-                        serverIssue.overriddenSeverity?.let { liveIssue.setSeverity(it) }
-                        liveIssue.setType(serverIssue.type)
-                    } else {
-                        val localOnlyIssue = serverOrLocalIssue.right
-                        liveIssue.backendId = localOnlyIssue.id
-                        liveIssue.isResolved = localOnlyIssue.resolutionStatus != null
-                    }
-                }
-            }
-        }
-            .get()
-    }
-
-    private fun toTextRangeWithHashDto(project: Project, issue: LiveIssue): TextRangeWithHashDto? {
-        val rangeMarker = issue.range ?: return null
-        if (!rangeMarker.isValid) {
-            return null
-        }
-        return ReadActionUtils.computeReadActionSafely(project) {
-            val startLine = rangeMarker.document.getLineNumber(rangeMarker.startOffset)
-            val startLineOffset = rangeMarker.startOffset - rangeMarker.document.getLineStartOffset(startLine)
-            val endLine = rangeMarker.document.getLineNumber(rangeMarker.endOffset)
-            val endLineOffset = rangeMarker.endOffset - rangeMarker.document.getLineStartOffset(endLine)
-            TextRangeWithHashDto(startLine + 1, startLineOffset, endLine + 1, endLineOffset, issue.textRangeHashString)
-        }
+        return initializedBackend.connectionService.getOrganization(params, server.hostUrl)
     }
 
     companion object {

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -144,8 +144,9 @@ public class OrganizationStep extends AbstractWizardStepEx {
   }
 
   @Override public boolean isComplete() {
-    // even if skipped in the SQ context, this step is still checked for completion
-    return !model.isSonarCloud() || orgList.getSelectedValue() != null;
+    // if this step is skipped because there is only one organization, we still need to return true so that the wizard
+    // can finish
+    return model.getOrganizationList().size() <= 1 || orgList.getSelectedValue() != null;
   }
 
   @Override public void commit(CommitType commitType) {

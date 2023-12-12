@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -38,8 +38,8 @@ import java.awt.Image;
 import java.awt.Transparency;
 import java.util.List;
 import java.util.Set;
-import javax.annotation.CheckForNull;
-import javax.annotation.Nullable;
+//import javax.annotation.CheckForNull;
+//import javax.annotation.Nullable;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import org.jetbrains.annotations.NotNull;
@@ -48,10 +48,10 @@ import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 public class SonarLintUtils {
 
   private static final Logger LOG = Logger.getInstance(SonarLintUtils.class);
-  public static final String DEFAULT_SONARCLOUD_URL = "https://sonarcloud.io";
-  public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_SONARCLOUD_URL);
-  private static final Set<String> SONARCLOUD_ALIAS = Set.copyOf(List.of("https://sonarqube.com", "https://www.sonarqube.com",
-    "https://www.sonarcloud.io", DEFAULT_SONARCLOUD_URL, SONARCLOUD_URL));
+  public static final String DEFAULT_CODESCANCLOUD_URL = "https://app.codescan.io";
+  public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_CODESCANCLOUD_URL);
+  private static final Set<String> SONARCLOUD_ALIAS = Set.copyOf(List.of("https://codescan.com", "https://www.codescan.com",
+    "https://www.codescan.io", DEFAULT_CODESCANCLOUD_URL, SONARCLOUD_URL));
 
   private SonarLintUtils() {
     // Utility class
@@ -85,15 +85,15 @@ public class SonarLintUtils {
     }
   }
 
-  public static boolean isSonarCloudAlias(@Nullable String url) {
+  public static boolean isCodescanCloudAlias(String url) {
     return url != null && SONARCLOUD_ALIAS.contains(url);
   }
 
-  public static boolean isEmpty(@Nullable String str) {
+  public static boolean isEmpty(String str) {
     return str == null || str.isEmpty();
   }
 
-  public static boolean isBlank(@Nullable String str) {
+  public static boolean isBlank(String str) {
     return str == null || str.trim().isEmpty();
   }
 
@@ -130,7 +130,7 @@ public class SonarLintUtils {
    * on which one of the split editors is selected.
    * This seems to work well with split editors.
    */
-  @CheckForNull
+//  @CheckForNull
   public static VirtualFile getSelectedFile(Project project) {
     if (project.isDisposed()) {
       return null;
@@ -154,8 +154,7 @@ public class SonarLintUtils {
     return (properties != null && properties.isForGeneratedSources()) || (resourceProperties != null && resourceProperties.isForGeneratedSources());
   }
 
-  @Nullable
-  public static SourceFolder getSourceFolder(@CheckForNull VirtualFile source, Module module) {
+  public static SourceFolder getSourceFolder(VirtualFile source, Module module) {
     if (source == null) {
       return null;
     }
@@ -188,7 +187,7 @@ public class SonarLintUtils {
     return "php".equalsIgnoreCase(file.getFileType().getName());
   }
 
-  @CheckForNull
+//  @CheckForNull
   public static String getIdeVersionForTelemetry() {
     String ideVersion;
     try {

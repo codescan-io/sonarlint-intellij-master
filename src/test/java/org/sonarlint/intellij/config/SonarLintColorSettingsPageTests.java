@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -38,7 +38,7 @@ class SonarLintColorSettingsPageTests {
   void testGetters() {
     assertThat(colorSettingsPage).isNotNull();
     assertThat(colorSettingsPage.getColorDescriptors()).isEmpty();
-    assertThat(colorSettingsPage.getDisplayName()).isEqualTo("SonarLint");
+    assertThat(colorSettingsPage.getDisplayName()).isEqualTo("CodeScan");
     assertThat(colorSettingsPage.getHighlighter()).isInstanceOf(PlainSyntaxHighlighter.class);
   }
 

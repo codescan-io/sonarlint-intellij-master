@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -100,7 +100,6 @@ public class SummaryNode extends AbstractNode {
   @Override
   public void render(TreeCellRenderer renderer) {
     renderer.append(getText());
-    renderer.setToolTipText(null);
   }
 
   @Override

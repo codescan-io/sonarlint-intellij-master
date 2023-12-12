@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -41,19 +41,19 @@ class ServerConnectionTests {
     assertThat(server.getHostUrl()).isEqualTo("host");
 
     assertThat(server).hasToString(server.getName());
-    assertThat(server.isSonarCloud()).isFalse();
+    assertThat(server.isCodeScanCloud()).isFalse();
   }
 
   @Test
   void testSonarCloud() {
     var server1 = ServerConnection.newBuilder()
-      .setHostUrl("https://sonarqube.com")
+      .setHostUrl("CodescanCloudConstants.CODESCAN_US_URL")
       .setPassword("pass")
       .setToken("token")
       .setName("name")
       .setLogin("login")
       .build();
-    assertThat(server1.isSonarCloud()).isTrue();
+    assertThat(server1.isCodeScanCloud()).isTrue();
   }
 
   @Test

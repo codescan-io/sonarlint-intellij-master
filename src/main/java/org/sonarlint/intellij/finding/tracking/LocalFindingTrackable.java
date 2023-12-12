@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -34,7 +34,6 @@ public class LocalFindingTrackable implements Trackable {
   }
 
   @CheckForNull
-  @Override
   public UUID getId() {
     try {
       return UUID.fromString(finding.getId());

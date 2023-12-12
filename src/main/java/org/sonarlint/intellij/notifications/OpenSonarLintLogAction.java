@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@ class OpenSonarLintLogAction extends NotificationAction {
   private final Project project;
 
   OpenSonarLintLogAction(Project project) {
-    super("Open SonarLint Log");
+    super("Open CodeScan Log");
     this.project = project;
   }
 

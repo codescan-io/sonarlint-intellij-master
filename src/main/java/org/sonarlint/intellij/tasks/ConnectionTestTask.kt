@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -30,7 +30,7 @@ import org.sonarsource.sonarlint.core.clientapi.backend.connection.validate.Vali
 
 class ConnectionTestTask(private val server: ServerConnection) :
     Task.WithResult<ValidateConnectionResponse?, Exception>(
-        null, "Test Connection to " + if (server.isSonarCloud) "SonarCloud" else "SonarQube", true
+        null, "Test Connection to " + if (server.isCodeScanCloud) "CodeScanCloud" else "CodeScan", true
     ) {
 
     override fun compute(indicator: ProgressIndicator): ValidateConnectionResponse? {

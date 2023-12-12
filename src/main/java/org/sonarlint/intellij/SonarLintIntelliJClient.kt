@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -100,7 +100,7 @@ import java.util.stream.Collectors
 
 object SonarLintIntelliJClient : SonarLintClient {
 
-    private val GROUP: NotificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("SonarLint")
+    private val GROUP: NotificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("CodeScan")
     private val backendTaskProgressReporter = BackendTaskProgressReporter()
 
     override fun suggestBinding(params: SuggestBindingParams) {
@@ -206,7 +206,7 @@ object SonarLintIntelliJClient : SonarLintClient {
 
     private fun showBalloon(project: Project?, message: String, type: NotificationType) {
         val notification = GROUP.createNotification(
-            "SonarLint message",
+            "CodeScan message",
             message,
             type
         )

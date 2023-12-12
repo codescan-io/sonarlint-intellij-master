@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@ import com.intellij.openapi.project.Project;
 public class SecretsNotifications {
 
   public static final NotificationGroup GROUP = NotificationGroupManager.getInstance()
-    .getNotificationGroup("SonarLint: Secrets detection");
+    .getNotificationGroup("CodeScan: Secrets detection");
 
   private SecretsNotifications() {
     // utility class
@@ -35,8 +35,8 @@ public class SecretsNotifications {
 
   public static void sendNotification(Project project) {
     var notification = GROUP.createNotification(
-      "SonarLint: secret(s) detected",
-      "SonarLint detected some secrets in one of the open files. " +
+      "CodeScan: secret(s) detected",
+      "CodeScan detected some secrets in one of the open files. " +
         "We strongly advise you to review those secrets and ensure they are not committed into repositories. " +
         "Please refer to the SonarLint tool window for more information.",
       NotificationType.WARNING);

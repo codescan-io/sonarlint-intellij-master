@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -136,20 +136,17 @@ public class ServerConnection {
       return null;
     }
   }
-  public boolean isSonarCloud() {
-    return SonarLintUtils.isSonarCloudAlias(hostUrl);
-  }
 
-  public boolean isSonarQube() {
-    return !isSonarCloud();
+  public boolean isCodeScanCloud() {
+    return !SonarLintUtils.isCodescanCloudAlias(hostUrl);
   }
 
   public String getProductName() {
-    return isSonarCloud() ? "SonarCloud" : "SonarQube";
+    return "CodeScan";
   }
 
   public Icon getProductIcon() {
-    return isSonarCloud() ? SonarLintIcons.ICON_SONARCLOUD_16 : SonarLintIcons.ICON_SONARQUBE_16;
+    return isCodeScanCloud() ? SonarLintIcons.ICON_SONARCLOUD_16 : SonarLintIcons.ICON_SONARQUBE_16;
   }
 
   public boolean enableProxy() {
@@ -173,7 +170,7 @@ public class ServerConnection {
   }
 
   public EndpointParams getEndpointParams() {
-    return new EndpointParams(getHostUrl(), isSonarCloud(), getOrganizationKey());
+    return new EndpointParams(getHostUrl(), isCodeScanCloud(), getOrganizationKey());
   }
 
   public ServerApi api() {
@@ -190,7 +187,7 @@ public class ServerConnection {
   }
 
   public ServerLinks links() {
-    return isSonarCloud() ? SonarCloudLinks.INSTANCE : new SonarQubeLinks(hostUrl);
+    return isCodeScanCloud() ? SonarCloudLinks.INSTANCE : new SonarQubeLinks(hostUrl);
   }
 
   public static class Builder {

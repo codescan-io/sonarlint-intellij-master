@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -61,7 +61,7 @@ class BindingSuggestionRenderer :
         val attrs = SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES
         getGlobalSettings().getServerConnectionByName(suggestion.connectionId)
             .ifPresentOrElse({
-                icon = if (it.isSonarCloud) SonarLintIcons.ICON_SONARCLOUD_16 else SonarLintIcons.ICON_SONARQUBE_16
+                icon = if (it.isCodeScanCloud) SonarLintIcons.ICON_SONARCLOUD_16 else SonarLintIcons.ICON_SONARQUBE_16
                 append(suggestion.projectName, attrs, true)
                 append(" (" + suggestion.projectKey + ")", SimpleTextAttributes.GRAY_ATTRIBUTES, false)
                 append(" on connection [" + suggestion.connectionId + "]", SimpleTextAttributes.GRAY_ATTRIBUTES, false)

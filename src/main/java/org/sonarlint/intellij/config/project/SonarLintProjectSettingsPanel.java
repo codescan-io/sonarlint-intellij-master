@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -56,7 +56,7 @@ public class SonarLintProjectSettingsPanel implements Disposable {
     rootPropertiesPane = new JPanel(new BorderLayout());
     rootPropertiesPane.add(propsPanel.create(), BorderLayout.CENTER);
 
-    tabs.insertTab("Bind to SonarQube / SonarCloud", null, rootBindPane, "Configure the binding to a SonarQube server or SonarCloud", 0);
+    tabs.insertTab("Bind to CodeScan / CodeScanCloud", null, rootBindPane, "Configure the binding to a CodeScan server or CodeScanCloud", 0);
     tabs.insertTab("File Exclusions", null, exclusionsPanel.getComponent(), "Configure which files to exclude from analysis", 1);
     tabs.insertTab("Analysis Properties", null, rootPropertiesPane, "Configure analysis properties", 2);
 

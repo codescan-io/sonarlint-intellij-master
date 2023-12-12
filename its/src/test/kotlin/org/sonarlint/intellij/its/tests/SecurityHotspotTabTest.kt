@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -67,7 +67,7 @@ class SecurityHotspotTabTest : BaseUiTest() {
     private fun bindProjectFromPanel() {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tab("Security Hotspots") { select() }
                     content("SecurityHotspotsPanel") {
@@ -86,7 +86,7 @@ class SecurityHotspotTabTest : BaseUiTest() {
     private fun openReviewDialogFromList(remoteRobot: RemoteRobot, securityHotspotMessage: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Security Hotspots") { select() }
                     content("SecurityHotspotTree") {
@@ -119,7 +119,7 @@ class SecurityHotspotTabTest : BaseUiTest() {
                 firstNotification {
                     hasText("The Security Hotspot status was successfully updated")
                 }
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     content("SecurityHotspotsPanel") {
                         hasText("No Security Hotspot found.")
                     }
@@ -131,7 +131,7 @@ class SecurityHotspotTabTest : BaseUiTest() {
     private fun verifySecurityHotspotTabContainsMessages(remoteRobot: RemoteRobot, vararg expectedMessages: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Security Hotspots") { select() }
                     content("SecurityHotspotsPanel") {
@@ -145,7 +145,7 @@ class SecurityHotspotTabTest : BaseUiTest() {
     private fun verifySecurityHotspotTreeContainsMessages(remoteRobot: RemoteRobot, vararg expectedMessages: String) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarLint") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Security Hotspots") { select() }
                     content("SecurityHotspotTree") {

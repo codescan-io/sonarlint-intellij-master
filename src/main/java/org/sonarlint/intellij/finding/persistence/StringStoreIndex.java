@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -50,7 +50,7 @@ public class StringStoreIndex implements StoreIndex<String> {
     try (var stream = Files.newInputStream(indexFilePath)) {
       return Sonarlint.StorageIndex.parseFrom(stream).getMappedPathByKeyMap();
     } catch (IOException e) {
-      GlobalLogOutput.get().logError("Unable to read SonarLint issue store.", e);
+      GlobalLogOutput.get().logError("Unable to read CodeScan issue store.", e);
       return Collections.emptyMap();
     }
   }
@@ -77,7 +77,7 @@ public class StringStoreIndex implements StoreIndex<String> {
       index.writeTo(stream);
     } catch (IOException e) {
       // Don't log in the SonarLint console as the problem can occurs when stopping the IDE
-      GlobalLogOutput.get().logError("Unable to write SonarLint issue store.", e);
+      GlobalLogOutput.get().logError("Unable to write CodeScan issue store.", e);
     }
   }
 }

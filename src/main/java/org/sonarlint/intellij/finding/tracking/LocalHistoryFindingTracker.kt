@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -76,7 +76,6 @@ class LocalHistoryFindingTracker(private val previousFindings: CachedFindings) {
          * Previous matched will be either server issue or preexisting local issue.
          */
         private fun <L : LiveFinding> copyFromPrevious(rawMatched: L, previousMatched: Trackable) {
-            rawMatched.backendId = previousMatched.id
             rawMatched.introductionDate = previousMatched.introductionDate
             // FIXME should we not reset those fields when unbinding a project?
             rawMatched.serverFindingKey = previousMatched.serverFindingKey

@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +25,6 @@ import org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable;
 class OpenGlobalSettingsAction extends OpenConfigurableAction {
 
   OpenGlobalSettingsAction(Project project) {
-    super(project, "Open SonarLint Settings", new SonarLintGlobalConfigurable());
+    super(project, "Open CodeScan Settings", new SonarLintGlobalConfigurable());
   }
 }

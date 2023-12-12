@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -51,7 +51,7 @@ import org.sonarlint.intellij.ui.tree.IssueTree;
 import org.sonarlint.intellij.ui.tree.IssueTreeModelBuilder;
 
 public abstract class AbstractIssuesPanel extends SimpleToolWindowPanel implements Disposable, OccurenceNavigator {
-  private static final String ID = "SonarLint";
+  private static final String ID = "CodeScan";
   protected final Project project;
   protected Tree tree;
   protected IssueTreeModelBuilder treeBuilder;

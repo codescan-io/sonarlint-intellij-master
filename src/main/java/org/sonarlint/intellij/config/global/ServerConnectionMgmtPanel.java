@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -56,7 +56,7 @@ import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 
 public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGlobalSettings> {
-  private static final String LABEL_NO_SERVERS = "Add a connection to SonarQube or SonarCloud";
+  private static final String LABEL_NO_SERVERS = "Add a connection to Codescan";
 
   // UI
   private JPanel panel;
@@ -98,7 +98,7 @@ public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGl
     var emptyPanel = new JPanel(new BorderLayout());
     emptyPanel.add(emptyLabel, BorderLayout.CENTER);
 
-    var border = IdeBorderFactory.createTitledBorder("SonarQube / SonarCloud connections");
+    var border = IdeBorderFactory.createTitledBorder("CodeScan / CodeScanCloud connections");
     panel = new JPanel(new BorderLayout());
     panel.setBorder(border);
     panel.add(serversPanel);
@@ -106,13 +106,13 @@ public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGl
     connectionList.setCellRenderer(new ColoredListCellRenderer<>() {
       @Override
       protected void customizeCellRenderer(JList list, ServerConnection server, int index, boolean selected, boolean hasFocus) {
-        if (server.isSonarCloud()) {
+        if (server.isCodeScanCloud()) {
           setIcon(SonarLintIcons.ICON_SONARCLOUD_16);
         } else {
           setIcon(SonarLintIcons.ICON_SONARQUBE_16);
         }
         append(server.getName(), SimpleTextAttributes.REGULAR_ATTRIBUTES);
-        if (!server.isSonarCloud()) {
+        if (!server.isCodeScanCloud()) {
           append("    (" + server.getHostUrl() + ")", SimpleTextAttributes.GRAYED_ATTRIBUTES, false);
         }
       }

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
 
-    SonarLint for IntelliJ IDEA
-    Copyright (C) 2015-2023 SonarSource
+    CodeScan for IntelliJ IDEA
+    Copyright (C) 2015-2023 SonarSource SA
     sonarlint@sonarsource.com
 
     This program is free software; you can redistribute it and/or
@@ -20,7 +20,6 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
 
 -->
-
 <svg
    xmlns:dc="http://purl.org/dc/elements/1.1/"
    xmlns:cc="http://creativecommons.org/ns#"

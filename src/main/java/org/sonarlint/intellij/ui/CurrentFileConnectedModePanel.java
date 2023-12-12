@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -110,7 +110,7 @@ public class CurrentFileConnectedModePanel {
       super(SonarLintIcons.NOT_CONNECTED);
       var notConnectedTooltip = new TooltipWithClickableLinks.ForBrowser(this,
         "<h3>Not Connected</h3>" +
-          "<p>Click to synchronize your project with SonarQube or SonarCloud.</p>" +
+          "<p>Click to synchronize your project with CodeScan or CodeScanCloud.</p>" +
           "<p><a href=\"" + SonarLintDocumentation.CONNECTED_MODE_LINK + "\">Learn More</a></p>");
       IdeTooltipManager.getInstance().setCustomTooltip(this, notConnectedTooltip);
     }
