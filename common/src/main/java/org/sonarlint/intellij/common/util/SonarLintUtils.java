@@ -43,6 +43,7 @@ import java.util.Set;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 
 public class SonarLintUtils {
@@ -78,6 +79,13 @@ public class SonarLintUtils {
     return t;
   }
 
+  public static boolean isCodeScanCloudAlias(@Nullable String url) {
+    if (url.contains("codescan.io")) {
+      return true;
+    }
+    return false;
+  }
+
   private static <T> void logAndThrowIfServiceNotFound(T t, String name) {
     if (t == null) {
       LOG.error("Could not find service: " + name);
@@ -85,9 +93,6 @@ public class SonarLintUtils {
     }
   }
 
-  public static boolean isCodescanCloudAlias(String url) {
-    return url != null && SONARCLOUD_ALIAS.contains(url);
-  }
 
   public static boolean isEmpty(String str) {
     return str == null || str.isEmpty();
