@@ -28,6 +28,7 @@ import com.intellij.ui.SearchTextField
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.COLUMNS_MEDIUM
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
@@ -78,7 +79,7 @@ class SearchProjectKeyDialog(
             cell(JBScrollPane(projectList))
                 .resizableColumn()
                 // deprecated in 2022.3, replace with align
-                .horizontalAlign(HorizontalAlign.FILL)
+                .align(Align.FILL)
         }
     }
 

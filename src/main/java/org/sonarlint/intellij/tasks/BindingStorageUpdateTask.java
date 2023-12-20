@@ -172,7 +172,7 @@ public class BindingStorageUpdateTask {
         failures.add(new ProjectStorageUpdateFailure(projectKey, e));
       }
     });
-    engine.sync(connection.getEndpointParams(), connection, allProjectKeysToSync, monitor);
+    engine.sync(connection.getEndpointParams(), httpClient, allProjectKeysToSync, monitor);
     projectsToUpdate.forEach(project -> project.getMessageBus().syncPublisher(ServerBranchesListenerKt.getSERVER_BRANCHES_TOPIC()).serverBranchesUpdated());
     updateAllProjectFindingsForCurrentBranch(engine, connection, monitor, projectsToUpdate);
     return failures;
