@@ -43,6 +43,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -102,7 +103,7 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
 
       if (currentConnection.isPresent()) {
         properties.put(SONAR_HOST_URL, currentConnection.get().getHostUrl());
-        properties.put(SONAR_ORGANIZATION, currentConnection.get().getOrganizationKey());
+        properties.put(SONAR_ORGANIZATION, Objects.toString(currentConnection.get().getOrganizationKey(), ""));
         properties.put(SONAR_LOGIN, currentConnection.get().getToken());
         properties.put(SONAR_PASSWORD, "");
       }

@@ -56,8 +56,9 @@ public class WizardModel {
   }
 
   public WizardModel(ServerConnection connectionToEdit) {
-    if (SonarLintUtils.isCodescanCloudAlias(connectionToEdit.getHostUrl())) {
+    if (SonarLintUtils.isCodeScanCloudAlias(connectionToEdit.getHostUrl())) {
       serverType = ServerType.SONARCLOUD;
+      serverUrl = connectionToEdit.getHostUrl();
     } else {
       serverType = ServerType.SONARQUBE;
       serverUrl = connectionToEdit.getHostUrl();
