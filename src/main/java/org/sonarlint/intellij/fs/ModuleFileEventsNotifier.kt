@@ -21,7 +21,6 @@ package org.sonarlint.intellij.fs
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.vfs.VirtualFile
 import org.sonarlint.intellij.common.ui.SonarLintConsole
 import org.sonarsource.sonarlint.core.analysis.api.ClientModuleFileEvent
 import org.sonarsource.sonarlint.core.client.api.common.SonarLintEngine
@@ -29,7 +28,7 @@ import org.sonarsource.sonarlint.core.client.api.common.SonarLintEngine
 @Service(Service.Level.APP)
 class ModuleFileEventsNotifier {
     fun notifyAsync(engine: SonarLintEngine, module: Module, events: List<ClientModuleFileEvent>) {
-        if (events.isEmpty()) return
+        if (events.isEmpty() || module.isDisposed || module.project.isDisposed) return
         SonarLintConsole.get(module.project).info("Processing ${events.size} file system events")
         events.forEach {
             try {
@@ -37,12 +36,6 @@ class ModuleFileEventsNotifier {
             } catch (e: Exception) {
                 SonarLintConsole.get(module.project).error("Error notifying analyzer of a file event", e)
             }
-        }
-    }
-
-    companion object {
-        fun isPython(file: VirtualFile): Boolean {
-            return file.path.endsWith(".py")
         }
     }
 }
