@@ -1,6 +1,6 @@
 /*
- * SonarLint for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource
+ * CodeScan for IntelliJ IDEA
+ * Copyright (C) 2015-2023 SonarSource SA
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -24,10 +24,7 @@ import com.intellij.ui.OffsetIcon;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.UIUtil;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Locale;
-import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.swing.Icon;
 import org.sonarlint.intellij.SonarLintIcons;
@@ -54,50 +51,34 @@ public class IssueNode extends FindingNode {
 
   @Override
   public void render(TreeCellRenderer renderer) {
+    var severity = issue.getUserSeverity();
+    var severityText = StringUtil.capitalize(severity.toString().toLowerCase(Locale.ENGLISH));
+    var type = issue.getType();
+
+    var severityIcon = SonarLintIcons.severity(severity);
     var gap = JBUIScale.isUsrHiDPI() ? 8 : 4;
     var serverConnection = getService(issue.psiFile().getProject(), ProjectBindingManager.class).tryGetServerConnection();
-
-    if (issue.getCleanCodeAttribute() != null && !issue.getImpacts().isEmpty()) {
-      var highestQualityImpact = Collections.max(issue.getImpacts().entrySet(), Map.Entry.comparingByValue(Comparator.comparing(Enum::ordinal)));
-      var impactText = StringUtil.capitalize(highestQualityImpact.getValue().toString().toLowerCase(Locale.ENGLISH));
-      var qualityText = StringUtil.capitalize(highestQualityImpact.getKey().toString().toLowerCase(Locale.ENGLISH));
-      var impactIcon = SonarLintIcons.impact(highestQualityImpact.getValue());
-
-      if (issue.getServerFindingKey() != null && serverConnection.isPresent()) {
-        var connection = serverConnection.get();
-        renderer.setIconToolTip(impactText + " impact on " + qualityText + " already detected by " + connection.getProductName() + " analysis");
-        setIcon(renderer, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, connection.getProductIcon(), impactIcon));
-      } else {
-        renderer.setIconToolTip(impactText + " impact on " + qualityText);
-        var serverIconEmptySpace = SonarLintIcons.ICON_SONARQUBE_16.getIconWidth() + gap;
-        setIcon(renderer, new OffsetIcon(serverIconEmptySpace, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, impactIcon)));
-      }
+    var typeIcon = SonarLintIcons.type(type);
+    var typeStr = type.toString().replace('_', ' ').toLowerCase(Locale.ENGLISH);
+    if (issue.getServerFindingKey() != null && serverConnection.isPresent()) {
+      var connection = serverConnection.get();
+      renderer.setIconToolTip(severityText + " " + typeStr + " already detected by " + connection.getProductName() + " analysis");
+      setIcon(renderer, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, connection.getProductIcon(), typeIcon, severityIcon));
     } else {
-      var severity = issue.getUserSeverity();
-      var severityText = "";
-      Icon severityIcon = null;
-      if (severity != null) {
-        severityText = StringUtil.capitalize(severity.toString().toLowerCase(Locale.ENGLISH));
-        severityIcon = SonarLintIcons.severity(severity);
-      }
-      var type = issue.getType();
-      var typeIcon = SonarLintIcons.type(type);
-      var typeStr = type.toString().replace('_', ' ').toLowerCase(Locale.ENGLISH);
-
-      if (issue.getServerFindingKey() != null && serverConnection.isPresent()) {
-        var connection = serverConnection.get();
-        renderer.setIconToolTip(severityText + " " + typeStr + " already detected by " + connection.getProductName() + " analysis");
-        setIcon(renderer, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, connection.getProductIcon(), typeIcon, severityIcon));
-      } else {
-        renderer.setIconToolTip(severityText + " " + typeStr);
-        var serverIconEmptySpace = SonarLintIcons.ICON_SONARQUBE_16.getIconWidth() + gap;
-        setIcon(renderer, new OffsetIcon(serverIconEmptySpace, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, typeIcon, severityIcon)));
-      }
+      renderer.setIconToolTip(severityText + " " + typeStr);
+      var serverIconEmptySpace = SonarLintIcons.ICON_SONARQUBE_16.getIconWidth() + gap;
+      setIcon(renderer, new OffsetIcon(serverIconEmptySpace, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, typeIcon, severityIcon)));
     }
 
     renderer.append(issueCoordinates(issue), SimpleTextAttributes.GRAY_ATTRIBUTES);
 
-    renderMessage(renderer);
+    if (issue.isValid()) {
+      renderer.setToolTipText("Double click to open location");
+      renderer.append(issue.getMessage());
+    } else {
+      renderer.setToolTipText("Issue is no longer valid");
+      renderer.append(issue.getMessage(), SimpleTextAttributes.GRAY_ATTRIBUTES);
+    }
 
     issue.context().ifPresent(context -> renderer.append(context.getSummaryDescription(), GRAYED_SMALL_ATTRIBUTES));
 
@@ -106,24 +87,6 @@ public class IssueNode extends FindingNode {
       renderer.append(" ");
       var age = DateUtils.toAge(introductionDate);
       renderer.append(age, SimpleTextAttributes.GRAY_ATTRIBUTES);
-    }
-  }
-
-  private void renderMessage(TreeCellRenderer renderer) {
-    if (issue.isValid()) {
-      renderer.setToolTipText("Double click to open location");
-      if (issue.isResolved()) {
-        renderer.append(issue.getMessage(), new SimpleTextAttributes(SimpleTextAttributes.STYLE_STRIKEOUT, null));
-      } else {
-        renderer.append(issue.getMessage());
-      }
-    } else {
-      renderer.setToolTipText("Issue is no longer valid");
-      if (issue.isResolved()) {
-        renderer.append(issue.getMessage(), new SimpleTextAttributes(SimpleTextAttributes.STYLE_STRIKEOUT, UIUtil.getInactiveTextColor()));
-      } else {
-        renderer.append(issue.getMessage(), SimpleTextAttributes.GRAY_ATTRIBUTES);
-      }
     }
   }
 
