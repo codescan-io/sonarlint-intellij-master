@@ -52,6 +52,7 @@
 
     <change-notes><![CDATA[
       <ul>
+        <li>7.2.0 - Added support for newer Intellij versions (2023.3.1 and above).</li>
         <li>7.1.0 - Added support for Codescan self-hosted customers and it will be compatible with latest Intellij versions (2023.1 and above).</li>
         <li>7.0.0 - Added support for newer Intellij versions (2023.1 and above).</li>
         <li>6.1.5 - Added support for using the plugin with CodeScan instances with custom domains.</li>
