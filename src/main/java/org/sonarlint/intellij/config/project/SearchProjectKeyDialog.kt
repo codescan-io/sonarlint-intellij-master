@@ -58,7 +58,7 @@ class SearchProjectKeyDialog(
     private lateinit var searchTextField: SearchTextField
 
     init {
-        title = "Select " + (if (isSonarCloud) "SonarCloud" else "SonarQube") + " Project To Bind"
+        title = "Select " + (if (isSonarCloud) "CodeScanCloud" else "CodeScan") + " Project To Bind"
         init()
     }
 
