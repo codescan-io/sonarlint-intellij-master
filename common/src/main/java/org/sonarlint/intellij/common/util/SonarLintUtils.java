@@ -251,7 +251,7 @@ public class SonarLintUtils {
   }
 
   public static boolean isTaintVulnerabilitiesEnabled() {
-    return !isCLion() && !isGoIde();
+    return false;
   }
 
   public static boolean isModuleLevelBindingEnabled() {
