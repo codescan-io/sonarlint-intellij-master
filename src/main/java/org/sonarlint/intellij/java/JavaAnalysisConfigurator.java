@@ -72,6 +72,7 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
   private static final String JAVA_JDK_HOME_PROPERTY = "sonar.java.jdkHome";
   private static final String JAVA_ENABLE_PREVIEW = "sonar.java.enablePreview";
   private static final String SONAR_HOST_URL = "sonar.host.url";
+  private static final String CODESCAN_IDE_TYPE = "codescan.ide.type";
   private static final String SONAR_ORGANIZATION = "sonar.organization";
   private static final String SONAR_LOGIN = "sonar.login";
   private static final String SONAR_PASSWORD = "sonar.password";
@@ -109,6 +110,7 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
       }
     }
 
+    properties.put(CODESCAN_IDE_TYPE, "IntelliJ IDEA");
     return config;
   }
 

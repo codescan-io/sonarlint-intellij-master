@@ -29,7 +29,7 @@ import org.sonarsource.sonarlint.core.client.api.common.SonarLintEngine
 @Service(Service.Level.APP)
 class ModuleFileEventsNotifier {
     fun notifyAsync(engine: SonarLintEngine, module: Module, events: List<ClientModuleFileEvent>) {
-        if (events.isEmpty()) return
+        if (events.isEmpty() || module.isDisposed || module.project.isDisposed) return
         SonarLintConsole.get(module.project).info("Processing ${events.size} file system events")
         events.forEach {
             try {

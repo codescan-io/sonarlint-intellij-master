@@ -39,6 +39,7 @@ import com.intellij.util.net.ssl.CertificateManager
 import com.intellij.util.proxy.CommonProxy
 import org.apache.commons.lang.StringEscapeUtils
 import org.sonarlint.intellij.analysis.AnalysisSubmitter
+import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.computeReadActionSafely
 import org.sonarlint.intellij.common.util.SonarLintUtils
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.config.Settings.getGlobalSettings
@@ -50,8 +51,8 @@ import org.sonarlint.intellij.finding.issue.vulnerabilities.TaintVulnerabilities
 import org.sonarlint.intellij.notifications.SonarLintProjectNotifications
 import org.sonarlint.intellij.notifications.binding.BindingSuggestion
 import org.sonarlint.intellij.progress.BackendTaskProgressReporter
+import org.sonarlint.intellij.trigger.TriggerType
 import org.sonarlint.intellij.ui.ProjectSelectionDialog
-import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.computeReadActionSafely
 import org.sonarlint.intellij.util.GlobalLogOutput
 import org.sonarlint.intellij.util.computeInEDT
 import org.sonarsource.sonarlint.core.clientapi.SonarLintClient
@@ -68,13 +69,7 @@ import org.sonarsource.sonarlint.core.clientapi.client.fs.FindFileByNamesInScope
 import org.sonarsource.sonarlint.core.clientapi.client.fs.FindFileByNamesInScopeResponse
 import org.sonarsource.sonarlint.core.clientapi.client.fs.FoundFileDto
 import org.sonarsource.sonarlint.core.clientapi.client.hotspot.ShowHotspotParams
-import org.sonarsource.sonarlint.core.clientapi.client.http.CheckServerTrustedParams
-import org.sonarsource.sonarlint.core.clientapi.client.http.CheckServerTrustedResponse
-import org.sonarsource.sonarlint.core.clientapi.client.http.GetProxyPasswordAuthenticationParams
-import org.sonarsource.sonarlint.core.clientapi.client.http.GetProxyPasswordAuthenticationResponse
-import org.sonarsource.sonarlint.core.clientapi.client.http.ProxyDto
-import org.sonarsource.sonarlint.core.clientapi.client.http.SelectProxiesParams
-import org.sonarsource.sonarlint.core.clientapi.client.http.SelectProxiesResponse
+import org.sonarsource.sonarlint.core.clientapi.client.http.*
 import org.sonarsource.sonarlint.core.clientapi.client.info.GetClientInfoResponse
 import org.sonarsource.sonarlint.core.clientapi.client.message.MessageType
 import org.sonarsource.sonarlint.core.clientapi.client.message.ShowMessageParams
@@ -328,11 +323,14 @@ object SonarLintIntelliJClient : SonarLintClient {
             params.configurationScopeIds.mapNotNull { scopeId ->
                     BackendService.findModule(scopeId)?.project ?: BackendService.findProject(scopeId)
             }
+                .toSet()
                 .forEach { project ->
                     getService(
                         project,
                         TaintVulnerabilitiesPresenter::class.java
                     ).presentTaintVulnerabilitiesForOpenFiles()
+                    // trigger new analysis as some things might have changed (findings, new code period)
+                    getService(project, AnalysisSubmitter::class.java).autoAnalyzeOpenFiles(TriggerType.BINDING_UPDATE)
                 }
         }
     }

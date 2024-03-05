@@ -19,12 +19,6 @@
  */
 package org.sonarlint.intellij.fs
 
-import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleUtil
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.ProjectCoreUtil
-import com.intellij.openapi.project.ProjectManager
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileCopyEvent
@@ -34,11 +28,7 @@ import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileMoveEvent
 import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
-import org.sonarlint.intellij.common.util.SonarLintUtils.isRider
-import org.sonarlint.intellij.core.ProjectBindingManager
 import org.sonarlint.intellij.util.GlobalLogOutput
-import org.sonarsource.sonarlint.core.analysis.api.ClientModuleFileEvent
-import org.sonarsource.sonarlint.core.client.api.common.SonarLintEngine
 import org.sonarsource.sonarlint.core.commons.log.ClientLogOutput
 import org.sonarsource.sonarlint.plugin.api.module.file.ModuleFileEvent
 
@@ -51,8 +41,7 @@ class VirtualFileSystemListener(
     )
 ) : BulkFileListener {
     override fun before(events: List<VFileEvent>) {
-        forwardEvents(events.filterIsInstance(VFileMoveEvent::class.java)) { ModuleFileEvent.Type.DELETED }
-        forwardEvents(events.filterIsInstance(VFileDeleteEvent::class.java)) { ModuleFileEvent.Type.DELETED }
+        forwardEvents(events.filter { it is VFileMoveEvent || it is VFileDeleteEvent }) { ModuleFileEvent.Type.DELETED }
     }
 
     override fun after(events: List<VFileEvent>) {
@@ -72,53 +61,6 @@ class VirtualFileSystemListener(
     }
 
     private fun forwardEvents(events: List<VFileEvent>, eventTypeConverter: (VFileEvent) -> ModuleFileEvent.Type?) {
-        val openProjects = ProjectManager.getInstance().openProjects.toList()
-        val startedEnginesByProject = openProjects.associateWith { getEngineIfStarted(it) }
-        val filesByModule = fileEventsByModules(events, openProjects, eventTypeConverter)
-        filesByModule.forEach { (module, fileEvents) ->
-            startedEnginesByProject[module.project]?.let {
-                fileEventsNotifier.notifyAsync(it, module, fileEvents)
-            }
-        }
-    }
-
-    private fun getEngineIfStarted(project: Project): SonarLintEngine? =
-        getService(project, ProjectBindingManager::class.java).engineIfStarted
-
-    private fun fileEventsByModules(
-        events: List<VFileEvent>,
-        openProjects: List<Project>,
-        eventTypeConverter: (VFileEvent) -> ModuleFileEvent.Type?
-    ): Map<Module, List<ClientModuleFileEvent>> {
-        val map: MutableMap<Module, List<ClientModuleFileEvent>> = mutableMapOf()
-        for (event in events) {
-            // call event.file only once as it can be hurting performance
-            val file = event.file ?: continue
-            if(ProjectCoreUtil.isProjectOrWorkspaceFile(file, file.fileType)) continue;
-            val fileModule = findModule(file, openProjects) ?: continue
-            val fileInvolved = if (event is VFileCopyEvent) event.findCreatedFile() else file
-            fileInvolved ?: continue
-            val type = eventTypeConverter(event) ?: continue
-            val moduleEvents = map[fileModule] ?: emptyList()
-            map[fileModule] = moduleEvents + allEventsFor(fileInvolved, fileModule, type)
-        }
-        return map
-    }
-
-    private fun allEventsFor(file: VirtualFile, fileModule: Module, type: ModuleFileEvent.Type): List<ClientModuleFileEvent> {
-        return when {
-            file.isDirectory -> file.children.flatMap { allEventsFor(it, fileModule, type) }
-            // SLI-551 Only send events on .py files (avoid parse errors)
-            // For Rider, send all events for OmniSharp
-            isRider() || ModuleFileEventsNotifier.isPython(file) -> listOfNotNull(buildModuleFileEvent(fileModule, file, type))
-            else -> emptyList()
-        }
-    }
-
-    private fun findModule(file: VirtualFile?, openProjects: List<Project>): Module? {
-        file ?: return null
-        return openProjects.asSequence()
-            .map { ModuleUtil.findModuleForFile(file, it) }
-            .find { it != null }
+        getService(VirtualFileSystemEventsHandler::class.java).forwardEventsAsync(events, eventTypeConverter, fileEventsNotifier)
     }
 }
