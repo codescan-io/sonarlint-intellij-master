@@ -21,6 +21,7 @@ package org.sonarlint.intellij.fs
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.vfs.VirtualFile
 import org.sonarlint.intellij.common.ui.SonarLintConsole
 import org.sonarsource.sonarlint.core.analysis.api.ClientModuleFileEvent
 import org.sonarsource.sonarlint.core.client.api.common.SonarLintEngine
@@ -36,6 +37,12 @@ class ModuleFileEventsNotifier {
             } catch (e: Exception) {
                 SonarLintConsole.get(module.project).error("Error notifying analyzer of a file event", e)
             }
+        }
+    }
+
+    companion object {
+        fun isPython(file: VirtualFile): Boolean {
+            return file.path.endsWith(".py")
         }
     }
 }

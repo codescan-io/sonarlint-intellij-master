@@ -109,6 +109,7 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
       }
     }
 
+    properties.put("codescan.ide.type", "IntelliJ IDEA");
     return config;
   }
 
