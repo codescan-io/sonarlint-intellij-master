@@ -138,7 +138,7 @@ public class ServerConnection {
   }
 
   public boolean isCodeScanCloud() {
-    return !SonarLintUtils.isCodeScanCloudAlias(hostUrl);
+    return SonarLintUtils.isCodeScanCloudAlias(hostUrl);
   }
 
   public String getProductName() {

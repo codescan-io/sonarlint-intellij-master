@@ -43,17 +43,21 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
+import org.sonarsource.sonarlint.core.commons.log.SonarLintLogger;
 
 public class SonarLintUtils {
 
-  private static final Logger LOG = Logger.getInstance(SonarLintUtils.class);
+  private static final SonarLintLogger LOG =  SonarLintLogger.get();
   public static final String DEFAULT_CODESCANCLOUD_URL = "https://app.codescan.io";
   public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_CODESCANCLOUD_URL);
+  static final String[] CODESCAN_DOMAINS = new String[]{"codescan.io", "autorabit.com"};
   private static final String CODESCAN_HEALTH_ENDPOINT = "/_codescan/actuator/health";
   private static final String CODESCAN_HEALTH_JSON_RESPONSE = "{\"status\":\"UP\"}";
+  private static final String CODESCAN_HEALTH_JSON_RESPONSE_DOWN = "{\"status\":\"DOWN\"}";
 
   private SonarLintUtils() {
     // Utility class
@@ -80,8 +84,9 @@ public class SonarLintUtils {
     return t;
   }
 
-  public static boolean isCodeScanCloudAlias(@Nullable String url) {
-    if (url.contains("codescan.io")) {
+  public static boolean isCodeScanCloudAlias(String url) {
+    url = removeTrailingSlashesFromUrl(url);
+    if (StringUtils.containsAny(url, CODESCAN_DOMAINS)) {
       return true;
     }
     HttpClient httpClient = HttpClient.newHttpClient();
@@ -91,17 +96,26 @@ public class SonarLintUtils {
     try {
       HttpResponse<String> httpResponse = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
       int statusCode = httpResponse.statusCode();
-      if (statusCode == 200 && CODESCAN_HEALTH_JSON_RESPONSE.equals(httpResponse.body())) {
+      if (statusCode == 200
+              && (CODESCAN_HEALTH_JSON_RESPONSE.equals(httpResponse.body())
+              || CODESCAN_HEALTH_JSON_RESPONSE_DOWN.equals(httpResponse.body()))) {
         return true;
       } else {
-        LOG.debug("isCodeScanCloudAlias health check request for host: {} failed with status code: {}.", url,
-                statusCode);
+        LOG.debug("isCodeScanCloudAlias health check request for host {} failed with status code: {}.", url, statusCode);
         return false;
       }
-    } catch (IOException | InterruptedException e) {
-      LOG.error("isCodeScanCloudAlias health check request for host: {} gave an exception.", e, url);
+    } catch (Exception e) {
+      LOG.error("isCodeScanCloudAlias health check request for host {} gave an exception", url, e);
       return false;
     }
+  }
+
+  private static String removeTrailingSlashesFromUrl(String url) {
+    String cleanedUrl = url.trim();
+    while (cleanedUrl.endsWith("/")) {
+      cleanedUrl = cleanedUrl.substring(0, cleanedUrl.length() - 1);
+    }
+    return cleanedUrl;
   }
 
   private static <T> void logAndThrowIfServiceNotFound(T t, String name) {

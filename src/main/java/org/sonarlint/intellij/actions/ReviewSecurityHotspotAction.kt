@@ -58,7 +58,7 @@ class ReviewSecurityHotspotAction(private var serverFindingKey: String? = null, 
 
         fun displayErrorNotification(project: Project, content: String) {
             val notification = GROUP.createNotification(
-                "<b>SonarLint - Unable to review the Security Hotspot</b>", content, NotificationType.ERROR
+                "<b>CodeScan - Unable to review the Security Hotspot</b>", content, NotificationType.ERROR
             )
             notification.isImportant = true
             notification.notify(project)
@@ -122,7 +122,7 @@ class ReviewSecurityHotspotAction(private var serverFindingKey: String? = null, 
 
     private fun displaySuccessfulNotification(project: Project) {
         val notification = GROUP.createNotification(
-            "<b>SonarLint - Security Hotspot review</b>",
+            "<b>CodeScan - Security Hotspot review</b>",
             "The Security Hotspot status was successfully updated!",
             NotificationType.INFORMATION
         )

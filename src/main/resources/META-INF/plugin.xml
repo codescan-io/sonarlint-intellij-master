@@ -35,7 +35,7 @@
             </p>
             <br/>
             <p>
-                CodeScan supports all JetBrains IDE, including IntelliJ, WebStorm, PhpStorm, PyCharm and RubyMine.
+                CodeScan supports only JetBrains IntelliJ IDEA.
             </p>
             <br/>
             <p>
@@ -52,6 +52,7 @@
 
     <change-notes><![CDATA[
       <ul>
+        <li>7.2.1 - Added a fix for the plugin throwing an error when connecting to self-hosted SonarQube 10.x server.</li>
         <li>7.2.0 - Added support for newer Intellij versions (2023.3.1 and above).</li>
         <li>7.1.0 - Added support for Codescan self-hosted customers and it will be compatible with latest Intellij versions (2023.1 and above).</li>
         <li>7.0.0 - Added support for newer Intellij versions (2023.1 and above).</li>
@@ -137,12 +138,9 @@
     <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
          on how to target different products -->
     <depends>com.intellij.modules.lang</depends>
+    <depends>com.intellij.modules.platform</depends>
+    <depends config-file="plugin-java.xml">com.intellij.modules.java</depends>
     <depends optional="true" config-file="plugin-git.xml">Git4Idea</depends>
-    <depends optional="true" config-file="plugin-go.xml">org.jetbrains.plugins.go</depends>
-    <depends optional="true" config-file="plugin-plsql.xml">com.intellij.database</depends>
-    <depends optional="true" config-file="plugin-java.xml">com.intellij.modules.java</depends>
-    <depends optional="true" config-file="plugin-clion.xml">com.intellij.modules.clion</depends>
-    <depends optional="true" config-file="plugin-rider.xml">com.intellij.modules.rider</depends>
 
     <projectListeners>
         <listener class="org.sonarlint.intellij.module.ModuleChangeListener" topic="com.intellij.openapi.project.ModuleListener"/>

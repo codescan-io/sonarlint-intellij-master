@@ -33,9 +33,6 @@ import java.util.function.Consumer
 
 object EmbeddedPlugins {
     private val ENABLED_LANGUAGES_IN_STANDALONE_MODE_IN_IDEA: Set<Language> = EnumSet.of(
-        Language.APEX,
-        Language.SF_META,
-        Language.VF,
         Language.HTML,
         Language.XML,
         Language.JS,
@@ -54,20 +51,12 @@ object EmbeddedPlugins {
     )
     private val ADDITIONAL_ENABLED_LANGUAGES_IN_CONNECTED_MODE: Set<Language> = EnumSet.of(
         Language.SCALA,
-        Language.SWIFT
+        Language.SWIFT,
+        Language.APEX,
+        Language.SF_META,
+        Language.VF
     )
-    private val EMBEDDED_PLUGINS_TO_USE_IN_CONNECTED_MODE = listOf(
-        EmbeddedPlugin(Language.CPP, "CFamily", "sonar-cfamily-plugin-*.jar"),
-        EmbeddedPlugin(Language.CS, "CSharp", "sonarlint-omnisharp-plugin-*.jar"),
-        EmbeddedPlugin(Language.HTML, "HTML", "sonar-html-plugin-*.jar"),
-        EmbeddedPlugin(Language.JS, "JavaScript/TypeScript", "sonar-javascript-plugin-*.jar"),
-        EmbeddedPlugin(Language.KOTLIN, "Kotlin", "sonar-kotlin-plugin-*.jar"),
-        EmbeddedPlugin(Language.RUBY, "Ruby", "sonar-ruby-plugin-*.jar"),
-        EmbeddedPlugin(Language.XML, "XML", "sonar-xml-plugin-*.jar"),
-        EmbeddedPlugin(Language.SECRETS, "Secrets detection", "sonar-text-plugin-*.jar"),
-        EmbeddedPlugin(Language.GO, "Go", "sonar-go-plugin-*.jar"),
-        EmbeddedPlugin(Language.CLOUDFORMATION.pluginKey, "IaC", "sonar-iac-plugin-*.jar"),
-    )
+    private val EMBEDDED_PLUGINS_TO_USE_IN_CONNECTED_MODE = emptyList<EmbeddedPlugin>();
 
     @JvmStatic
     fun getEmbeddedPluginsForConnectedMode(): Map<String, Path> {
