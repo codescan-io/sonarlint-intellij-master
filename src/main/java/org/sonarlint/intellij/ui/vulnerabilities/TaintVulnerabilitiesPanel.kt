@@ -114,7 +114,7 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
     }
 
     private fun centeredLabel(textLabel: String, actionText: String?, action: AnAction?): JBPanelWithEmptyText {
-        val labelPanel = JBPanelWithEmptyText(HorizontalLayout(5))
+        val labelPanel = JBPanelWithEmptyText(HorizontalLayout(5, HorizontalLayout.FILL))
         val text = labelPanel.emptyText
         text.setText(textLabel)
         if (action != null && actionText != null) {

@@ -283,7 +283,7 @@ public class SonarLintProjectBindPanel {
       }
     });
 
-    var updateStoragePanel = new JPanel(new HorizontalLayout(5));
+    var updateStoragePanel = new JPanel(new HorizontalLayout(5, HorizontalLayout.FILL));
     updateStoragePanel.add(updateStorageButton);
     updateStoragePanel.add(link);
 

@@ -70,7 +70,7 @@ class RuleDescriptionPanel(private val project: Project, private val parent: Dis
             val scrollPane = parseCodeExamples(project, parent, nonContextual.htmlContent, fileType)
             sectionPanel.add(scrollPane, BorderLayout.CENTER)
         }, { contextual ->
-            val comboPanel = JBPanel<JBPanel<*>>(HorizontalLayout(JBUI.scale(UIUtil.DEFAULT_HGAP)))
+            val comboPanel = JBPanel<JBPanel<*>>(HorizontalLayout(JBUI.scale(UIUtil.DEFAULT_HGAP), HorizontalLayout.FILL))
             comboPanel.add(JBLabel("Which component or framework contains the issue?"))
             val contextCombo = ComboBox(DefaultComboBoxModel(contextual.contextualSections.toTypedArray()))
             contextCombo.renderer = SimpleListCellRenderer.create("", RuleContextualSectionDto::getDisplayName)

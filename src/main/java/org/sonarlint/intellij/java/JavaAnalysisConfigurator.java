@@ -38,6 +38,7 @@ import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.jrt.JrtFileSystem;
 import com.intellij.pom.java.LanguageLevel;
+import com.intellij.util.lang.JavaVersion;
 import java.io.File;
 import java.util.Collection;
 import java.util.Collections;
@@ -52,7 +53,6 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.jps.model.java.JpsJavaSdkType;
 import org.sonarlint.intellij.common.analysis.AnalysisConfigurator;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.config.Settings;
@@ -143,7 +143,12 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
   }
 
   private static String getLanguageLevelOption(LanguageLevel level) {
-    return JpsJavaSdkType.complianceOption(level.toJavaVersion());
+    return complianceOption(level.toJavaVersion());
+  }
+
+  public static String complianceOption(@NotNull JavaVersion version) {
+    // for "-source" and "-target" options, a compiler accepts both "x" and "1.x" formats; for "--release" - only "x"
+    return version.feature < 5 ? "1." + version.feature : String.valueOf(version.feature);
   }
 
   private static void collectModuleClasspath(JavaModuleClasspath moduleClasspath, @Nullable final Module module, boolean topLevel, boolean testClasspathOnly) {

@@ -23,13 +23,13 @@ import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.diff.tools.util.base.TextDiffSettingsHolder
 import com.intellij.diff.util.DiffUtil
+import com.intellij.ide.highlighter.HighlighterFactory
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.editor.ex.EditorEx
-import com.intellij.openapi.editor.highlighter.EditorHighlighterFactory
 import com.intellij.openapi.editor.markup.HighlighterTargetArea
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.progress.EmptyProgressIndicator
@@ -90,7 +90,7 @@ class RuleCodeSnippet(private val project: Project, fileTypeFromRule: FileType, 
         document.replaceString(0, document.textLength, text)
         val scheme = EditorColorsManager.getInstance().globalScheme
         myEditor.highlighter =
-            EditorHighlighterFactory.getInstance().createEditorHighlighter(fileType, scheme, project)
+            HighlighterFactory.createHighlighter(fileType, scheme, project)
 
         if (codeExampleFragment.diffTarget != null) {
             val provider = DiffUtil.createTextDiffProvider(

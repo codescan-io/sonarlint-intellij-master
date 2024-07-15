@@ -199,7 +199,7 @@ public class SecurityHotspotsPanel extends SimpleToolWindowPanel implements Disp
   }
 
   private static JBPanelWithEmptyText centeredLabel(String textLabel, @Nullable String actionText, @Nullable AnAction action) {
-    var labelPanel = new JBPanelWithEmptyText(new HorizontalLayout(5));
+    var labelPanel = new JBPanelWithEmptyText(new HorizontalLayout(5, HorizontalLayout.FILL));
     var text = labelPanel.getEmptyText();
     text.setText(textLabel);
     if (action != null && actionText != null) {
