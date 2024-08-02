@@ -52,6 +52,7 @@
 
     <change-notes><![CDATA[
       <ul>
+        <li>7.2.2 - Added support for CodeScan 24.0.9.</li>
         <li>7.2.1 - Added a fix for the plugin throwing an error when connecting to self-hosted SonarQube 10.x server.</li>
         <li>7.2.0 - Added support for newer Intellij versions (2023.3.1 and above).</li>
         <li>7.1.0 - Added support for Codescan self-hosted customers and it will be compatible with latest Intellij versions (2023.1 and above).</li>
