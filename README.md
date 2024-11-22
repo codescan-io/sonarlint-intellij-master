@@ -1,4 +1,4 @@
-CodeScan IntelliJ Plugin
+``CodeScan IntelliJ Plugin
 =========================
 
 [![Build Status](https://dev.azure.com/sonarsource/DotNetTeam%20Project/_apis/build/status/sonarlint/CodeScan%20IntelliJ?branchName=master)](https://dev.azure.com/sonarsource/DotNetTeam%20Project/_build/latest?definitionId=76&branchName=master) [![Quality Gate](https://next.sonarqube.com/sonarqube/api/project_badges/measure?project=org.sonarsource.sonarlint.intellij%3Acodescan-intellij&metric=alert_status
