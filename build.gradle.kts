@@ -12,7 +12,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 plugins {
-    kotlin("jvm") version "1.8.10"
+    kotlin("jvm") version "1.9.25"
     id("org.jetbrains.intellij") version "1.15.0"
     id("org.sonarqube") version "4.4.1.3373"
     java
@@ -28,6 +28,7 @@ plugins {
 
 buildscript {
     repositories {
+        mavenLocal()
         mavenCentral()
     }
     dependencies {
@@ -60,8 +61,8 @@ allprojects {
     }
 
     repositories {
-        mavenCentral()
         mavenLocal()
+        mavenCentral()
         ivy("https://repox.jfrog.io/repox/api/npm/npm") {
             patternLayout {
                 artifact("[organization]/-/[module]-[revision].[ext]")
