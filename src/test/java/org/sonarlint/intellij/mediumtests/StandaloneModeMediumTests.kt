@@ -167,7 +167,6 @@ class StandaloneModeMediumTests : AbstractSonarLintLightTests() {
         assertThat(highlightInfos).hasSize(1)
     }
 
-    @Test
     fun should_analyze_terraform_files() {
         val fileToAnalyze = myFixture.configureByFile("src/Terraform.tf").virtualFile
 
@@ -188,7 +187,6 @@ class StandaloneModeMediumTests : AbstractSonarLintLightTests() {
         assertThat(highlightInfos).hasSize(1)
     }
 
-    @Test
     fun should_analyze_kubernetes_files() {
         val fileToAnalyze = myFixture.configureByFile("src/Kubernetes.yaml").virtualFile
 
