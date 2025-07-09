@@ -52,6 +52,7 @@
 
     <change-notes><![CDATA[
       <ul>
+        <li>7.3.1 - Added compatibility fixes for CodeScan Cloud 25.1.5</li>
         <li>7.3.0 - Added support of Sonarqube 24.12 and fixed compatibility issue with CodeScan Cloud 25.1.0</li>
         <li>7.2.2 - Added support for CodeScan 24.0.9.</li>
         <li>7.2.1 - Added a fix for the plugin throwing an error when connecting to self-hosted SonarQube 10.x server.</li>
