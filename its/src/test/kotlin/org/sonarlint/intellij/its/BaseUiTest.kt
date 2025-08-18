@@ -103,7 +103,6 @@ open class BaseUiTest {
         }
     }
 
-
     fun uiTest(test: RemoteRobot.() -> Unit) {
         try {
             remoteRobot.apply(test)
@@ -159,6 +158,8 @@ open class BaseUiTest {
             idea {
                 toolWindow("CodeScan") {
                     ensureOpen()
+                }
+                toolWindow {
                     tabTitleContains("Log") { select() }
                     content("SonarLintLogPanel") {
                         this.apply(function)
@@ -171,8 +172,10 @@ open class BaseUiTest {
     private fun cmakePanel(function: TabContentFixture.() -> Unit = {}) {
         with(remoteRobot) {
             idea {
-                toolWindow("CMake") {
+                toolWindowBar("SonarQube for IDE") {
                     ensureOpen()
+                }
+                toolWindow {
                     tabTitleContains("Debug") { select() }
                     content("DataProviderPanel") {
                         this.apply(function)

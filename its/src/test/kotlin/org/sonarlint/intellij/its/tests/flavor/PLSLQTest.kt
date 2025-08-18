@@ -31,6 +31,7 @@ import org.junit.jupiter.api.condition.EnabledIf
 import org.sonarlint.intellij.its.BaseUiTest
 import org.sonarlint.intellij.its.fixtures.idea
 import org.sonarlint.intellij.its.fixtures.tool.window.toolWindow
+import org.sonarlint.intellij.its.fixtures.tool.window.toolWindowBar
 import org.sonarlint.intellij.its.tests.domain.CurrentFileTabTests.Companion.enableConnectedModeFromCurrentFilePanel
 import org.sonarlint.intellij.its.tests.domain.CurrentFileTabTests.Companion.verifyCurrentFileTabContainsMessages
 import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.openExistingProject
@@ -66,6 +67,8 @@ class PLSQLTest : BaseUiTest() {
             idea {
                 toolWindow("CodeScan") {
                     ensureOpen()
+                }
+                toolWindow {
                     tabTitleContains("Current File") { select() }
                     // the synchronization can take a while to happen
                     waitFor(duration = Duration.ofMinutes(1)) {

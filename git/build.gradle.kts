@@ -2,19 +2,22 @@ val intellijBuildVersion: String by project
 val ideaHome: String? = System.getenv("IDEA_HOME")
 
 plugins {
-    kotlin("jvm")
+    id("org.jetbrains.intellij.platform.module")
+    alias(libs.plugins.cyclonedx)
+    alias(libs.plugins.license)
+    alias(libs.plugins.kotlin)
 }
 
-intellij {
-    if (!ideaHome.isNullOrBlank()) {
-        localPath.set(ideaHome)
-        localSourcesPath.set(ideaHome)
-    } else {
-        version.set(intellijBuildVersion)
-    }
-    plugins.set(listOf("Git4Idea"))
-}
+apply(from = "${rootProject.projectDir}/gradle/module-conventions.gradle")
 
 dependencies {
-    implementation(project(":common"))
+    intellijPlatform {
+        if (!ideaHome.isNullOrBlank()) {
+            local(ideaHome)
+        } else {
+            intellijIdeaCommunity(intellijBuildVersion)
+        }
+        pluginComposedModule(implementation(project(":common")))
+        bundledPlugins("Git4Idea")
+    }
 }

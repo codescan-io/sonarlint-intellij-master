@@ -17,7 +17,11 @@
  * License along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+<<<<<<<< HEAD:src/test/java/org/sonarlint/intellij/RunInEdtInterceptor.kt
 package org.sonarlint.intellij
+========
+package org.sonarlint.intellij.git
+>>>>>>>> 1016ecda6 (SLI-1531 Update to IntelliJ Platform Gradle Plugin (2.x)):test-common/src/testFixtures/kotlin/org/sonarlint/intellij/git/RunInEdtInterceptor.kt
 
 import com.intellij.testFramework.UITestUtil
 import com.intellij.testFramework.runInEdtAndWait

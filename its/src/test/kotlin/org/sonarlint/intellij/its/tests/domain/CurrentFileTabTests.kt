@@ -39,6 +39,8 @@ class CurrentFileTabTests {
                 idea {
                     toolWindow("CodeScan") {
                         ensureOpen()
+                    }
+                    toolWindow {
                         assertThat(findCard(expectedClass)).isNotNull
                     }
                 }
@@ -95,6 +97,8 @@ class CurrentFileTabTests {
                 idea {
                     toolWindow("CodeScan") {
                         ensureOpen()
+                    }
+                    toolWindow {
                         tabTitleContains("Current File") { select() }
                         findText(issueMessage).rightClick()
                     }
@@ -110,6 +114,8 @@ class CurrentFileTabTests {
                 idea {
                     toolWindow("CodeScan") {
                         ensureOpen()
+                    }
+                    toolWindow {
                         tabTitleContains("Current File") { select() }
                         content("CurrentFilePanel") {
                             expectedMessages.forEach {
@@ -129,6 +135,8 @@ class CurrentFileTabTests {
                 idea {
                     toolWindow("CodeScan") {
                         ensureOpen()
+                    }
+                    toolWindow {
                         tabTitleContains("Current File") { select() }
                         content("CurrentFilePanel") {
                             findText(issueMessage).click()
@@ -142,6 +150,8 @@ class CurrentFileTabTests {
             optionalIdeaFrame()?.apply {
                 toolWindow("CodeScan") {
                     ensureOpen()
+                }
+                toolWindow {
                     tabTitleContains("Current File") { select() }
                     content("CurrentFilePanel") {
                         toolBarButton("Configure CodeScan").click()
@@ -160,6 +170,8 @@ class CurrentFileTabTests {
                 idea {
                     toolWindow("CodeScan") {
                         ensureOpen()
+                    }
+                    toolWindow {
                         content("CurrentFilePanel") {
                             waitFor(Duration.ofMinutes(1), errorMessage = "Unable to find '$expectedMessage' in: ${findAllText()}") {
                                 hasText(expectedMessage)

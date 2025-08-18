@@ -1,106 +1,115 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 plugins {
-    id("org.jetbrains.intellij")
-    kotlin("jvm")
+    id("org.jetbrains.intellij.platform")
+    alias(libs.plugins.cyclonedx)
+    alias(libs.plugins.license)
+    alias(libs.plugins.kotlin)
 }
 
+apply(from = "${rootProject.projectDir}/gradle/module-conventions.gradle")
+
+val intellijBuildVersion: String by project
+val ijVersion: String by project
+val runIdeDirectory: String by project
 group = "org.sonarsource.sonarlint.intellij.its"
 description = "ITs for SonarLint IntelliJ"
 
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(17))
-    }
-}
-
-val compileKotlin: org.jetbrains.kotlin.gradle.tasks.KotlinCompile by tasks
-compileKotlin.kotlinOptions.jvmTarget = "17"
-
-val compileTestKotlin: org.jetbrains.kotlin.gradle.tasks.KotlinCompile by tasks
-compileTestKotlin.kotlinOptions.jvmTarget = "17"
-
-repositories {
-    maven("https://packages.jetbrains.team/maven/p/ij/intellij-dependencies")
-    mavenCentral()
+intellijPlatform {
+    projectName = "sonarlint-intellij-its"
+    buildSearchableOptions = false
 }
 
 dependencies {
+    intellijPlatform {
+        if (project.hasProperty("ijVersion")) {
+            val type = ijVersion.split('-')[0]
+            val version = ijVersion.split('-')[1]
+            create(type, version)
+        } else {
+            intellijIdeaCommunity(intellijBuildVersion)
+        }
+        testFramework(TestFrameworkType.Platform)
+        testFramework(TestFrameworkType.Bundled)
+    }
     testImplementation("org.sonarsource.orchestrator:sonar-orchestrator-junit5:5.1.0.2254") {
         exclude(group = "org.slf4j", module = "log4j-over-slf4j")
     }
     testImplementation(libs.its.sonar.scala)
     testImplementation(libs.its.sonar.ws)
     testImplementation(libs.bundles.its.remote)
-    testImplementation(libs.junit.api)
+    testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
-    testRuntimeOnly(libs.junit.engine)
+    testImplementation(libs.junit.four)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
-tasks.test {
-    useJUnitPlatform {
-        val tag = System.getenv("TEST_SUITE")
+tasks {
+    test {
+        useJUnitPlatform {
+            val tag = System.getenv("TEST_SUITE")
+            if (tag != null && (tag == "OpenInIdeTests" || tag == "ConnectedAnalysisTests"
+                    || tag == "ConfigurationTests" || tag == "Standalone")) {
+                includeTags(tag)
+            }
+        }
+        testLogging.showStandardStreams = true
+    }
+}
 
-        if (tag != null && (tag == "OpenInIdeTests" || tag == "ConnectedAnalysisTests"
-                || tag == "ConfigurationTests" || tag == "Standalone")
-        ) {
-            includeTags(tag)
+val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
+    if (project.hasProperty("runIdeDirectory")) {
+        localPath = file(runIdeDirectory)
+    }
+
+    task {
+        jvmArgumentProviders += CommandLineArgumentProvider {
+            listOf(
+                "-Xmx1G",
+                "-Drobot-server.port=8082",
+                "-Dsonarlint.internal.sonarcloud.url=https://sc-staging.io",
+                "-Dsonarlint.internal.sonarcloud.websocket.url=wss://events-api.sc-staging.io/",
+                "-Dsonarlint.telemetry.disabled=true",
+                "-Dsonarlint.logs.verbose=true",
+                "-Didea.trust.all.projects=true",
+                "-Dide.show.tips.on.startup.default.value=false",
+                "-Dide.experimental.ui.navbar.scroll=true",
+                "-Djb.privacy.policy.text=<!--999.999-->",
+                "-Djb.consents.confirmation.enabled=false",
+                "-Deap.require.license=true"
+            )
+        }
+
+        doFirst {
+            if (project.hasProperty("slPluginDirectory")) {
+                copy {
+                    from(project.property("slPluginDirectory"))
+                    into(sandboxPluginsDirectory)
+                }
+            }
         }
     }
-    testLogging.showStandardStreams = true
-}
 
-license {
-    // exclude file from resources (workaround for https://github.com/hierynomus/license-gradle-plugin/issues/145)
-    exclude("**.xml")
-}
-
-tasks.downloadRobotServerPlugin {
-    version.set(libs.versions.its.remote)
-}
-
-val ijVersion: String by project
-
-intellij {
-    if (project.hasProperty("ijVersion")) {
-        version.set(ijVersion)
-    } else {
-        if (rootProject.intellij.version.isPresent) {
-            version.set(rootProject.intellij.version.get())
-        } else {
-            localPath.set(rootProject.intellij.localPath.get())
-            localSourcesPath.set(rootProject.intellij.localSourcesPath.get())
+    plugins {
+        robotServerPlugin(libs.versions.its.remote.get())
+        // Only depend on building the root project plugin if slPluginDirectory is not provided
+        if (!project.hasProperty("slPluginDirectory")) {
+            localPlugin(rootProject.dependencies.project(":"))
         }
     }
-    pluginName.set("sonarlint-intellij-its")
-    updateSinceUntilBuild.set(false)
-    if (!project.hasProperty("slPluginDirectory")) {
-        plugins.set(listOf(rootProject))
+}
+
+intellijPlatform {
+    pluginConfiguration {
+        ideaVersion {
+            sinceBuild = "231"
+        }
+        name = "sonarlint-intellij-its"
     }
     instrumentCode.set(false)
 }
 
-val runIdeDirectory: String by project
-
-tasks.runIdeForUiTests {
-    systemProperty("sonarlint.internal.sonarcloud.url", "https://sc-staging.io")
-    systemProperty("sonarlint.internal.sonarcloud.websocket.url", "wss://events-api.sc-staging.io/")
-    systemProperty("robot-server.port", "8082")
-    systemProperty("sonarlint.telemetry.disabled", "true")
-    systemProperty("sonarlint.logs.verbose", "true")
-    systemProperty("idea.trust.all.projects", "true")
-    systemProperty("ide.show.tips.on.startup.default.value", "false")
-    systemProperty("jb.privacy.policy.text", "<!--999.999-->")
-    systemProperty("jb.consents.confirmation.enabled", "false")
-    systemProperty("eap.require.license", "true")
-    jvmArgs = listOf("-Xmx1G")
-    if (project.hasProperty("runIdeDirectory")) {
-        ideDir.set(File(runIdeDirectory))
-    }
-    doFirst {
-        if (project.hasProperty("slPluginDirectory")) {
-            copy {
-                from(project.property("slPluginDirectory"))
-                into(pluginsDir.get())
-            }
-        }
-    }
+license {
+    // exclude file from resources (workaround for https://github.com/hierynomus/license-gradle-plugin/issues/145)
+    excludes(listOf("**/*.jar", "**/*.png", "**/README", "**.xml"))
 }

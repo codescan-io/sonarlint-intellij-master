@@ -37,7 +37,7 @@ import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Locale;
 import javax.annotation.CheckForNull;
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 
