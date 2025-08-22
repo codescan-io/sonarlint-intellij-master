@@ -18,10 +18,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 <<<<<<<< HEAD:src/test/java/org/sonarlint/intellij/RunInEdtInterceptor.kt
+<<<<<<<< HEAD:src/test/java/org/sonarlint/intellij/RunInEdtInterceptor.kt
 package org.sonarlint.intellij
 ========
 package org.sonarlint.intellij.git
 >>>>>>>> 1016ecda6 (SLI-1531 Update to IntelliJ Platform Gradle Plugin (2.x)):test-common/src/testFixtures/kotlin/org/sonarlint/intellij/git/RunInEdtInterceptor.kt
+========
+package org.sonarlint.intellij.fixtures
+>>>>>>>> 068d933ed (Support minimum version to 2023.1):test-common/src/testFixtures/kotlin/org/sonarlint/intellij/fixtures/RunInEdtInterceptor.kt
 
 import com.intellij.testFramework.UITestUtil
 import com.intellij.testFramework.runInEdtAndWait

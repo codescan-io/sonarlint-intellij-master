@@ -20,7 +20,6 @@
 package org.sonarlint.intellij.its.tests.domain
 
 import com.intellij.remoterobot.utils.waitFor
-import java.time.Duration
 import org.assertj.core.api.Assertions.assertThat
 import org.sonarlint.intellij.its.BaseUiTest.Companion.remoteRobot
 import org.sonarlint.intellij.its.fixtures.dialog

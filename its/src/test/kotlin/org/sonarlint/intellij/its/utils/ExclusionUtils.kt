@@ -22,14 +22,13 @@ package org.sonarlint.intellij.its.utils
 import com.intellij.remoterobot.fixtures.ActionButtonFixture
 import com.intellij.remoterobot.utils.keyboard
 import com.intellij.remoterobot.utils.waitFor
-import java.time.Duration
 import org.sonarlint.intellij.its.BaseUiTest.Companion.remoteRobot
 import org.sonarlint.intellij.its.fixtures.clickWhenEnabled
 import org.sonarlint.intellij.its.fixtures.dialog
 import org.sonarlint.intellij.its.fixtures.idea
 import org.sonarlint.intellij.its.fixtures.jbTextFieldsWithBrowseButton
 import org.sonarlint.intellij.its.fixtures.tool.window.toolWindow
-import org.sonarlint.intellij.its.fixtures.tool.window.toolWindowBar
+import java.time.Duration
 
 class ExclusionUtils {
 

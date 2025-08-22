@@ -172,10 +172,7 @@ open class BaseUiTest {
     private fun cmakePanel(function: TabContentFixture.() -> Unit = {}) {
         with(remoteRobot) {
             idea {
-                toolWindowBar("SonarQube for IDE") {
-                    ensureOpen()
-                }
-                toolWindow {
+                toolWindow("CMake") {
                     tabTitleContains("Debug") { select() }
                     content("DataProviderPanel") {
                         this.apply(function)
