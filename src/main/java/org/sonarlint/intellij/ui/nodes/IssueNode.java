@@ -27,6 +27,8 @@ import com.intellij.util.ui.UIUtil;
 import java.util.Locale;
 import javax.annotation.Nonnull;
 import javax.swing.Icon;
+
+import org.apache.commons.lang3.StringUtils;
 import org.sonarlint.intellij.SonarLintIcons;
 import org.sonarlint.intellij.core.ProjectBindingManager;
 import org.sonarlint.intellij.finding.issue.LiveIssue;
@@ -43,6 +45,7 @@ public class IssueNode extends FindingNode {
   private static final SimpleTextAttributes GRAYED_SMALL_ATTRIBUTES = new SimpleTextAttributes(STYLE_SMALLER, UIUtil.getInactiveTextColor());
 
   private final LiveIssue issue;
+  private String severityMask;
 
   public IssueNode(Trackable issue) {
     super((LiveIssue) issue);
@@ -52,7 +55,7 @@ public class IssueNode extends FindingNode {
   @Override
   public void render(TreeCellRenderer renderer) {
     var severity = issue.getUserSeverity();
-    var severityText = StringUtil.capitalize(severity.toString().toLowerCase(Locale.ENGLISH));
+    var severityText = StringUtils.isBlank(severityMask) ? StringUtil.capitalize(severity.toString().toLowerCase(Locale.ENGLISH)) : severityMask;
     var type = issue.getType();
 
     var severityIcon = SonarLintIcons.severity(severity);
@@ -115,5 +118,9 @@ public class IssueNode extends FindingNode {
   @Override
   public String toString() {
     return issue.getMessage();
+  }
+
+  public void setSeverityMask(String severityMask) {
+      this.severityMask = severityMask;
   }
 }
