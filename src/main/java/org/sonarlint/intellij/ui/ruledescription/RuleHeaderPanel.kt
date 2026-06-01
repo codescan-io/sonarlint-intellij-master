@@ -32,6 +32,7 @@ import org.sonarlint.intellij.actions.ReviewSecurityHotspotAction
 import org.sonarlint.intellij.finding.Finding
 import org.sonarlint.intellij.finding.issue.LiveIssue
 import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability
+import org.sonarlint.intellij.ui.tree.IssueTreeModelBuilder.severityMaskingsMap
 import org.sonarsource.sonarlint.core.commons.HotspotReviewStatus
 import org.sonarsource.sonarlint.core.commons.IssueSeverity
 import org.sonarsource.sonarlint.core.commons.RuleType
@@ -138,8 +139,9 @@ class RuleHeaderPanel : JBPanel<RuleHeaderPanel>(FlowLayout(FlowLayout.LEFT)) {
     }
 
     private fun updateRuleSeverity(severity: IssueSeverity) {
+        val severityStr = severity.toString()
         ruleSeverityIcon.icon = SonarLintIcons.severity(severity)
-        ruleSeverityLabel.text = clean(severity.toString())
+        ruleSeverityLabel.text = severityMaskingsMap[severityStr] ?: clean(severityStr)
         ruleSeverityLabel.setCopyable(true)
     }
 

@@ -25,6 +25,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,6 +35,8 @@ import java.util.stream.StreamSupport;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.swing.tree.DefaultTreeModel;
+
+import org.sonarlint.intellij.core.ProjectBindingManager;
 import org.sonarlint.intellij.finding.issue.LiveIssue;
 import org.sonarlint.intellij.ui.nodes.AbstractNode;
 import org.sonarlint.intellij.ui.nodes.FileNode;
@@ -41,6 +44,8 @@ import org.sonarlint.intellij.ui.nodes.IssueNode;
 import org.sonarlint.intellij.ui.nodes.SummaryNode;
 import org.sonarsource.sonarlint.core.commons.IssueSeverity;
 
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 import static org.sonarsource.sonarlint.core.commons.IssueSeverity.BLOCKER;
 import static org.sonarsource.sonarlint.core.commons.IssueSeverity.CRITICAL;
 import static org.sonarsource.sonarlint.core.commons.IssueSeverity.INFO;
@@ -54,6 +59,7 @@ import static org.sonarsource.sonarlint.core.commons.IssueSeverity.MINOR;
 public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
   private static final List<IssueSeverity> SEVERITY_ORDER = List.of(BLOCKER, CRITICAL, MAJOR, MINOR, INFO);
   private static final Comparator<LiveIssue> ISSUE_COMPARATOR = new IssueComparator();
+  public static final Map<String, String> severityMaskingsMap = new HashMap<>();
 
   private final FindingTreeIndex index;
   private DefaultTreeModel model;
@@ -155,9 +161,30 @@ public class IssueTreeModelBuilder implements FindingTreeModelBuilder {
       issues.add(issue);
     }
 
+    severityMaskingsMap.clear();
+
     for (var issue : issues) {
       var iNode = new IssueNode(issue);
+      setSeverityMaskings(iNode);
       node.add(iNode);
+    }
+  }
+
+  private static void setSeverityMaskings(IssueNode issue) {
+    if (severityMaskingsMap.isEmpty()) {
+      var project = issue.issue().psiFile().getProject();
+      var projectKey = getSettingsFor(project).getProjectKey();
+      var serverConnection = getService(project, ProjectBindingManager.class).tryGetServerConnection();
+      if (serverConnection.isPresent() && projectKey != null && !projectKey.isEmpty()) {
+        var connection = serverConnection.get();
+        var settings = connection.api().settings().getProjectSettings(projectKey);
+        SEVERITY_ORDER.forEach(severity ->
+                severityMaskingsMap.put(severity.name(), settings.get("codescan.severity.masking." + severity))
+        );
+      }
+    }
+    if (severityMaskingsMap.containsKey(issue.issue().getUserSeverity().name())) {
+      issue.setSeverityMask(severityMaskingsMap.get(issue.issue().getUserSeverity().name()));
     }
   }
 
