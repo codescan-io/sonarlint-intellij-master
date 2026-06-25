@@ -19,7 +19,6 @@
  */
 package org.sonarlint.intellij.ui
 
-import com.intellij.ide.IdeBundle
 import com.intellij.ide.actions.OpenProjectFileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
@@ -48,8 +47,8 @@ class SelectProjectPanel(private val parent: ProjectSelectionDialog) : JPanel() 
 
             FileChooser.chooseFile(descriptor, null, VfsUtil.getUserHomeDir()) { file: VirtualFile ->
                 if (!descriptor.isFileSelectable(file)) {
-                    val message = IdeBundle.message("error.dir.contains.no.project", file.presentableUrl)
-                    Messages.showInfoMessage(null as Project?, message, IdeBundle.message("title.cannot.open.project"))
+                    val message = "The directory ${file.presentableUrl} contains no IntelliJ IDEA project."
+                    Messages.showInfoMessage(null as Project?, message, "Cannot Open Project")
                     return@chooseFile
                 }
                 parent.setSelectedProject(file.path)

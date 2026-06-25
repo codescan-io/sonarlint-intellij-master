@@ -19,16 +19,15 @@
  */
 package org.sonarlint.intellij;
 
-import com.intellij.ide.plugins.IdeaPluginDescriptor;
-import com.intellij.ide.plugins.PluginManagerCore;
+import com.intellij.ide.plugins.cl.PluginAwareClassLoader;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.components.Service;
-import com.intellij.openapi.extensions.PluginId;
+import com.intellij.openapi.extensions.PluginDescriptor;
 import java.nio.file.Path;
 
 @Service(Service.Level.APP)
 public final class SonarLintPlugin implements Disposable {
-  private IdeaPluginDescriptor plugin;
+  private PluginDescriptor plugin;
 
   public String getVersion() {
     return getPlugin().getVersion();
@@ -38,9 +37,12 @@ public final class SonarLintPlugin implements Disposable {
     return getPlugin().getPluginPath();
   }
 
-  private IdeaPluginDescriptor getPlugin() {
+  private PluginDescriptor getPlugin() {
     if (plugin == null) {
-      plugin = PluginManagerCore.getPlugin(PluginId.getId("com.code-scan.intellij"));
+      var classLoader = getClass().getClassLoader();
+      if (classLoader instanceof PluginAwareClassLoader) {
+        plugin = ((PluginAwareClassLoader) classLoader).getPluginDescriptor();
+      }
     }
     return plugin;
   }
