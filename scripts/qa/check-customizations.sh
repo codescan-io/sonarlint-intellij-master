@@ -56,10 +56,11 @@ if [ ! -f "$PLUGIN_XML" ]; then echo "ERROR: not a plugin source tree, no $PLUGI
 if [ -n "$ZIP" ] && [ "$NOZIP" -eq 1 ]; then echo "ERROR: --zip and --no-zip cannot be used together" >&2; exit 2; fi
 if [ -n "$ZIP" ] && [ ! -f "$ZIP" ]; then echo "ERROR: zip not found: $ZIP" >&2; exit 2; fi
 # No zip named: take the newest build/distributions/*.zip (the build leaves one zip per version there).
+# The build also writes <zip>.blockmap.zip next to it (an index for incremental download, not a plugin); skip it.
 ZIP_NOTE=""
 SKIP_ZIP=""
 if [ -z "$ZIP" ] && [ "$NOZIP" -eq 0 ]; then
-  found=$(ls -t "$SRC"/build/distributions/*.zip 2> /dev/null | head -1)
+  found=$(ls -t "$SRC"/build/distributions/*.zip 2> /dev/null | grep -v '\.blockmap\.zip$' | head -1)
   if [ -n "$found" ] && [ -f "$found" ]; then
     ZIP=$found
     ZIP_NOTE="NOTE zip checks use the newest zip in build/distributions: $ZIP"
