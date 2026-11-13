@@ -96,6 +96,28 @@ class CodeScanBrandingTests {
     }
 
     @Test
+    fun changeNotesAreTheCodeScanReleaseHistory() {
+        // the IDE and the Marketplace show these notes for the CodeScan plugin, so they must not list SonarSource's releases
+        val descriptor = Paths.get("src/main/resources/META-INF/plugin.xml").readText()
+        val notes = Regex("""<change-notes><!\[CDATA\[([\s\S]*?)]]>\s*</change-notes>""").find(descriptor)?.groupValues?.get(1).orEmpty()
+        val versions = Regex("""<li>([\d.]+) - """).findAll(notes).map { it.groupValues[1] }.toList()
+
+        assertThat(versions).contains("7.3.0", "7.2.1", "6.1.2").doesNotContain("10.14.1", "10.13", "10.0")
+    }
+
+    @Test
+    fun readmeAndNoticeAreCodeScans() {
+        val readme = Paths.get("README.md").readText()
+        val notice = Paths.get("NOTICE.txt").readText()
+
+        assertThat(readme.lineSequence().first()).startsWith("CodeScan")
+        assertThat(readme).contains("https://plugins.jetbrains.com/plugin/16087-codescan").doesNotContain("plugin/7973-sonarlint", "SONARCLOUD_IT_PASSWORD")
+        assertThat(notice.lineSequence().first()).isEqualTo("CodeScan for IntelliJ IDEA")
+        // the analyzers inside the plugin keep their license notice; the C/C++ and C# ones are no longer shipped (Rider and CLion were removed)
+        assertThat(notice).contains("Sonar Source-Available License").doesNotContain("sonar-cfamily-plugin", "sonar-csharp-enterprise-plugin")
+    }
+
+    @Test
     fun serverProductNameIsCodeScan() {
         // P7 makes every CodeScan server a cloud connection, so both kinds must read the same
         listOf("https://app.codescan.io", "https://codescan.example.invalid").forEach { url ->
