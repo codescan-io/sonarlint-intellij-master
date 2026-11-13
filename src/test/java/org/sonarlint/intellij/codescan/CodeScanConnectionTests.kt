@@ -25,14 +25,19 @@ import com.github.tomakehurst.wiremock.client.WireMock.notFound
 import com.github.tomakehurst.wiremock.client.WireMock.okJson
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.testFramework.replaceService
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.PrintStream
 import java.net.URI
 import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.Callable
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.entry
 import org.assertj.core.api.Assertions.tuple
 import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.AfterEach
@@ -45,13 +50,21 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.timeout
 import org.sonarlint.intellij.AbstractSonarLintHeavyTests
+import org.sonarlint.intellij.SonarLintIntelliJClient
+import org.sonarlint.intellij.analysis.AnalysisState
+import org.sonarlint.intellij.analysis.SonarLintAnalyzer
+import org.sonarlint.intellij.common.analysis.AnalysisConfigurator
+import org.sonarlint.intellij.common.ui.SonarLintConsole
 import org.sonarlint.intellij.common.util.CodeScanServerCheck
 import org.sonarlint.intellij.common.util.SonarLintUtils
+import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.config.global.ServerConnectionMgmtPanel
 import org.sonarlint.intellij.config.global.wizard.WizardModel
 import org.sonarlint.intellij.core.BackendService
 import org.sonarlint.intellij.java.JavaAnalysisConfigurator
+import org.sonarlint.intellij.ui.SonarLintConsoleTestImpl
+import org.sonarlint.intellij.util.GlobalLogOutput
 import org.sonarsource.sonarlint.core.rpc.client.Sloop
 import org.sonarsource.sonarlint.core.rpc.client.SloopLauncher
 import org.sonarsource.sonarlint.core.rpc.protocol.SonarLintRpcServer
@@ -71,6 +84,8 @@ import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.IssueRpcService
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.RulesRpcService
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.tracking.ListAllResponse
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.tracking.TaintVulnerabilityTrackingRpcService
+import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogLevel
+import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogParams
 
 /**
  * The CodeScan behaviour of the plugin, checked through the code paths users hit:
@@ -152,10 +167,50 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
     }
 
     @Test
-    fun ideTypeIsSentForAnalytics() {
-        val properties = JavaAnalysisConfigurator().configure(module, emptyList()).extraProperties
+    fun codeScanAnalysisSettingsAreSentWithoutTheJavaPlugin() {
+        connectProjectTo(cloudConnection(), "projectKey")
 
-        assertThat(properties).containsEntry("codescan.ide.type", "IntelliJ IDEA")
+        assertThat(settingsFromConfiguratorsOtherThanJava())
+            .containsEntry("codescan.ide.type", "IntelliJ IDEA")
+            .containsEntry("sonar.host.url", CODESCAN_CLOUD_URL)
+            .containsEntry("sonar.organization", "org")
+            .containsEntry("sonar.login", TOKEN)
+            .containsEntry("sonar.password", "")
+    }
+
+    @Test
+    fun onlyTheIdeTypeIsSentWhenTheProjectIsNotBound() {
+        globalSettings.serverConnections = listOf(cloudConnection())
+
+        assertThat(settingsFromConfiguratorsOtherThanJava()).containsExactly(entry("codescan.ide.type", "IntelliJ IDEA"))
+    }
+
+    @Test
+    fun tokenIsMaskedInBackendLogs() {
+        connectProjectTo(cloudConnection(), "projectKey")
+        val globalLog = mock(GlobalLogOutput::class.java)
+        ApplicationManager.getApplication().replaceService(GlobalLogOutput::class.java, globalLog, testRootDisposable)
+        // the line the backend writes at the start of every analysis
+        val line = "Triggering analysis with configuration: [\n  extraProperties: {sonar.login=$TOKEN, codescan.ide.type=IntelliJ IDEA}\n]"
+
+        SonarLintIntelliJClient.log(LogParams(LogLevel.INFO, line, moduleBackendId(module), "stack $TOKEN", Instant.now()))
+        SonarLintIntelliJClient.log(LogParams(LogLevel.INFO, line, null, null, Instant.now()))
+
+        assertThat(projectConsoleText()).contains("Triggering analysis").contains("codescan.ide.type=IntelliJ IDEA").doesNotContain(TOKEN)
+        val captor = argumentCaptor<String>()
+        verify(globalLog).log(captor.capture(), any())
+        assertThat(captor.firstValue).contains("Triggering analysis").doesNotContain(TOKEN)
+    }
+
+    @Test
+    fun tokenIsNotPrintedWhenTheProjectSettingsOverrideIt() {
+        connectProjectTo(cloudConnection(), "projectKey")
+        projectSettings.additionalProperties = mapOf("sonar.login" to "typed-secret-value")
+
+        // no files: the analysis stops right after the settings are collected
+        getService(project, SonarLintAnalyzer::class.java).analyzeModule(module, emptyList(), mock(AnalysisState::class.java), EmptyProgressIndicator(), false)
+
+        assertThat(projectConsoleText()).contains("sonar.login").doesNotContain(TOKEN).doesNotContain("typed-secret-value")
     }
 
     @Test
@@ -363,6 +418,21 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
         }
     }
 
+    private fun cloudConnection() =
+        ServerConnection.newBuilder().setName("cs").setHostUrl(CODESCAN_CLOUD_URL).setToken(TOKEN).setOrganizationKey("org").build()
+
+    private fun settingsFromConfiguratorsOtherThanJava(): Map<String, String> =
+        AnalysisConfigurator.EP_NAME.extensionList
+            .filterNot { it is JavaAnalysisConfigurator }
+            .flatMap { it.configure(module, emptyList()).extraProperties.entries }
+            .associate { it.key to it.value }
+
+    private fun projectConsoleText(): String {
+        val out = ByteArrayOutputStream()
+        (getService(project, SonarLintConsole::class.java) as SonarLintConsoleTestImpl).flushTo(PrintStream(out, true, Charsets.UTF_8))
+        return out.toString(Charsets.UTF_8)
+    }
+
     private fun isCodeScanServerOffUiThread(url: String): Boolean = offUiThread { SonarLintUtils.isSonarCloudAlias(url) }
 
     private fun <T> offUiThread(block: () -> T): T =
@@ -390,6 +460,7 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
 
     companion object {
         private const val CODESCAN_CLOUD_URL = "https://app.codescan.io"
+        private const val TOKEN = "cs-test-token-0123456789"
         private const val CLOUD_URL_PROPERTY = "sonarlint.internal.sonarcloud.url"
         private const val CLOUD_WEBSOCKET_URL_PROPERTY = "sonarlint.internal.sonarcloud.websocket.url"
         private const val HEALTH_PATH = "/_codescan/actuator/health"

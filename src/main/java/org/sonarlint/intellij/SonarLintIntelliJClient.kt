@@ -64,6 +64,7 @@ import org.sonarlint.intellij.actions.SonarLintToolWindow
 import org.sonarlint.intellij.analysis.AnalysisReadinessCache
 import org.sonarlint.intellij.analysis.AnalysisSubmitter
 import org.sonarlint.intellij.analysis.AnalysisSubmitter.collectContributedLanguages
+import org.sonarlint.intellij.analysis.CodeScanAnalysisConfigurator
 import org.sonarlint.intellij.analysis.OpenInIdeFindingCache
 import org.sonarlint.intellij.analysis.RunningAnalysesTracker
 import org.sonarlint.intellij.common.analysis.FilesContributor
@@ -230,19 +231,21 @@ object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
     }
 
     override fun log(params: LogParams) {
+        // CodeScan: the backend prints the analysis settings, which hold the connection token (see CodeScanAnalysisConfigurator)
+        val message = CodeScanAnalysisConfigurator.maskSecrets(params.toString())
         val configScopeId = params.configScopeId
 
         configScopeId?.let {
             val project = BackendService.findModule(configScopeId)?.project ?: BackendService.findProject(configScopeId)
             project?.let {
                 val console: SonarLintConsole = getService(project, SonarLintConsole::class.java)
-                logProjectLevel(params.level, params.toString(), console)
+                logProjectLevel(params.level, message, console)
                 return
             }
         }
 
         val globalLogOutput = getService(GlobalLogOutput::class.java)
-        globalLogOutput.log(params.toString(), mapLevel(params.level))
+        globalLogOutput.log(message, mapLevel(params.level))
     }
 
 

@@ -264,6 +264,11 @@
         <pluginRepositoryAuthProvider implementation="org.sonarlint.intellij.dogfood.DogfoodPluginRepositoryAuthProvider"/>
     </extensions>
 
+    <extensions defaultExtensionNs="com.code-scan.intellij">
+        <!-- CodeScan: here and not in plugin-java.xml, so the CodeScan analysis settings are sent in every IDE -->
+        <analysisConfiguration implementation="org.sonarlint.intellij.analysis.CodeScanAnalysisConfigurator"/>
+    </extensions>
+
     <extensionPoints>
         <extensionPoint name="analysisConfiguration" interface="org.sonarlint.intellij.common.analysis.AnalysisConfigurator" dynamic="true"/>
         <extensionPoint name="fileExclusionContributor" interface="org.sonarlint.intellij.common.analysis.FileExclusionContributor" dynamic="true"/>

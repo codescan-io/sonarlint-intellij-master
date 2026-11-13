@@ -112,7 +112,7 @@ public final class SonarLintAnalyzer {
       for (var entry : config.extraProperties.entrySet()) {
         if (contributedProperties.containsKey(entry.getKey()) && !Objects.equals(contributedProperties.get(entry.getKey()), entry.getValue())) {
           console.error("The same property " + entry.getKey() + " was contributed by multiple configurators with different values: " +
-            contributedProperties.get(entry.getKey()) + " / " + entry.getValue());
+            conflictingValues(entry.getKey(), contributedProperties.get(entry.getKey()), entry.getValue()));
         }
         contributedProperties.put(entry.getKey(), entry.getValue());
       }
@@ -121,11 +121,16 @@ public final class SonarLintAnalyzer {
     for (var entry : extraProperties.entrySet()) {
       if (contributedProperties.containsKey(entry.getKey()) && !Objects.equals(contributedProperties.get(entry.getKey()), entry.getValue())) {
         console.error("The same property " + entry.getKey() + " was contributed by multiple configurators with different values: " +
-          contributedProperties.get(entry.getKey()) + " / " + entry.getValue());
+          conflictingValues(entry.getKey(), contributedProperties.get(entry.getKey()), entry.getValue()));
       }
       contributedProperties.put(entry.getKey(), entry.getValue());
     }
     return contributedProperties;
+  }
+
+  private static String conflictingValues(String key, String first, String second) {
+    // CodeScan: never print a token, for example when the project settings override the one of the connection
+    return CodeScanAnalysisConfigurator.isSecret(key) ? "(values hidden)" : (first + " / " + second);
   }
 
   @NotNull
