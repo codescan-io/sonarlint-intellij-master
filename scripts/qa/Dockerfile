@@ -6,7 +6,7 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get -o Acquire::http::Timeout=60 -o Acquire::Retries=3 update \
  && apt-get -o Acquire::http::Timeout=60 -o Acquire::Retries=3 install -y --no-install-recommends \
-      xvfb fluxbox xdotool x11-apps x11-utils imagemagick \
+      xvfb fluxbox xdotool x11-apps x11-utils imagemagick tesseract-ocr \
       fontconfig fonts-dejavu-core libfreetype6 \
       libxext6 libxrender1 libxtst6 libxi6 libxrandr2 libasound2t64 \
       git unzip procps ca-certificates \

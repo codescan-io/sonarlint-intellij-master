@@ -12,7 +12,7 @@
 #              repeats, or a freeze with no dump).
 # The 2 "ERROR from / with org.sonarlint" patterns are CodeScan by definition.
 #
-# Usage: scan-idea-log.sh [--strict] [--freeze-dumps <log dir>] <idea.log>
+# Usage: scan-idea-log.sh [--strict] [--freeze-dumps <log dir>] [--] <idea.log>
 #   --freeze-dumps <log dir>  The folder that holds idea.log and the threadDumps-freeze-<yyyyMMdd-HHmmss>-*
 #                             folders. Each "UI was frozen" hit is matched to its dump folder: first by the
 #                             folder name in the log line, else by the closest timestamp within 5 seconds.
@@ -20,6 +20,7 @@
 #                             has an org.sonarlint. frame, other if it has not, unknown if there is no
 #                             dump, no thread dump file, or no such thread block.
 #   --strict                  Any hit, whoever caused it, gives exit 1.
+#   --                        Ends the options, so a log file can have a name that starts with a dash.
 # Exit:  1 = at least one CodeScan hit (with --strict: at least one hit of any kind).
 #        0 = no hits, or every hit is other/unknown (a note says so).
 #        2 = bad usage or unreadable file.
@@ -27,7 +28,7 @@
 set -u
 
 usage() {
-  echo "usage: $(basename "$0") [--strict] [--freeze-dumps <log dir>] <idea.log>" >&2
+  echo "usage: $(basename "$0") [--strict] [--freeze-dumps <log dir>] [--] <idea.log>" >&2
 }
 
 STRICT=0
@@ -39,12 +40,18 @@ while [ $# -gt 0 ]; do
     --freeze-dumps)
       if [ $# -lt 2 ]; then usage; exit 2; fi
       DUMPS="$2"; shift 2 ;;
+    --) shift; break ;;
     -*) usage; exit 2 ;;
     *)
       if [ -n "$LOG" ]; then usage; exit 2; fi
       LOG="$1"; shift ;;
   esac
 done
+# After "--" every argument is a file name, even one that starts with a dash.
+if [ $# -gt 0 ]; then
+  if [ -n "$LOG" ] || [ $# -gt 1 ]; then usage; exit 2; fi
+  LOG="$1"
+fi
 if [ -z "$LOG" ]; then usage; exit 2; fi
 if [ ! -f "$LOG" ] || [ ! -r "$LOG" ]; then
   echo "error: cannot read log file: $LOG" >&2
@@ -67,8 +74,10 @@ classify_dump() {
   for file in "$dir"/threadDump-*.txt; do
     [ -f "$file" ] || continue
     res="$(awk '
+      # A block runs to the next thread header (a line starting with a quote). It can hold blank
+      # lines: a busy thread has one between the State line and its first frame.
       /^"AWT-EventQueue/ { inb = 1; block = 1; next }
-      inb && (/^$/ || /^"/) { inb = 0 }
+      inb && /^"/ { inb = 0 }
       inb && /org\.sonar(lint|source\.sonarlint)\./ { cs = 1 }
       END { print (block ? "block" : "none") " " (cs ? "cs" : "nocs") }
     ' "$file" 2>/dev/null)" || res=""
@@ -109,6 +118,13 @@ BEGIN {
   sonarTrace = ++n
   pat[sonarTrace] = "ERROR with org.sonarlint in its stack trace"
   for (i = 1; i <= n; i++) { cs[i] = 0; ot[i] = 0; un[i] = 0 }
+  # An entry header is "<date> <time> [ <thread id>]  <LEVEL> - #<logger> - <message>". The logger is only
+  # read at that position, so the same words inside a message do not count.
+  hdr = "^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9:,]+ +\\[ *[0-9]+\\] +"
+  sonarName = "#?org\\.sonar(lint|source\\.sonarlint)\\."
+  anyLoggerRe = hdr "(SEVERE|ERROR|WARN|INFO|DEBUG|TRACE) - " sonarName
+  errLoggerRe = hdr "(SEVERE|ERROR) - " sonarName
+  errLevelRe = hdr "(SEVERE|ERROR) - "
   lines = 0
   tops = 0
   dumps = 0
@@ -133,7 +149,7 @@ function epoch(y, m, d, hh, mm, ss,   a) {
 }
 
 # The class of the freeze dump for the entry header in buf[1]: by the folder name in the line, else by time.
-function freezeClass(   p, name, t, i, diff, best, bestDiff) {
+function freezeClass(   p, name, t, i, diff, best, bestDiff, dur) {
   p = index(buf[1], "details saved to ")
   if (p > 0) {
     name = substr(buf[1], p + 17)
@@ -143,6 +159,12 @@ function freezeClass(   p, name, t, i, diff, best, bestDiff) {
   }
   if (!match(buf[1], /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9]/)) return "unknown"
   t = epoch(substr(buf[1], 1, 4) + 0, substr(buf[1], 6, 2) + 0, substr(buf[1], 9, 2) + 0, substr(buf[1], 12, 2) + 0, substr(buf[1], 15, 2) + 0, substr(buf[1], 18, 2) + 0)
+  # IntelliJ logs the line when the freeze ends, and names the folder by when it started.
+  # So the freeze start is the line time minus "UI was frozen for N ms"; without a length the line time is used.
+  if (match(buf[1], /UI was frozen for [0-9]+ ?ms/)) {
+    dur = substr(buf[1], RSTART + 18, RLENGTH - 18)
+    t -= int((dur + 0) / 1000)
+  }
   best = 0; bestDiff = window + 1
   for (i = 1; i <= dumps; i++) {
     diff = t - dumpEpoch[i]; if (diff < 0) diff = -diff
@@ -188,7 +210,7 @@ function stackTop(   i, f, nf, first, from, key, pick) {
 
 # CodeScan if the logger or a stack frame is CodeScan code, other if there is a stack without it, else unknown.
 function entryClass(   j, hasStack, hasPlugin) {
-  if (buf[1] ~ /(ERROR|SEVERE|WARN|INFO|DEBUG) - #?org\.sonar(lint|source\.sonarlint)\./) return "CodeScan"
+  if (buf[1] ~ anyLoggerRe) return "CodeScan"
   hasStack = 0; hasPlugin = 0
   for (j = 2; j <= lines; j++) {
     if (buf[j] ~ /^[ \t]+at /) { hasStack = 1; if (isPluginFrame(buf[j])) hasPlugin = 1 }
@@ -216,13 +238,16 @@ function flush(   i, j, hit, matched, isError, key, last, class, fclass) {
       hit = hit (hit == "" ? "" : ", ") pat[i]
     }
   }
-  isError = (buf[1] ~ /(ERROR|SEVERE) - /)
-  if (isError && buf[1] ~ /(ERROR|SEVERE) - #?org\.sonar(lint|source\.sonarlint)\./) {
-    cs[sonarLogger]++; hit = hit (hit == "" ? "" : ", ") pat[sonarLogger]
-  } else if (isError && hit == "") {
-    matched = 0
-    for (j = 2; j <= lines && !matched; j++) if (buf[j] ~ /^[ \t]+at / && isPluginFrame(buf[j])) matched = 1
-    if (matched) { cs[sonarTrace]++; hit = pat[sonarTrace]; class = "CodeScan" }
+  # An entry that already matched a platform pattern is one hit, not a second one for its logger.
+  isError = (buf[1] ~ errLevelRe)
+  if (isError && hit == "") {
+    if (buf[1] ~ errLoggerRe) {
+      cs[sonarLogger]++; hit = pat[sonarLogger]
+    } else {
+      matched = 0
+      for (j = 2; j <= lines && !matched; j++) if (buf[j] ~ /^[ \t]+at / && isPluginFrame(buf[j])) matched = 1
+      if (matched) { cs[sonarTrace]++; hit = pat[sonarTrace]; class = "CodeScan" }
+    }
   }
   if (hit != "") {
     print "=== " hit " (line " startLine ") ==="

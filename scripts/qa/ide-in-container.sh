@@ -4,7 +4,10 @@
 #
 # Mounts: /ide.tar.gz (IDE tarball, read-only), /plugin.zip (plugin, read-only),
 #         /src-project (sample project, read-only), /out (results, writable).
-# Exit: 0 = IDE ran and logs were collected, 3 = IDE did not start or no log.
+# Exit: 0 = IDE ran for the whole time, CodeScan analysed a file, and logs were collected
+#       3 = IDE did not start, or there is no idea.log
+#       4 = IDE exited before the run time was up (logs are still collected)
+#       5 = the CodeScan analysis did not show a result for Hello.java (see "analysis check" below)
 set -u
 
 RUN_MINUTES="${RUN_MINUTES:-5}"
@@ -18,6 +21,15 @@ mkdir -p "$OUT" "$SHOTS" "$IDE" "$IDE_HOME/config/options" "$IDE_HOME/system" "$
 
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$OUT/run.log"; }
 shot() { xwd -root -silent 2>/dev/null | convert xwd:- "$SHOTS/$1.png" 2>/dev/null && log "screenshot $1.png"; }
+
+# True if the text on a screenshot (read with OCR, also after inverting the dark theme) matches the pattern.
+screen_has() {
+  local img="$SHOTS/$1.png"
+  [ -s "$img" ] || return 1
+  tesseract "$img" stdout 2>/dev/null | grep -Eq "$2" && return 0
+  convert "$img" -colorspace Gray -negate -resize 200% "$SHOTS/ocr-tmp.png" 2>/dev/null \
+    && tesseract "$SHOTS/ocr-tmp.png" stdout 2>/dev/null | grep -Eq "$2"
+}
 
 IDE_PID=""
 collect() {
@@ -172,6 +184,17 @@ shot "02-files-open"
 log "running Analyze with CodeScan (ctrl+shift+s) on Hello.java"
 keys ctrl+shift+s; sleep 30
 shot "03-analyze-java"
+# Analysis check, part 1: the plugin prints its result ("Found 4 issues in 1 file") only in the CodeScan tool
+# window, never in idea.log or on disk (it saves findings to disk only for some exits, which is not reliable).
+# So the result is read from the screenshot. Hello.java is written above with known problems, so it must show.
+ANALYSIS_OK=0
+if screen_has "03-analyze-java" 'Found [0-9]+ issues? in [0-9]+ files?'; then
+  ANALYSIS_OK=1
+else
+  sleep 20; shot "03b-analyze-java-retry"
+  screen_has "03b-analyze-java-retry" 'Found [0-9]+ issues? in [0-9]+ files?' && ANALYSIS_OK=1
+fi
+rm -f "$SHOTS/ocr-tmp.png"
 # Recent Files (ctrl+e) has the previous file selected, which is the Apex file.
 keys ctrl+e; sleep 3; xdotool key Return; sleep 3
 log "running Analyze with CodeScan (ctrl+shift+s) on $(basename "$APEX_FILE")"
@@ -183,8 +206,9 @@ shot "05-settings"
 xdotool key Escape; sleep 3
 
 END=$((T0 + RUN_MINUTES * 60))
+EARLY_EXIT=0
 while [ "$(date +%s)" -lt "$END" ]; do
-  kill -0 "$IDE_PID" 2>/dev/null || { log "IDE exited early"; break; }
+  kill -0 "$IDE_PID" 2>/dev/null || { log "IDE exited early"; EARLY_EXIT=1; break; }
   sleep 10
 done
 shot "06-before-exit"
@@ -202,5 +226,16 @@ fi
 grep -q 'IDE SHUTDOWN' "$IDEA_LOG" && log "idea.log has the IDE SHUTDOWN line"
 collect
 [ -s "$OUT/log/idea.log" ] || { log "FAILED: no idea.log"; exit 3; }
+if [ "$EARLY_EXIT" -eq 1 ]; then
+  log "FAILED: the IDE exited before the $RUN_MINUTES minutes were up, so the run is not complete"
+  exit 4
+fi
+
+# Analysis check, part 2: without a result on screen the run is not a clean pass, whatever idea.log says.
+if [ "$ANALYSIS_OK" -ne 1 ]; then
+  log "FAILED: the CodeScan tool window did not show 'Found N issues' for Hello.java, so the analysis did not run (or the keyboard shortcut was missed); see $SHOTS/03-analyze-java.png"
+  exit 5
+fi
+log "CodeScan showed its analysis result for Hello.java"
 log "done"
 exit 0

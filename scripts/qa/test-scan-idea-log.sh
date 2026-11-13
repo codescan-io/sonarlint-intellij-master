@@ -315,18 +315,43 @@ mkdir -p "$DUMPS/threadDumps-freeze-20261113-160016-IU-261.1-9sec"
 echo "report" > "$DUMPS/threadDumps-freeze-20261113-160016-IU-261.1-9sec/report.txt"
 make_dump "threadDumps-freeze-20261113-170016-IU-261.1-9sec" "threadDump-20261113-170016.txt" \
   "Thread-1" "org.sonarlint.intellij.Foo.run(Foo.java:1)" "Thread-2" "com.intellij.Other.run(Other.java:1)"
+# G and H: a busy UI thread. Real IntelliJ dumps put a blank line between the State line and the frames.
+make_dump_runnable() { # <folder name> <file name> <frame on the UI thread>
+  mkdir -p "$DUMPS/$1"
+  {
+    echo '"AWT-EventQueue-0" prio=0 tid=0x0 nid=0x0 runnable'
+    echo "     java.lang.Thread.State: RUNNABLE"
+    echo ""
+    echo "	at $3"
+    echo "	at java.desktop/java.awt.EventQueue.dispatchEvent(EventQueue.java:1)"
+    echo ""
+    echo '"main" prio=0 tid=0x0 nid=0x0 waiting on condition'
+    echo "     java.lang.Thread.State: WAITING"
+    echo "	at java.base/java.lang.Object.wait(Native Method)"
+    echo ""
+  } > "$DUMPS/$1/$2"
+}
+make_dump_runnable "threadDumps-freeze-20261113-190016-IU-261.1-9sec" "threadDump-20261113-190016.txt" \
+  "org.sonarlint.intellij.ui.SomePanel.paint(SomePanel.java:10)"
+make_dump_runnable "threadDumps-freeze-20261113-200016-IU-261.1-9sec" "threadDump-20261113-200016.txt" \
+  "com.intellij.ui.Other.paint(Other.java:10)"
 # Folders that are not freeze dumps must be ignored.
 make_dump "threadDumps-Dispatchers.IO-20261113-180016-IU-261.1" "threadDump-20261113-180016.txt" \
   "AWT-EventQueue-0" "org.sonarlint.intellij.ui.FindingDetailsPanel.show(FindingDetailsPanel.kt:75)" \
   "Thread-2" "com.intellij.Other.run(Other.java:1)"
 
-freeze_log() { # <time of day hh:mm:ss> [path suffix]
-  f="$TMP/freeze-$1.log"
-  f="$(echo "$f" | tr ':' '-')"
+# <freeze start hh:mm:ss> [folder name]: a log with one freeze line. IntelliJ logs the line when the freeze
+# ends, so the line time is the start plus the 9000 ms length.
+freeze_log() {
+  local h m sec end
+  h=${1%%:*}; m=${1#*:}; m=${m%%:*}; sec=${1##*:}
+  end=$((10#$h * 3600 + 10#$m * 60 + 10#$sec + 9))
+  end="$(printf '%02d:%02d:%02d' $((end / 3600)) $((end % 3600 / 60)) $((end % 60)))"
+  f="$(echo "$TMP/freeze-$1.log" | tr ':' '-')"
   if [ -n "${2:-}" ]; then
-    echo "2026-11-13 $1,500 [ 1000]  WARN - #c.i.d.PerformanceWatcherImpl - UI was frozen for 9000ms, details saved to $DUMPS/$2" > "$f"
+    echo "2026-11-13 $end,500 [ 1000]  WARN - #c.i.d.PerformanceWatcherImpl - UI was frozen for 9000ms, details saved to $DUMPS/$2" > "$f"
   else
-    echo "2026-11-13 $1,500 [ 1000]  WARN - #c.i.d.PerformanceWatcherImpl - UI was frozen for 9000ms" > "$f"
+    echo "2026-11-13 $end,500 [ 1000]  WARN - #c.i.d.PerformanceWatcherImpl - UI was frozen for 9000ms" > "$f"
   fi
   echo "$f"
 }
@@ -376,9 +401,66 @@ expect_split "freeze named but missing" "$FZ" 0 0 1
 run_scan --freeze-dumps "$DUMPS" "$(freeze_log 18:00:18)"
 expect_split "freeze other folder kind" "$FZ" 0 0 1
 
+# A busy UI thread (blank line before the frames): CodeScan frame on it is CodeScan, no CodeScan frame is other.
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 19:00:17)"
+expect_split "freeze runnable layout CodeScan" "$FZ" 1 0 0
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 20:00:17)"
+expect_split "freeze runnable layout other" "$FZ" 0 1 0
+# ... also when the folder is named in the line.
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 19:30:00 threadDumps-freeze-20261113-190016-IU-261.1-9sec)"
+expect_split "freeze runnable layout named" "$FZ" 1 0 0
+
+# The time match uses the freeze start (line time minus the length), not the line time.
+# Start 12:00:08 is 8 s from folder B (12:00:16), too far. The line time 12:00:17 is 1 s from B.
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 12:00:08)"
+expect_split "freeze start time" "$FZ" 0 0 1
+# A line without a length falls back to the line time itself.
+f="$TMP/freeze-nolen.log"
+echo "2026-11-13 12:00:18,500 [ 1000]  WARN - #c.i.d.PerformanceWatcherImpl - UI was frozen" > "$f"
+run_scan --freeze-dumps "$DUMPS" "$f"
+expect_split "freeze no length" "$FZ" 0 1 0
+
 # Without --freeze-dumps a freeze is unknown.
 run_scan "$(freeze_log 11:00:25 threadDumps-freeze-20261113-110016-IU-261.1-9sec)"
 expect_split "freeze without flag" "$FZ" 0 0 1
+
+# One entry is one hit: a CodeScan logger plus a platform pattern is not counted twice.
+f="$TMP/double.log"
+{
+  echo "$TS SEVERE - #org.sonarlint.intellij.Foo - Read access is allowed from inside read-action only"
+  echo "java.lang.RuntimeException: boom"
+  echo "	at com.intellij.util.Foo.bar(Foo.java:1)"
+} > "$f"
+run_scan "$f"
+expect_out "double count" "Total: 1"
+expect_out "double count" "CodeScan total: 1"
+expect_split "double count" "Read access is allowed from inside read-action" 1 0 0
+expect_split "double count" "ERROR from org.sonarlint logger" 0 0 0
+
+# The logger is the word after "LEVEL - #", not text inside the message.
+f="$TMP/message-text.log"
+echo "$TS   INFO - #c.i.Foo - server said: ERROR - #org.sonarlint.x - nope" > "$f"
+run_scan "$f"
+expect_out "message text" "Total: 0"
+expect_out "message text" "CodeScan total: 0"
+f="$TMP/message-text-slow.log"
+echo "$TS   WARN - #c.i.Foo - see WARN - #org.sonarlint.x - Slow operations are prohibited on EDT" > "$f"
+run_scan "$f"
+expect_split "message text slow" "Slow operations are prohibited on EDT" 0 0 1
+
+# TRACE is a level too.
+f="$TMP/trace.log"
+echo "$TS  TRACE - #org.sonarlint.x - Slow operations are prohibited on EDT" > "$f"
+run_scan "$f"
+expect_split "trace logger" "Slow operations are prohibited on EDT" 1 0 0
+
+# "--" ends the options, so a log file can be named like an option.
+cp "$TMP/trace.log" "$TMP/-x.log"
+OUT="$(cd "$TMP" && bash "$SCAN" -- -x.log 2>&1)"; CODE=$?
+expect_code "double dash" 1
+expect_out "double dash" "CodeScan total: 1"
+OUT="$(cd "$TMP" && bash "$SCAN" -x.log 2>&1)"; CODE=$?
+expect_code "dash file without double dash" 2
 
 # Bad usage.
 run_scan --freeze-dumps "$TMP/no-such-dir" "$TMP/ts-edt.log"
