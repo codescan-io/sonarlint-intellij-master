@@ -64,7 +64,7 @@ class MarkAsResolvedAction(
 
     companion object {
         const val REVIEW_ISSUE_GROUP = "CodeScan: Mark Issue as Resolved"
-        private const val ERROR_TITLE = "<b>SonarQube for IDE - Unable to mark the issue as resolved</b>"
+        private const val ERROR_TITLE = "<b>CodeScan - Unable to mark the issue as resolved</b>"
         private const val CONTENT = "The issue was successfully marked as resolved"
 
         fun canBeMarkedAsResolved(project: Project, issue: Issue): Boolean {
@@ -194,7 +194,7 @@ class MarkAsResolvedAction(
         private fun confirm(project: Project, productName: String, issueStatus: IssueResolutionStatus): Boolean {
             return shouldSkipConfirmationDialog() || MessageDialogBuilder.okCancel(
                 "Confirm marking issue as resolved",
-                "Are you sure you want to mark this issue as \"${issueStatus.title}\"? The status will be updated on $productName and synchronized with any contributor using SonarQube for IDE in Connected Mode"
+                "Are you sure you want to mark this issue as \"${issueStatus.title}\"? The status will be updated on $productName and synchronized with any contributor using CodeScan in Connected Mode"
             ).yesText("Confirm").noText("Cancel").doNotAsk(DoNotShowAgain()).ask(project)
         }
 
@@ -250,10 +250,10 @@ class MarkAsResolvedAction(
 
     override fun startInWriteAction() = false
 
-    override fun getText() = "SonarQube: Mark issue as\u2026"
+    override fun getText() = "CodeScan: Mark issue as\u2026"
 
     override fun getFamilyName(): String {
-        return "SonarQube mark issue as\u2026"
+        return "CodeScan mark issue as\u2026"
     }
 
     override fun isVisible(e: AnActionEvent): Boolean {

@@ -41,7 +41,7 @@ public class GetOrganizationsTask extends Task.Modal {
   private List<OrganizationDto> organizations;
 
   public GetOrganizationsTask(ServerConnection connection) {
-    super(null, "Fetch Organizations from SonarQube Cloud", true);
+    super(null, "Fetch Organizations from CodeScan", true);
     this.connection = connection;
   }
 

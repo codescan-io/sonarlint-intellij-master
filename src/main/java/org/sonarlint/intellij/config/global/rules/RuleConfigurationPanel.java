@@ -410,11 +410,11 @@ public class RuleConfigurationPanel implements Disposable, ConfigurationPanel<So
 
     var introLabel = new JEditorPane();
     initHtmlPane(introLabel);
-    SwingHelper.setHtml(introLabel, "Configure rules used for SonarQube for IDE analysis for projects not in Connected Mode.",
+    SwingHelper.setHtml(introLabel, "Configure rules used for CodeScan analysis for projects not in Connected Mode.",
       UIUtil.getLabelForeground());
     var configureRuleLabel = new JEditorPane();
     initHtmlPane(configureRuleLabel);
-    SwingHelper.setHtml(configureRuleLabel, "Connecting your project to SonarQube (Server, Cloud) syncs SonarQube for IDE with the " +
+    SwingHelper.setHtml(configureRuleLabel, "Connecting your project to CodeScan syncs this plugin with the " +
       "Quality Profile standards defined on the server, allowing you to share the same rules configuration with your team.",
       JBUI.CurrentTheme.ContextHelp.FOREGROUND);
     var ruleServerLabel = new JEditorPane();
@@ -425,7 +425,7 @@ public class RuleConfigurationPanel implements Disposable, ConfigurationPanel<So
         RULE_SELECTION_PAGE.browseWithTelemetry();
       }
     });
-    SwingHelper.setHtml(ruleServerLabel, "<icon src=\"AllIcons.General.BalloonWarning\"> &nbsp;When a project is connected to SonarQube (Server, Cloud), " +
+    SwingHelper.setHtml(ruleServerLabel, "<icon src=\"AllIcons.General.BalloonWarning\"> &nbsp;When a project is connected to CodeScan, " +
       "<a href=\"" + SonarLintDocumentation.Intellij.RULE_SECTION_LINK + "\">configuration from the server applies</a>.", JBUI.CurrentTheme.ContextHelp.FOREGROUND);
     var labelPanel = new JBPanel<>(new VerticalFlowLayout(0, 0));
     labelPanel.add(introLabel);

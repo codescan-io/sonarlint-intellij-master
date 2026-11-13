@@ -57,8 +57,8 @@ import org.sonarsource.sonarlint.core.rpc.protocol.client.smartnotification.Show
 class SonarLintProjectNotifications(private val myProject: Project) {
 
     companion object {
-        private const val TITLE_SONARLINT_INVALID_BINDING = "<b>SonarQube for IDE - Invalid binding</b>"
-        private const val TITLE_SONARLINT_SUGGESTIONS = "<b>SonarQube for IDE suggestions</b>"
+        private const val TITLE_SONARLINT_INVALID_BINDING = "<b>CodeScan - Invalid binding</b>"
+        private const val TITLE_SONARLINT_SUGGESTIONS = "<b>CodeScan suggestions</b>"
 
         fun get(project: Project): SonarLintProjectNotifications {
             return SonarLintUtils.getService(project, SonarLintProjectNotifications::class.java)
@@ -125,8 +125,7 @@ class SonarLintProjectNotifications(private val myProject: Project) {
             content,
             NotificationType.INFORMATION
         ).apply {
-            addAction(OpenTrackedLinkAction("Try SonarQube Cloud for free", LinkTelemetry.SONARCLOUD_SIGNUP_PAGE))
-            addAction(OpenTrackedLinkAction("Download SonarQube Server", LinkTelemetry.SONARQUBE_EDITIONS_DOWNLOADS))
+            addAction(OpenTrackedLinkAction("Learn about CodeScan", LinkTelemetry.SONARCLOUD_PRODUCT_PAGE))
             addAction(OpenInBrowserAction("Learn more", null, CONNECTED_MODE_BENEFITS_LINK))
             addAction(DontAskAgainAction())
             icon = SonarLintIcons.SONARQUBE_FOR_INTELLIJ
@@ -145,7 +144,7 @@ class SonarLintProjectNotifications(private val myProject: Project) {
             )
         } else {
             notifyBindingSuggestions(
-                "Bind this project to SonarQube (Server, Cloud)?",
+                "Bind this project to CodeScan?",
                 if (suggestedBindings.isEmpty()) OpenProjectSettingsAction(
                     myProject,
                     "Configure binding"
@@ -205,7 +204,7 @@ class SonarLintProjectNotifications(private val myProject: Project) {
         }
         val isSonarCloud = connection.map { obj: ServerConnection -> obj.isSonarCloud }.orElse(false)
 
-        val label = if (isSonarCloud) "SonarQube Cloud" else "SonarQube Server"
+        val label = "CodeScan"
         serverNotificationsGroup.createNotification(
             "<b>$label Notification</b>",
             smartNotificationParams.text,
@@ -263,10 +262,10 @@ class SonarLintProjectNotifications(private val myProject: Project) {
 
     fun sendNotification() {
         secretDetectionGroup.createNotification(
-            "SonarQube for IDE: secret(s) detected",
-            "SonarQube for IDE detected some secrets in one of the open files. " +
+            "CodeScan: secret(s) detected",
+            "CodeScan detected some secrets in one of the open files. " +
                 "We strongly advise you to review those secrets and ensure they are not committed into repositories. " +
-                "Please refer to the SonarQube for IDE tool window for more information.",
+                "Please refer to the CodeScan tool window for more information.",
             NotificationType.WARNING
         ).apply {
             icon = SonarLintIcons.SONARQUBE_FOR_INTELLIJ

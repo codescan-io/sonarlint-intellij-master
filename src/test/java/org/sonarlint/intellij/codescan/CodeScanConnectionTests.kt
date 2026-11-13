@@ -158,6 +158,13 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
     }
 
     @Test
+    fun backendIntroducesItselfToServersAsCodeScan() {
+        val userAgent = startBackendAndCaptureInitializeParams().clientConstantInfo.userAgent
+
+        assertThat(userAgent).isEqualTo("CodeScan IntelliJ " + getService(SonarLintPlugin::class.java).version)
+    }
+
+    @Test
     fun backendFeatureFlagsMatchCodeScan() {
         val flags = startBackendAndCaptureInitializeParams().featureFlags
 

@@ -33,7 +33,7 @@ class ClearSecurityHotspotsFiltersAction(private val securityHotspotKey: String)
             SonarLintActions.getInstance().includeResolvedHotspotAction().setSelected(e, true)
             if (!SonarLintUtils.getService(it, SonarLintToolWindow::class.java).trySelectSecurityHotspot(securityHotspotKey)) {
                 SonarLintProjectNotifications.get(it)
-                    .notifyUnableToOpenFinding("The Security Hotspot could not be opened by SonarQube for IDE")
+                    .notifyUnableToOpenFinding("The Security Hotspot could not be opened by CodeScan")
             }
         }
         notification.expire()

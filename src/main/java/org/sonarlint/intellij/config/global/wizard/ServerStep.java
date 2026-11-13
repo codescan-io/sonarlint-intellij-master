@@ -23,7 +23,6 @@ import com.intellij.ide.wizard.AbstractWizardStepEx;
 import com.intellij.ide.wizard.CommitStepException;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.ui.DocumentAdapter;
-import com.intellij.ui.HyperlinkAdapter;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.net.HttpConfigurable;
 import com.intellij.util.ui.SwingHelper;
@@ -40,18 +39,13 @@ import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.MouseInputAdapter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.SonarLintIcons;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarlint.intellij.telemetry.LinkTelemetry;
 
 import static org.sonarlint.intellij.common.util.SonarLintUtils.SONARCLOUD_URL;
-import static org.sonarlint.intellij.telemetry.LinkTelemetry.COMPARE_SERVER_PRODUCTS;
-import static org.sonarlint.intellij.telemetry.LinkTelemetry.SONARCLOUD_PRODUCT_PAGE;
-import static org.sonarlint.intellij.telemetry.LinkTelemetry.SONARQUBE_EDITIONS_DOWNLOADS;
 
 public class ServerStep extends AbstractWizardStepEx {
   private static final int NAME_MAX_LENGTH = 50;
@@ -94,22 +88,13 @@ public class ServerStep extends AbstractWizardStepEx {
 
     nameField.setToolTipText("Name of this configuration (mandatory field)");
 
-    var sqMainText = "An <b>open-source, self-managed</b> tool that easily integrates into the developers' " +
-      "CI/CD pipeline and DevOps platform to systematically help developers and organizations deliver Clean Code.";
-    sonarQubeDescription.setText(sqMainText);
+    sonarCloudDescription.setText("Connect to <b>CodeScan</b> at " + SONARCLOUD_URL);
+    sonarQubeDescription.setText("Connect to another <b>CodeScan</b> address, such as the EU region, a custom domain or a self-hosted CodeScan server");
 
-    var cloudMainText = "A <b>Software-as-a-Service (SaaS)</b> tool that easily integrates into the cloud DevOps platforms " +
-      "and extends the CI/CD workflow to systematically help developers and organizations deliver Clean Code.";
-    sonarCloudDescription.setText(cloudMainText);
-
-    initEditorPane(sonarCloudFree, "<a href=\"" + SONARCLOUD_PRODUCT_PAGE.getUrl() + "\">SonarQube Cloud</a> is entirely free for open source projects",
-      SONARCLOUD_PRODUCT_PAGE);
-
-    initEditorPane(sonarQubeFree, "SonarQube Server offers a free <a href=\"" + SONARQUBE_EDITIONS_DOWNLOADS.getUrl() + "\">Community Build</a>",
-      SONARQUBE_EDITIONS_DOWNLOADS);
-
-    initEditorPane(compareProducts, "Discover which option is the best for your team <a href=\"" + COMPARE_SERVER_PRODUCTS.getUrl() + "\">here</a>",
-      COMPARE_SERVER_PRODUCTS);
+    // CodeScan: these panes held SonarSource's pricing and product comparison, which do not apply to CodeScan
+    sonarCloudFree.setVisible(false);
+    sonarQubeFree.setVisible(false);
+    compareProducts.setVisible(false);
 
     if (!editing) {
       sonarqubeIcon.addMouseListener(new MouseInputAdapter() {
@@ -132,16 +117,6 @@ public class ServerStep extends AbstractWizardStepEx {
 
     load(editing);
     paintErrors();
-  }
-
-  private static void initEditorPane(JEditorPane editorPane, String text, LinkTelemetry linkTelemetry) {
-    editorPane.setText(text);
-    editorPane.addHyperlinkListener(new HyperlinkAdapter() {
-      @Override
-      protected void hyperlinkActivated(HyperlinkEvent e) {
-        linkTelemetry.browseWithTelemetry();
-      }
-    });
   }
 
   private void paintErrors() {

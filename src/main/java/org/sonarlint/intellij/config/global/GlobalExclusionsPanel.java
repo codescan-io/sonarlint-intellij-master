@@ -58,7 +58,7 @@ public class GlobalExclusionsPanel implements ConfigurationPanel<SonarLintGlobal
     panel.setBorder(b);
 
     initHtmlPane(editorPane1);
-    SwingHelper.setHtml(editorPane1, "When a project is connected to SonarQube (Server, Cloud), exclusions defined in its " +
+    SwingHelper.setHtml(editorPane1, "When a project is connected to CodeScan, exclusions defined in its " +
       "General Settings <a href=\"" + SonarLintDocumentation.Intellij.FILE_EXCLUSION_LINK + "\">override</a> your locally " +
       "defined exclusions.", UIUtil.getLabelForeground());
     editorPane1.addHyperlinkListener(new HyperlinkAdapter() {

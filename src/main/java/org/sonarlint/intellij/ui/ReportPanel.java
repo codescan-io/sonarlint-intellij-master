@@ -76,7 +76,7 @@ import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
   private static final String SPLIT_PROPORTION_PROPERTY = "SONARLINT_ANALYSIS_RESULTS_SPLIT_PROPORTION";
-  private static final String ID = "SonarQube for IDE";
+  private static final String ID = "CodeScan";
   protected final Project project;
   private final LastAnalysisPanel lastAnalysisPanel;
   private final ReportTabStatusPanel whatsNewPanel;
@@ -211,7 +211,7 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
     var backendIsAlive = getService(BackendService.class).isAlive();
     if (!backendIsAlive) {
       statusText.setText(SONARLINT_ERROR_MSG);
-      statusText.appendLine("Restart SonarQube for IDE Service", SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES,
+      statusText.appendLine("Restart CodeScan Service", SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES,
         ignore -> ActionUtil.invokeAction(restartSonarLintAction, this, CurrentFilePanel.SONARLINT_TOOLWINDOW_ID, null, null));
     } else {
       var sonarLintActions = SonarLintActions.getInstance();

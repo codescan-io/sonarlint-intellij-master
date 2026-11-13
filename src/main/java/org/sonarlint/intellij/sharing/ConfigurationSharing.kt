@@ -129,7 +129,7 @@ class ConfigurationSharing {
             }
 
             val connectionKind = getService(project, ProjectBindingManager::class.java)
-                .tryGetServerConnection().map { if (it.isSonarCloud) "SonarQube Cloud organization" else "SonarQube Server instance" }
+                .tryGetServerConnection().map { if (it.isSonarCloud) "CodeScan organization" else "CodeScan server" }
                 .orElse(null)
                 ?: run {
                     SonarLintConsole.get(project).error("Connection is not present")

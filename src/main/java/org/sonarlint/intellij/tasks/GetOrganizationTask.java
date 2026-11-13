@@ -39,7 +39,7 @@ public class GetOrganizationTask extends Task.Modal {
   private OrganizationDto organization;
 
   public GetOrganizationTask(ServerConnection server, String organizationKey) {
-    super(null, "Fetch Organization From SonarQube Cloud", true);
+    super(null, "Fetch Organization From CodeScan", true);
     this.server = server;
     this.organizationKey = organizationKey;
   }

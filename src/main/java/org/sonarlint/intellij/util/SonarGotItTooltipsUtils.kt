@@ -30,7 +30,7 @@ object SonarGotItTooltipsUtils {
 
     private const val TRAFFIC_LIGHT_TOOLTIP_ID = "sonarlint.traffic.light.tooltip"
     private const val TRAFFIC_LIGHT_TOOLTIP_TEXT = """See how many issues need your attention in the current file. 
-        Click the icon to show/hide the SonarLint tool window, and hover to view more actions."""
+        Click the icon to show/hide the CodeScan tool window, and hover to view more actions."""
 
     fun showTrafficLightToolTip(component: JComponent, parent: Disposable) {
         // we pick a random project service that is disposable

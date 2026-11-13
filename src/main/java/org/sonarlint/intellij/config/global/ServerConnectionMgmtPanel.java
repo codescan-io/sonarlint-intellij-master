@@ -85,7 +85,7 @@ public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGl
     var app = ApplicationManager.getApplication();
     connectionChangeListener = app.getMessageBus().syncPublisher(GlobalConfigurationListener.TOPIC);
     connectionList = new JBList<>();
-    connectionList.getEmptyText().appendLine("Add a connection to SonarQube (Server, Cloud)");
+    connectionList.getEmptyText().appendLine("Add a connection to CodeScan");
     connectionList.addMouseListener(new MouseAdapter() {
       @Override
       public void mouseClicked(MouseEvent evt) {
@@ -155,7 +155,7 @@ public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGl
 
   private static JPanel initConnectionTitle() {
     var titlePanel = new JPanel(new HorizontalLayout(5));
-    var connectionLabel = new JBLabel("Connections to SonarQube (");
+    var connectionLabel = new JBLabel("Connections to CodeScan (");
     connectionLabel.setFont(connectionLabel.getFont().deriveFont(Font.BOLD, 16f));
     var sonarQubeIcon = new JBLabel(SonarLintIcons.ICON_SONARQUBE_SERVER_16);
     var sonarQubeLabel = new JBLabel("Server, ");
@@ -182,7 +182,7 @@ public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGl
     connectedModeLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 15, 0));
     initHtmlPane(connectedModeLabel);
     SwingHelper.setHtml(connectedModeLabel, "<a href=\"" + CONNECTED_MODE_DOCS.getUrl() + "\">Connected Mode</a> " +
-      "links SonarQube for IDE to SonarQube (Server, Cloud) to apply the same Clean Code standards as your team. " +
+      "links this plugin to CodeScan to apply the same Clean Code standards as your team. " +
         "Analyze more languages, detect more issues, receive notifications about the quality gate status, and more. " +
         "Quality Profiles and file exclusion settings defined on the server are shared between all connected users.",
       JBUI.CurrentTheme.ContextHelp.FOREGROUND);

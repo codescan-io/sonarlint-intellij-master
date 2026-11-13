@@ -195,11 +195,11 @@ object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
     private fun getAutoShareConfigParams(uniqueSuggestion: ConnectionSuggestionDto): Triple<String, String, String> {
         return if (uniqueSuggestion.connectionSuggestion.isRight) {
             Triple(
-                "SonarQube Cloud organization", uniqueSuggestion.connectionSuggestion.right.projectKey,
+                "CodeScan organization", uniqueSuggestion.connectionSuggestion.right.projectKey,
                 uniqueSuggestion.connectionSuggestion.right.organization)
         } else {
             Triple(
-                "SonarQube Server instance", uniqueSuggestion.connectionSuggestion.left.projectKey,
+                "CodeScan server", uniqueSuggestion.connectionSuggestion.left.projectKey,
                 uniqueSuggestion.connectionSuggestion.left.serverUrl)
         }
     }
@@ -420,13 +420,13 @@ object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
             if (isSQ) {
                 setUpManualConnection(serverOrOrg)
             } else {
-                throw CancellationException("SonarQube for IDE cannot assist with manual connection to SonarQube Cloud organization")
+                throw CancellationException("Cannot assist with a manual connection to a CodeScan organization")
             }
         }
 
         projectLessNotification(
             "",
-            "You have successfully established a connection to the ${if (isSQ) "SonarQube Server instance" else "SonarQube Cloud organization"}",
+            "You have successfully established a connection to the ${if (isSQ) "CodeScan server" else "CodeScan organization"}",
             NotificationType.INFORMATION
         )
 
@@ -443,13 +443,13 @@ object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
     }
 
     private fun setUpManualConnection(serverUrl: String): AssistCreatingConnectionResponse {
-        val warningTitle = "Trust This SonarQube Server Instance?"
+        val warningTitle = "Trust This CodeScan Server?"
         val message = """
-                        The server <b>${StringEscapeUtils.escapeHtml4(serverUrl)}</b> is attempting to set up a connection with SonarQube for IDE. Letting SonarQube for IDE connect to an untrusted SonarQube Server instance is potentially dangerous.
+                        The server <b>${StringEscapeUtils.escapeHtml4(serverUrl)}</b> is attempting to set up a connection with this plugin. Connecting to a CodeScan server you do not trust is potentially dangerous.
                         
                         If you don’t trust this server, we recommend canceling this action and <a href="$CONNECTED_MODE_SETUP_LINK">manually setting up Connected Mode<icon src="AllIcons.Ide.External_link_arrow" href="$CONNECTED_MODE_SETUP_LINK"></a>.
                     """.trimIndent()
-        val connectButtonText = "Connect to This SonarQube Server Instance"
+        val connectButtonText = "Connect to This CodeScan Server"
         val dontTrustButtonText = "I Don't Trust This Server"
 
         val choice = ApplicationManager.getApplication().computeInEDT {
@@ -485,8 +485,8 @@ object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
                 getService(project, ProjectBindingManager::class.java).bindTo(connection, projectKey, emptyMap(), mode)
                 get(project).simpleNotification(
                     "Project successfully bound",
-                    "Local project bound to project '$projectKey' of SonarQube Server instance '${connection.name}'. "
-                        + "You can now enjoy all capabilities of SonarQube for IDE Connected Mode. The binding of this project can be updated in the SonarQube for IDE Settings.",
+                    "Local project bound to project '$projectKey' of CodeScan server '${connection.name}'. "
+                        + "You can now enjoy all capabilities of CodeScan Connected Mode. The binding of this project can be updated in the CodeScan Settings.",
                     NotificationType.INFORMATION,
                     OpenInBrowserAction("Learn More in Documentation", null, CONNECTED_MODE_BENEFITS_LINK)
                 )
@@ -582,10 +582,9 @@ object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
     }
 
     override fun noBindingSuggestionFound(params: NoBindingSuggestionFoundParams) {
-        val serverType = if (params.isSonarCloud) "SonarQube Cloud" else "SonarQube Server"
         projectLessNotification(
             "No matching open project found",
-            "SonarQube for IDE cannot match $serverType project '${params.projectKey}' to any of the currently open projects. Please open your project and try again.",
+            "Cannot match the CodeScan project '${params.projectKey}' to any of the currently open projects. Please open your project and try again.",
             NotificationType.WARNING,
             OpenInBrowserAction("Open Troubleshooting Documentation", null, TROUBLESHOOTING_CONNECTED_MODE_SETUP_LINK)
         )

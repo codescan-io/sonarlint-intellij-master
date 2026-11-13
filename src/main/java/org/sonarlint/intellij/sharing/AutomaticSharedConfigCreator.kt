@@ -98,11 +98,11 @@ class AutomaticSharedConfigCreator(
     private val tokenGenerationButton = JButton("Generate Token")
 
     init {
-        title = if (isSQ) "Connect to This SonarQube Server Instance?" else "Connect to SonarQube Cloud?"
+        title = if (isSQ) "Connect to This CodeScan Server?" else "Connect to CodeScan?"
         val connectionNames = getGlobalSettings().serverNames
         connectionNameField.text = findFirstUniqueConnectionName(connectionNames, orgOrServerUrl)
 
-        val connectionActionName = if (isSQ) "Connect to This SonarQube Server Instance" else "Connect to SonarQube Cloud"
+        val connectionActionName = if (isSQ) "Connect to This CodeScan Server" else "Connect to CodeScan"
         createConnectionAction = object : DialogWrapperAction(connectionActionName) {
             init {
                 putValue(DEFAULT_ACTION, true)
@@ -168,11 +168,11 @@ class AutomaticSharedConfigCreator(
                 .orElseThrow { IllegalStateException("Unable to find connection '${connectionNameField.text}'") }
 
             getService(project, ProjectBindingManager::class.java).bindTo(connection, projectKey, emptyMap(), bindingMode)
-            val connectionTypeMessage = if (isSQ) "SonarQube Server instance" else "SonarQube Cloud organization"
+            val connectionTypeMessage = if (isSQ) "CodeScan server" else "CodeScan organization"
             SonarLintProjectNotifications.get(project).simpleNotification(
                 "Project successfully bound",
                 "Local project bound to project '$projectKey' of $connectionTypeMessage '${connection.name}'. " +
-                    "You can now enjoy all capabilities of SonarQube for IDE Connected Mode. The binding of this project can be updated in the SonarQube for IDE settings.",
+                    "You can now enjoy all capabilities of CodeScan Connected Mode. The binding of this project can be updated in the CodeScan settings.",
                 NotificationType.INFORMATION,
                 OpenInBrowserAction("Learn more", null, SonarLintDocumentation.Intellij.CONNECTED_MODE_BENEFITS_LINK)
             )
@@ -191,9 +191,8 @@ class AutomaticSharedConfigCreator(
             GridBagConstraints(0, 0, 1, 1, 0.0, 0.0, GridBagConstraints.NORTH, GridBagConstraints.NONE, JBUI.insets(0, 10), 0, 18)
         )
 
-        val sqOrScMessage = if (isSQ) "SonarQube Server" else "SonarQube Cloud"
         connectedModeDescriptionLabel.text =
-            "Connect SonarQube for IDE with $sqOrScMessage to apply the same Clean Code standards as your team, analyze more languages, " +
+            "Connect this plugin with CodeScan to apply the same Clean Code standards as your team, analyze more languages, " +
                 "detect more issues, and receive notifications about the quality gate status."
         connectedModeDescriptionLabel.addHyperlinkListener(object : HyperlinkAdapter() {
             override fun hyperlinkActivated(e: HyperlinkEvent) {
@@ -205,7 +204,7 @@ class AutomaticSharedConfigCreator(
             GridBagConstraints(1, 0, 1, 1, 1.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, JBUI.insetsBottom(20), 0, 0)
         )
 
-        connectionLabel.text = if (isSQ) "Server URL" else "SonarQube Cloud organization"
+        connectionLabel.text = if (isSQ) "Server URL" else "CodeScan organization"
         projectKeyLabel.text = "Project key"
         centerPanel.add(
             projectKeyLabel,
@@ -229,8 +228,8 @@ class AutomaticSharedConfigCreator(
 
         if (isSQ) {
             redWarningIcon.icon = AllIcons.Ide.FatalError
-            warningLabel.text = "Always ensure that your Server URL matches your SonarQube Server instance. " +
-                "Letting SonarQube for IDE connect to an untrusted SonarQube Server instance is potentially dangerous."
+            warningLabel.text = "Always ensure that your Server URL matches your CodeScan server. " +
+                "Connecting to a CodeScan server you do not trust is potentially dangerous."
             val warningPanel = JBPanel<JBPanel<*>>(BorderLayout()).apply {
                 add(redWarningIcon, BorderLayout.WEST)
                 add(warningLabel, BorderLayout.CENTER)

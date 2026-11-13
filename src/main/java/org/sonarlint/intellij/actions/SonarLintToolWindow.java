@@ -388,7 +388,7 @@ public final class SonarLintToolWindow implements ContentManagerListener, Projec
 
         if (issue == null && currentFilePanel.doesIssueExist(showFinding.getFindingKey())) {
           getService(project, SonarLintProjectNotifications.class).notifyUnableToOpenFinding(
-            "The issue could not be opened by SonarLint due to the applied filters",
+            "The issue could not be opened by CodeScan due to the applied filters",
             new IncludeResolvedIssueAction()
           );
         }

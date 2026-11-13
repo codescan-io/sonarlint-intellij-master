@@ -134,7 +134,7 @@ public class CurrentFilePanel extends AbstractIssuesPanel {
     var backendIsAlive = getService(BackendService.class).isAlive();
     if (!backendIsAlive) {
       statusText.setText(SONARLINT_ERROR_MSG);
-      statusText.appendLine("Restart SonarQube for IDE Service", SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES,
+      statusText.appendLine("Restart CodeScan Service", SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES,
         ignore -> ActionUtil.invokeAction(restartSonarLintAction, this, CurrentFilePanel.SONARLINT_TOOLWINDOW_ID, null, null));
       disableEmptyDisplay(false);
       populateSubTree(tree, treeBuilder, Map.of());
@@ -158,7 +158,7 @@ public class CurrentFilePanel extends AbstractIssuesPanel {
             ignore -> ActionUtil.invokeAction(analyzeCurrentFileAction, this, CurrentFilePanel.SONARLINT_TOOLWINDOW_ID, null, null));
         }
       } else {
-        statusText.setText("Waiting for SonarQube for IDE to be ready");
+        statusText.setText("Waiting for CodeScan to be ready");
       }
 
       issues = Collections.emptyList();

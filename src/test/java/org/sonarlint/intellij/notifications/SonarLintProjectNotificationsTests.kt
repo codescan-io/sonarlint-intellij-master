@@ -70,7 +70,7 @@ class SonarLintProjectNotificationsTests : AbstractSonarLintLightTests() {
         sonarLintProjectNotifications.notifyProjectBindingInvalidAndUnbound()
 
         Assertions.assertThat(notifications).hasSize(1)
-        Assertions.assertThat(notifications[0].title).isEqualTo("<b>SonarQube for IDE - Invalid binding</b>")
+        Assertions.assertThat(notifications[0].title).isEqualTo("<b>CodeScan - Invalid binding</b>")
         Assertions.assertThat(notifications[0].content)
             .isEqualTo("Project binding is invalid and has been removed, the connection has probably been deleted previously.")
         Assertions.assertThat(notifications[0].type).isEqualTo(NotificationType.WARNING)
@@ -85,11 +85,11 @@ class SonarLintProjectNotificationsTests : AbstractSonarLintLightTests() {
         sonarLintProjectNotifications.notifyLanguagePromotion(content)
 
         Assertions.assertThat(notifications).hasSize(1)
-        Assertions.assertThat(notifications[0].title).isEqualTo("<b>SonarQube for IDE suggestions</b>")
+        Assertions.assertThat(notifications[0].title).isEqualTo("<b>CodeScan suggestions</b>")
         Assertions.assertThat(notifications[0].content).isEqualTo(content)
         Assertions.assertThat(notifications[0].type).isEqualTo(NotificationType.INFORMATION)
         Assertions.assertThat(notifications[0].icon).isEqualTo(SonarLintIcons.SONARQUBE_FOR_INTELLIJ)
-        Assertions.assertThat(notifications[0].actions.size).isEqualTo(4)
+        Assertions.assertThat(notifications[0].actions.map { it.templateText }).containsExactly("Learn about CodeScan", "Learn more", "Don't ask again")
     }
 
     @Test
@@ -134,7 +134,7 @@ class SonarLintProjectNotificationsTests : AbstractSonarLintLightTests() {
         sonarLintProjectNotifications.handle(param)
 
         Assertions.assertThat(notifications).hasSize(1)
-        Assertions.assertThat(notifications[0].title).isEqualTo("<b>SonarQube Server Notification</b>")
+        Assertions.assertThat(notifications[0].title).isEqualTo("<b>CodeScan Notification</b>")
         Assertions.assertThat(notifications[0].content).isEqualTo("text")
         Assertions.assertThat(notifications[0].type).isEqualTo(NotificationType.INFORMATION)
         Assertions.assertThat(notifications[0].icon).isEqualTo(SonarLintIcons.ICON_SONARQUBE_SERVER_16)
@@ -157,7 +157,7 @@ class SonarLintProjectNotificationsTests : AbstractSonarLintLightTests() {
         sonarLintProjectNotifications.handle(param)
 
         Assertions.assertThat(notifications).hasSize(1)
-        Assertions.assertThat(notifications[0].title).isEqualTo("<b>SonarQube Cloud Notification</b>")
+        Assertions.assertThat(notifications[0].title).isEqualTo("<b>CodeScan Notification</b>")
         Assertions.assertThat(notifications[0].content).isEqualTo("text")
         Assertions.assertThat(notifications[0].type).isEqualTo(NotificationType.INFORMATION)
         Assertions.assertThat(notifications[0].icon).isEqualTo(SonarLintIcons.ICON_SONARQUBE_CLOUD_16)
@@ -215,11 +215,11 @@ class SonarLintProjectNotificationsTests : AbstractSonarLintLightTests() {
         sonarLintProjectNotifications.sendNotification()
 
         Assertions.assertThat(notifications).hasSize(1)
-        Assertions.assertThat(notifications[0].title).isEqualTo("SonarQube for IDE: secret(s) detected")
+        Assertions.assertThat(notifications[0].title).isEqualTo("CodeScan: secret(s) detected")
         Assertions.assertThat(notifications[0].content).isEqualTo(
-            "SonarQube for IDE detected some secrets in one of the open files. " +
+            "CodeScan detected some secrets in one of the open files. " +
                 "We strongly advise you to review those secrets and ensure they are not committed into repositories. " +
-                "Please refer to the SonarQube for IDE tool window for more information."
+                "Please refer to the CodeScan tool window for more information."
         )
         Assertions.assertThat(notifications[0].type).isEqualTo(NotificationType.WARNING)
         Assertions.assertThat(notifications[0].icon).isEqualTo(SonarLintIcons.SONARQUBE_FOR_INTELLIJ)

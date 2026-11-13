@@ -64,11 +64,11 @@ class AutomaticServerConnectionCreator(private val serverOrOrg: String, private 
     private val proxyButton = JButton("Proxy")
 
     init {
-        title = if (isSQ) "Trust This SonarQube Server Instance?" else "Trust This SonarQube Cloud Organization?"
+        title = if (isSQ) "Trust This CodeScan Server?" else "Trust This CodeScan Organization?"
         val connectionNames = Settings.getGlobalSettings().serverNames
         connectionNameField.text = findFirstUniqueConnectionName(connectionNames, serverOrOrg)
 
-        val buttonTextAction = if (isSQ) "Connect to This SonarQube Server Instance" else "Connect to This SonarQube Cloud Organization"
+        val buttonTextAction = if (isSQ) "Connect to This CodeScan Server" else "Connect to This CodeScan Organization"
 
         createConnectionAction = object : DialogWrapperAction(buttonTextAction) {
             init {
@@ -116,7 +116,7 @@ class AutomaticServerConnectionCreator(private val serverOrOrg: String, private 
         )
 
         connectedModeDescriptionLabel.text =
-            "Connecting SonarQube for IDE to ${if (isSQ) "SonarQube Server" else "SonarQube Cloud"} will enable issues " +
+            "Connecting to ${if (isSQ) "this CodeScan server" else "this CodeScan organization"} will enable issues " +
                 "to be opened directly in your IDE and enable other <a href=\"$CONNECTED_MODE_BENEFITS_LINK\">features and benefits</a>."
         connectedModeDescriptionLabel.addHyperlinkListener(object : HyperlinkAdapter() {
             override fun hyperlinkActivated(e: HyperlinkEvent) {
@@ -148,10 +148,10 @@ class AutomaticServerConnectionCreator(private val serverOrOrg: String, private 
         val warningPanel = JBPanel<JBPanel<*>>(BorderLayout())
         redWarningIcon.icon = AllIcons.Ide.FatalError
         warningLabel.text = if (isSQ) {
-            "Always ensure that your Server URL matches your SonarQube Server instance. " +
-                "Letting SonarQube for IDE connect to an untrusted SonarQube Server instance is potentially dangerous."
+            "Always ensure that your Server URL matches your CodeScan server. " +
+                "Connecting to a CodeScan server you do not trust is potentially dangerous."
         } else {
-            "Ensure that the organization matches your SonarQube Cloud organization."
+            "Ensure that the organization matches your CodeScan organization."
         }
         warningPanel.add(redWarningIcon, BorderLayout.WEST)
         warningPanel.add(warningLabel, BorderLayout.CENTER)
@@ -175,7 +175,7 @@ class AutomaticServerConnectionCreator(private val serverOrOrg: String, private 
         )
 
         tokenLabel.text =
-            "A token will be automatically generated to allow access to your <u>${if (isSQ) "SonarQube Server instance" else "SonarQube Cloud organization"}</u>."
+            "A token will be automatically generated to allow access to your <u>${if (isSQ) "CodeScan server" else "CodeScan organization"}</u>."
         centerPanel.add(
             tokenLabel, GridBagConstraints(
                 1, 6, 1, 1, 1.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, JBUI.emptyInsets(), 0, 0

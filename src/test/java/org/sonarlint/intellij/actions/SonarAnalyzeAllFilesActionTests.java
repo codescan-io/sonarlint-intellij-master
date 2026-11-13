@@ -62,6 +62,13 @@ class SonarAnalyzeAllFilesActionTests extends AbstractSonarLintLightTests {
   }
 
   @Test
+  void hideWarningChoiceKeepsTheNameCodeScanUsedBefore() {
+    // CodeScan 7.2.3 stored "Don't show again" under this name, so users who chose it are not asked again after the upgrade
+    assertThat(SonarAnalyzeAllFilesAction.HIDE_WARNING_PROPERTY).isEqualTo("Codescan.analyzeAllFiles.hideWarning");
+    assertThat(SonarAnalyzeAllFilesAction.WARNING_MESSAGE).contains("CodeScan").doesNotContain("SonarQube");
+  }
+
+  @Test
   void testNoProject() {
     AnActionEvent event = mock(AnActionEvent.class);
     when(event.getProject()).thenReturn(null);

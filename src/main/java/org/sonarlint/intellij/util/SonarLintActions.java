@@ -82,17 +82,17 @@ public final class SonarLintActions {
     clearReportAction = new ClearReportAction("Clear Project Files Issues",
       "Clear analysis results",
       SonarLintIcons.CLEAN);
-    clearIssuesAction = new ClearCurrentFileIssuesAction("Clear SonarLint Issues",
-      "Clear SonarQube for IDE issues",
+    clearIssuesAction = new ClearCurrentFileIssuesAction("Clear CodeScan Issues",
+      "Clear CodeScan issues",
       SonarLintIcons.CLEAN);
-    cleanConsoleAction = new SonarCleanConsoleAction("Clear SonarLint Console",
-      "Clear SonarQube for IDE console",
+    cleanConsoleAction = new SonarCleanConsoleAction("Clear CodeScan Console",
+      "Clear CodeScan console",
       SonarLintIcons.CLEAN);
     analyzeAllFilesAction = new SonarAnalyzeAllFilesAction("Analyze All Project Files",
-      "Run a SonarQube for IDE analysis on all project files",
+      "Run a CodeScan analysis on all project files",
       SonarLintIcons.PROJECT);
     analyzeChangedFilesAction = new SonarAnalyzeChangedFilesAction("Analyze VCS Changed Files",
-      "Run a SonarQube for IDE analysis on VCS changed files",
+      "Run a CodeScan analysis on VCS changed files",
       SonarLintIcons.SCM);
     filterAction = new FilterSecurityHotspotActionGroup("Filter Security Hotspots",
       "Filter Security Hotspots",
@@ -110,7 +110,7 @@ public final class SonarLintActions {
       SonarLintIcons.RESOLVED,
       LocalTaintVulnerability.class);
     analyzeCurrentFileAction = new SonarAnalyzeFilesAction("Analyze Current File",
-      "Run SonarQube for IDE analysis on the current file",
+      "Run CodeScan analysis on the current file",
       SonarLintIcons.PLAY);
     restartSonarLintAction = new RestartBackendAction();
   }

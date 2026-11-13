@@ -58,7 +58,7 @@ import org.sonarlint.intellij.util.getDocument
 import org.sonarsource.sonarlint.plugin.api.module.file.ModuleFileEvent
 
 class StandaloneModeMediumTests : AbstractSonarLintLightTests() {
-    private val diamondQuickFix = "SonarQube: Replace with <>"
+    private val diamondQuickFix = "CodeScan: Replace with <>"
 
     @BeforeEach
     fun notifyProjectOpened() {
@@ -423,9 +423,9 @@ class StandaloneModeMediumTests : AbstractSonarLintLightTests() {
         val file = myFixture.configureByFile("src/quick_fixes/overlapping_quick_fixes.input.java")
 
         analyze(file.virtualFile)
-        myFixture.launchAction(myFixture.findSingleIntention("SonarQube: Use \"Arrays.toString(array)\" instead"))
+        myFixture.launchAction(myFixture.findSingleIntention("CodeScan: Use \"Arrays.toString(array)\" instead"))
         myFixture.editor.caretModel.currentCaret.moveToOffset(180)
-        myFixture.launchAction(myFixture.findSingleIntention("SonarQube: Merge this if statement with the enclosing one"))
+        myFixture.launchAction(myFixture.findSingleIntention("CodeScan: Merge this if statement with the enclosing one"))
         //Their stripTrailingSpaces function don't work
         myFixture.checkResult(expectedFile.getDocument()!!.text.trim(), true)
     }

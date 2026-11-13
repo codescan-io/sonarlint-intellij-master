@@ -28,10 +28,10 @@ class HelpLabelUtils {
         fun createHelpTextNotConnected(helpText: String) =
                 ContextHelpLabel.createWithLink(null,
                         helpText +
-                            "SonarQube Cloud complements SonarQube for IDE by detecting more across the whole project.",
-                    "Try SonarQube Cloud for free", true
+                            "Connecting to CodeScan detects more across the whole project.",
+                    "Learn about CodeScan", true
                 ) {
-                    LinkTelemetry.SONARCLOUD_SIGNUP_PAGE.browseWithTelemetry()
+                    LinkTelemetry.SONARCLOUD_PRODUCT_PAGE.browseWithTelemetry()
                 }
 
         @JvmStatic
@@ -41,7 +41,7 @@ class HelpLabelUtils {
         @JvmStatic
         fun createCleanAsYouCode() =
             ContextHelpLabel.create(
-                "<html>Use Connected Mode to benefit from an<br>accurate new code definition based on your SonarQube (Server, Cloud) settings." +
+                "<html>Use Connected Mode to benefit from an<br>accurate new code definition based on your CodeScan settings." +
                     "<br>" +
                     "<br>Without Connected Mode, any code added or changed in the last 30 days is considered new code.</html>"
             )
@@ -49,7 +49,7 @@ class HelpLabelUtils {
         @JvmStatic
         fun createConnectedMode() =
             ContextHelpLabel.createWithLink(null,
-                "Connected Mode links SonarQube for IDE with SonarQube (Server, Cloud) to analyze more languages, detect more issues, and receive notifications about the quality gate status.",
+                "Connected Mode links this plugin with CodeScan to analyze more languages, detect more issues, and receive notifications about the quality gate status.",
                 "Learn more about Connected Mode", true) {
                 LinkTelemetry.CONNECTED_MODE_DOCS.browseWithTelemetry()
             }

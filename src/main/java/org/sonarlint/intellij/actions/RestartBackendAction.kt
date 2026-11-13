@@ -23,10 +23,10 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import org.sonarlint.intellij.common.util.SonarLintUtils
 import org.sonarlint.intellij.core.BackendService
 
-class RestartBackendAction : AbstractSonarAction("Restart SonarQube for IDE Service") {
+class RestartBackendAction : AbstractSonarAction("Restart CodeScan Service") {
 
     companion object {
-        const val SONARLINT_ERROR_MSG = "SonarQube for IDE service encountered an issue and has stopped working"
+        const val SONARLINT_ERROR_MSG = "CodeScan service encountered an issue and has stopped working"
     }
 
     override fun actionPerformed(e: AnActionEvent) {

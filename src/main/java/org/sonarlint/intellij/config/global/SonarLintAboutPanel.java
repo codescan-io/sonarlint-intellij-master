@@ -47,7 +47,6 @@ import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.ConfigurationPanel;
 import org.sonarlint.intellij.telemetry.SonarLintTelemetry;
 
-import static org.sonarlint.intellij.documentation.SonarLintDocumentation.Intellij.BASE_DOCS_URL;
 import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
@@ -65,10 +64,10 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
   private JComponent createSonarLintPanel() {
     var sonarlintIcon = new JBLabel(SonarLintIcons.SONARQUBE_FOR_INTELLIJ_32PX);
     var plugin = SonarLintUtils.getService(SonarLintPlugin.class);
-    var title = new JBLabel("<html><b>SonarQube for IDE " + plugin.getVersion() + "</b></html>");
-    var linkLabel = new HyperlinkLabel("Documentation");
-    linkLabel.addHyperlinkListener(e -> BrowserUtil.browse(BASE_DOCS_URL));
-    var copyrightLabel = new JBLabel("<html>&copy; " + LocalDate.now().getYear() + " SonarSource</html>");
+    var title = new JBLabel("<html><b>CodeScan IntelliJ " + plugin.getVersion() + "</b></html>");
+    var linkLabel = new HyperlinkLabel("codescan.io");
+    linkLabel.addHyperlinkListener(e -> BrowserUtil.browse("https://www.codescan.io"));
+    var copyrightLabel = new JBLabel("<html>&copy; " + LocalDate.now().getYear() + " CodeScan</html>");
 
     var infoPanel = new JPanel(new GridBagLayout());
     var constraints = new GridBagConstraints();
@@ -108,7 +107,7 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
               "days_since_installation": 120,
               "days_of_use": 40,
               "sonarlint_version": "2.9",
-              "sonarlint_product": "SonarLint IntelliJ",
+              "sonarlint_product": "CodeScan IntelliJ",
               "ide_version": "IntelliJ IDEA 2020.1 (Community Edition)",
               "os": "Linux",
               "arch": "amd64",
@@ -192,12 +191,12 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
     });
 
     // info
-    var info = new JBLabel("<html>By sharing anonymous SonarQube for IDE usage statistics, you help us understand how SonarQube for IDE is used so "
+    var info = new JBLabel("<html>By sharing anonymous CodeScan usage statistics, you help us understand how CodeScan is used so "
       + "we can improve the plugin to work even better for you. We don't collect source code, IP addresses, or any personally identifying "
       + "information. And we don't share the data with anyone else.</html>");
 
     // checkbox
-    enableTelemetryCheckBox = new JCheckBox("Share anonymous SonarQube for IDE statistics");
+    enableTelemetryCheckBox = new JCheckBox("Share anonymous CodeScan statistics");
     enableTelemetryCheckBox.setFocusable(false);
     var tickOptions = new JPanel(new VerticalFlowLayout());
     tickOptions.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));

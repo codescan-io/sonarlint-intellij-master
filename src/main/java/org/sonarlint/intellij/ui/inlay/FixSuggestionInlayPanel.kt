@@ -145,7 +145,7 @@ class FixSuggestionInlayPanel(
             border = JBUI.Borders.empty(5)
             add(
                 JBLabel(
-                    "SonarQube for IDE Fix Suggestion (fix ${suggestion.snippetIndex}/${suggestion.totalSnippets})",
+                    "CodeScan Fix Suggestion (fix ${suggestion.snippetIndex}/${suggestion.totalSnippets})",
                     SonarLintIcons.SONARQUBE_FOR_INTELLIJ, SwingConstants.LEFT
                 ), BorderLayout.WEST
             )

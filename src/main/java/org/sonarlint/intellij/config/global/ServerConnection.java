@@ -139,7 +139,7 @@ public class ServerConnection {
   }
 
   public String getProductName() {
-    return isSonarCloud() ? "SonarQube Cloud" : "SonarQube Server";
+    return "CodeScan";
   }
 
   public Icon getProductIcon() {

@@ -38,7 +38,7 @@ import org.sonarlint.intellij.util.SonarLintActions;
 import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 public class SonarLintLogPanel extends SimpleToolWindowPanel {
-  private static final String ID = "SonarQube for IDE";
+  private static final String ID = "CodeScan";
 
   private final ToolWindow toolWindow;
   private final Project project;

@@ -34,7 +34,7 @@ import org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile
 
 class OpenIssueInBrowserAction : AbstractSonarAction(
   "Open In Browser",
-  "Open issue in browser interface of SonarQube (Server, Cloud)",
+  "Open issue in browser interface of CodeScan",
   null
 ) {
 

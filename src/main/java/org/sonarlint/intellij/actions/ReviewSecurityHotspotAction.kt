@@ -56,7 +56,7 @@ class ReviewSecurityHotspotAction(private var serverFindingKey: String? = null, 
     companion object {
         val SECURITY_HOTSPOT_KEY = DataKey.create<LiveSecurityHotspot>("sonarlint_security_hotspot")
         const val REVIEW_HOTSPOT_GROUP = "CodeScan: Security Hotspot Review"
-        private const val ERROR_TITLE = "<b>SonarQube for IDE - Unable to review the Security Hotspot</b>"
+        private const val ERROR_TITLE = "<b>CodeScan - Unable to review the Security Hotspot</b>"
         private const val CONTENT = "The Security Hotspot status was successfully updated"
     }
 
@@ -134,9 +134,9 @@ class ReviewSecurityHotspotAction(private var serverFindingKey: String? = null, 
 
     override fun startInWriteAction() = false
 
-    override fun getText() = "SonarQube: Change Security Hotspot status"
+    override fun getText() = "CodeScan: Change Security Hotspot status"
 
-    override fun getFamilyName() = "SonarQube review"
+    override fun getFamilyName() = "CodeScan review"
 
     override fun isAvailable(project: Project, editor: Editor?, file: PsiFile?) = serverFindingKey != null
 

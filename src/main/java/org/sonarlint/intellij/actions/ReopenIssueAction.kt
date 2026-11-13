@@ -53,7 +53,7 @@ class ReopenIssueAction(private var issue: LiveIssue? = null) : AbstractSonarAct
     PriorityAction, Iconable {
 
     companion object {
-        private const val ERROR_TITLE = "<b>SonarQube for IDE - Unable to reopen the issue</b>"
+        private const val ERROR_TITLE = "<b>CodeScan - Unable to reopen the issue</b>"
         private const val CONTENT = "The issue was successfully reopened"
 
         fun canBeReopened(project: Project, issue: Issue): Boolean {
@@ -114,7 +114,7 @@ class ReopenIssueAction(private var issue: LiveIssue? = null) : AbstractSonarAct
         private fun confirm(project: Project, productName: String): Boolean {
             return shouldSkipConfirmationDialogForReopening() || MessageDialogBuilder.okCancel(
                 "Confirm reopening the issue",
-                "Are you sure you want to reopen this issue? The status will be updated on $productName and synchronized with any contributor using SonarQube for IDE in Connected Mode"
+                "Are you sure you want to reopen this issue? The status will be updated on $productName and synchronized with any contributor using CodeScan in Connected Mode"
             ).yesText("Confirm").noText("Cancel").doNotAsk(DoNotShowAgain()).ask(project)
         }
 
@@ -164,10 +164,10 @@ class ReopenIssueAction(private var issue: LiveIssue? = null) : AbstractSonarAct
 
     override fun startInWriteAction() = false
 
-    override fun getText() = "SonarQube: Reopen issue"
+    override fun getText() = "CodeScan: Reopen issue"
 
     override fun getFamilyName(): String {
-        return "SonarQube reopen issue"
+        return "CodeScan reopen issue"
     }
 
     override fun isVisible(e: AnActionEvent): Boolean {

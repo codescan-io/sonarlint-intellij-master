@@ -45,12 +45,13 @@ object SonarLintDocumentation {
         const val SMART_NOTIFICATIONS = "https://docs.sonarsource.com/sonarcloud/improving/sonarlint/#smart-notifications/"
     }
 
+    // CodeScan: SonarSource's product, download and sign-up pages do not apply to CodeScan, so every product link opens the CodeScan site
     object Marketing {
-        private const val BASE_MARKETING_URL = "https://www.sonarsource.com"
-        const val COMPARE_SERVER_PRODUCTS_LINK = "$BASE_MARKETING_URL/open-source-editions"
-        const val SONARQUBE_EDITIONS_DOWNLOADS_LINK = "$BASE_MARKETING_URL/products/sonarqube/downloads"
-        const val SONARCLOUD_PRODUCT_LINK = "$BASE_MARKETING_URL/products/sonarcloud"
-        const val SONARCLOUD_PRODUCT_SIGNUP_LINK = "$BASE_MARKETING_URL/products/sonarcloud/signup/"
+        private const val BASE_MARKETING_URL = "https://www.codescan.io"
+        const val COMPARE_SERVER_PRODUCTS_LINK = BASE_MARKETING_URL
+        const val SONARQUBE_EDITIONS_DOWNLOADS_LINK = BASE_MARKETING_URL
+        const val SONARCLOUD_PRODUCT_LINK = BASE_MARKETING_URL
+        const val SONARCLOUD_PRODUCT_SIGNUP_LINK = BASE_MARKETING_URL
     }
 
 }

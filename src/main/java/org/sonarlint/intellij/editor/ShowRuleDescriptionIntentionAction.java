@@ -44,12 +44,12 @@ public class ShowRuleDescriptionIntentionAction implements IntentionAction, Prio
 
   @Override
   public @Nls(capitalization = Nls.Capitalization.Sentence) @NotNull String getText() {
-    return "SonarQube: Show rule description '" + liveFinding.getRuleKey() + "'";
+    return "CodeScan: Show rule description '" + liveFinding.getRuleKey() + "'";
   }
 
   @Override
   public @NotNull @Nls(capitalization = Nls.Capitalization.Sentence) String getFamilyName() {
-    return "SonarQube show issue description";
+    return "CodeScan show issue description";
   }
 
   @Override

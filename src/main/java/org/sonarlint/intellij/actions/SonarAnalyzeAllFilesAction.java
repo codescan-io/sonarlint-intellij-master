@@ -39,9 +39,10 @@ import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class SonarAnalyzeAllFilesAction extends AbstractSonarAction {
-  private static final String HIDE_WARNING_PROPERTY = "SonarLint.analyzeAllFiles.hideWarning";
+  // CodeScan: the name 7.2.3 stored the choice under, so a "Don't show again" made before the upgrade still applies
+  static final String HIDE_WARNING_PROPERTY = "Codescan.analyzeAllFiles.hideWarning";
   public static final String WARNING_MESSAGE = "Analysing all files may take a considerable amount of time to complete.\n"
-    + "To get the best from SonarQube for IDE, you should preferably use the automatic analysis of the file you're working on.";
+    + "To get the best from CodeScan, you should preferably use the automatic analysis of the file you're working on.";
 
   public SonarAnalyzeAllFilesAction() {
     super();
@@ -76,7 +77,7 @@ public class SonarAnalyzeAllFilesAction extends AbstractSonarAction {
   static boolean userConfirmed(Project project) {
     if (!ApplicationManager.getApplication().isUnitTestMode() && !PropertiesComponent.getInstance().getBoolean(HIDE_WARNING_PROPERTY,
       false)) {
-      return MessageDialogBuilder.yesNo("SonarQube for IDE - Analyze All Files", WARNING_MESSAGE)
+      return MessageDialogBuilder.yesNo("CodeScan - Analyze All Files", WARNING_MESSAGE)
         .yesText("Proceed")
         .noText("Cancel")
         .icon(Messages.getWarningIcon())
