@@ -60,6 +60,7 @@ import org.sonarsource.sonarlint.core.rpc.protocol.backend.branch.SonarProjectBr
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.config.ConfigurationRpcService
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.ConnectionRpcService
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.check.CheckSmartNotificationsSupportedParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.config.DidUpdateConnectionsParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.GetOrganizationParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.ListUserOrganizationsParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.projects.GetAllProjectsParams
@@ -270,6 +271,24 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
         val organization = argumentCaptor<GetOrganizationParams>()
         verify(connections, timeout(30_000)).getOrganization(organization.capture())
         assertThat(organization.firstValue.serverUrl).isEqualTo(selfHosted)
+    }
+
+    @Test
+    fun cloudConnectionWithoutOrganizationDoesNotBlockConnectionUpdates() {
+        // e.g. saved as a SonarQube connection while the self-hosted CodeScan server was down; now it answers as CodeScan
+        server.stubFor(get(HEALTH_PATH).willReturn(okJson("""{"status":"UP"}""")))
+        val selfHosted = server.baseUrl()
+        assertThat(isCodeScanServerOffUiThread(selfHosted)).isTrue()
+        val withoutOrganization = ServerConnection.newBuilder().setName("no-org").setHostUrl(selfHosted).setToken("token").build()
+        val cloud = ServerConnection.newBuilder().setName("cloud").setHostUrl(CODESCAN_CLOUD_URL).setToken("token").setOrganizationKey("org").build()
+        val rpcServer = mockRpcServer()
+        val service = BackendService(launcherFor(rpcServer))
+
+        service.connectionsUpdated(listOf(withoutOrganization, cloud))
+
+        val update = argumentCaptor<DidUpdateConnectionsParams>()
+        verify(rpcServer.connectionService, timeout(30_000)).didUpdateConnections(update.capture())
+        assertThat(update.firstValue.sonarCloudConnections).extracting("connectionId").containsExactly("cloud")
     }
 
     @Test
