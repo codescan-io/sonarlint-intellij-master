@@ -35,7 +35,6 @@ import java.nio.file.Files
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.Callable
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.createTempDirectory
 import org.assertj.core.api.Assertions.assertThat
@@ -71,13 +70,6 @@ import org.sonarlint.intellij.finding.Issue
 import org.sonarlint.intellij.java.JavaAnalysisConfigurator
 import org.sonarlint.intellij.ui.SonarLintConsoleTestImpl
 import org.sonarlint.intellij.util.GlobalLogOutput
-import org.sonarsource.sonarlint.core.rpc.client.Sloop
-import org.sonarsource.sonarlint.core.rpc.client.SloopLauncher
-import org.sonarsource.sonarlint.core.rpc.protocol.SonarLintRpcServer
-import org.sonarsource.sonarlint.core.rpc.protocol.backend.binding.BindingRpcService
-import org.sonarsource.sonarlint.core.rpc.protocol.backend.branch.SonarProjectBranchRpcService
-import org.sonarsource.sonarlint.core.rpc.protocol.backend.config.ConfigurationRpcService
-import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.ConnectionRpcService
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.check.CheckSmartNotificationsSupportedParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.config.DidUpdateConnectionsParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.GetOrganizationParams
@@ -85,12 +77,7 @@ import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.ListUs
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.OrganizationDto
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.projects.GetAllProjectsParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.validate.ValidateConnectionParams
-import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.HotspotRpcService
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.InitializeParams
-import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.IssueRpcService
-import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.RulesRpcService
-import org.sonarsource.sonarlint.core.rpc.protocol.backend.tracking.ListAllResponse
-import org.sonarsource.sonarlint.core.rpc.protocol.backend.tracking.TaintVulnerabilityTrackingRpcService
 import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogLevel
 import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogParams
 import org.sonarsource.sonarlint.core.rpc.protocol.common.Language
@@ -561,31 +548,5 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
         )
 
         private fun sourceFile(relativePath: String) = File(relativePath).absoluteFile
-
-        private fun mockRpcServer(): SonarLintRpcServer {
-            val rpcServer = mock(SonarLintRpcServer::class.java)
-            `when`(rpcServer.initialize(any())).thenReturn(CompletableFuture.completedFuture(null))
-            `when`(rpcServer.connectionService).thenReturn(mock(ConnectionRpcService::class.java))
-            `when`(rpcServer.configurationService).thenReturn(mock(ConfigurationRpcService::class.java))
-            `when`(rpcServer.rulesService).thenReturn(mock(RulesRpcService::class.java))
-            `when`(rpcServer.issueService).thenReturn(mock(IssueRpcService::class.java))
-            `when`(rpcServer.bindingService).thenReturn(mock(BindingRpcService::class.java))
-            `when`(rpcServer.hotspotService).thenReturn(mock(HotspotRpcService::class.java))
-            `when`(rpcServer.sonarProjectBranchService).thenReturn(mock(SonarProjectBranchRpcService::class.java))
-            val taintService = mock(TaintVulnerabilityTrackingRpcService::class.java)
-            `when`(taintService.listAll(any())).thenReturn(CompletableFuture.completedFuture(ListAllResponse(emptyList())))
-            `when`(rpcServer.taintVulnerabilityTrackingService).thenReturn(taintService)
-            return rpcServer
-        }
-
-        private fun launcherFor(rpcServer: SonarLintRpcServer): SloopLauncher {
-            val sloop = mock(Sloop::class.java)
-            `when`(sloop.rpcServer).thenReturn(rpcServer)
-            // the mocked backend never exits
-            `when`(sloop.onExit()).thenReturn(CompletableFuture())
-            val launcher = mock(SloopLauncher::class.java)
-            `when`(launcher.start(any(), any(), any())).thenReturn(sloop)
-            return launcher
-        }
     }
 }

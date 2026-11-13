@@ -27,6 +27,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.wm.ToolWindowEP
+import com.intellij.testFramework.replaceService
 import com.intellij.util.ui.UIUtil
 import java.nio.file.Files
 import java.nio.file.Path
@@ -50,6 +51,7 @@ import org.sonarlint.intellij.common.vcs.VcsRepoProvider
 import org.sonarlint.intellij.config.SonarLintColorSettingsPage
 import org.sonarlint.intellij.config.global.SonarLintAboutPanel
 import org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable
+import org.sonarlint.intellij.core.BackendService
 import org.sonarlint.intellij.java.JavaAnalysisConfigurator
 import org.sonarlint.intellij.telemetry.SonarLintTelemetry
 import org.sonarlint.intellij.ui.CurrentFilePanel
@@ -59,6 +61,13 @@ import org.sonarlint.intellij.ui.SonarLintToolWindowFactory
  * How the plugin presents itself to the IDE, read from the plugin the test IDE has loaded.
  */
 class CodeScanPluginTests : AbstractSonarLintHeavyTests() {
+
+    override fun initApplication() {
+        super.initApplication()
+        // These tests do not use the backend. A real one would start while the project opens, after the heavy test's thread
+        // snapshot, and its output reader threads would be reported as leaked.
+        ApplicationManager.getApplication().replaceService(BackendService::class.java, fakeBackendService(), testRootDisposable)
+    }
 
     @Test
     fun pluginIsInstalledUnderTheCodeScanId() {
