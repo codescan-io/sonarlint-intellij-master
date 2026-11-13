@@ -91,6 +91,16 @@ class CodeScanPluginTests : AbstractSonarLintHeavyTests() {
     }
 
     @Test
+    fun pluginSupportsIntelliJ2023_1AndEveryNewerRelease() {
+        // The build writes since-build and until-build into plugin.xml. 2023.1 (build 231) is the oldest supported IDE, and an
+        // until-build would make newer IDEs refuse the plugin, so there must be none.
+        val plugin = PluginManagerCore.getPlugin(PluginId.getId(CODESCAN_PLUGIN_ID))!!
+
+        assertThat(plugin.sinceBuild).isEqualTo("231")
+        assertThat(plugin.untilBuild).isNull()
+    }
+
+    @Test
     fun extensionPointsAreFoundUnderThePluginId() {
         listOf(AnalysisConfigurator.EP_NAME, FileExclusionContributor.EP_NAME, FilesContributor.EP_NAME, VcsRepoProvider.EP_NAME).forEach {
             assertThat(it.name).startsWith("$CODESCAN_PLUGIN_ID.")
