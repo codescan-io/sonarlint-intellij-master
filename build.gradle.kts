@@ -1,5 +1,4 @@
 import com.jetbrains.plugin.blockmap.core.BlockMap
-import de.undercouch.gradle.tasks.download.Download
 import groovy.lang.GroovyObject
 import org.jetbrains.intellij.tasks.RunPluginVerifierTask
 import org.jfrog.gradle.plugin.artifactory.dsl.PublisherConfig
@@ -13,7 +12,7 @@ import java.util.zip.ZipOutputStream
 
 plugins {
     kotlin("jvm") version "1.9.25"
-    id("org.jetbrains.intellij") version "1.15.0"
+    id("org.jetbrains.intellij") version "1.16.1"
     id("org.sonarqube") version "4.4.1.3373"
     java
     jacoco
@@ -22,7 +21,6 @@ plugins {
     id("com.google.protobuf") version "0.9.4"
     idea
     signing
-    id("de.undercouch.download") version "5.5.0"
     id("org.cyclonedx.bom") version "1.7.4"
 }
 
@@ -51,6 +49,13 @@ val artifactoryUsername = System.getenv("ARTIFACTORY_PRIVATE_READER_USERNAME")
 val artifactoryPassword = System.getenv("ARTIFACTORY_PRIVATE_READER_PASSWORD")
         ?: (if (project.hasProperty("artifactoryPassword")) project.property("artifactoryPassword").toString() else "")
 
+// AWS CodeArtifact (replaces artifactory.autorabit.com). Hosts the CodeScan-owned artifacts, e.g. the OmniSharp zips.
+// Get a token locally with: eval "$(./scripts/codeartifact-bootstrap.sh)"
+val codeartifactMavenUrl = System.getenv("CODEARTIFACT_MAVEN_URL")
+        ?: "https://autorabit-artifacts-domain-261140574810.d.codeartifact.us-east-1.amazonaws.com/maven/codescan-libs-release/"
+val codeartifactAuthToken = System.getenv("CODEARTIFACT_AUTH_TOKEN")
+        ?: (if (project.hasProperty("codeartifactAuthToken")) project.property("codeartifactAuthToken").toString() else "")
+
 allprojects {
     apply {
         plugin("idea")
@@ -69,6 +74,14 @@ allprojects {
                 metadataSources { artifact() }
             }
             content { includeGroup("typescript") }
+        }
+        maven(codeartifactMavenUrl) {
+            name = "codeartifact"
+            credentials {
+                username = "aws"
+                password = codeartifactAuthToken
+            }
+            content { includeGroup("com.villagechief.codescan.thirdparty") }
         }
     }
 
@@ -189,6 +202,7 @@ configurations {
         extendsFrom(sqplugins)
         isTransitive = true
     }
+    create("omnisharp") { isTransitive = false }
 }
 
 dependencies {
@@ -224,6 +238,9 @@ dependencies {
     if (artifactoryUsername.isNotEmpty() && artifactoryPassword.isNotEmpty()) {
         "sqplugins"("com.sonarsource.cpp:sonar-cfamily-plugin:6.50.0.64514")
     }
+    "omnisharp"("com.villagechief.codescan.thirdparty:omnisharp:$omnisharpVersion:mono@zip")
+    "omnisharp"("com.villagechief.codescan.thirdparty:omnisharp:$omnisharpVersion:net472@zip")
+    "omnisharp"("com.villagechief.codescan.thirdparty:omnisharp:$omnisharpVersion:net6@zip")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     // workaround for light tests in 2020.3, might remove later
 //    testRuntimeOnly("org.jetbrains.kotlin:kotlin-reflect")
@@ -241,23 +258,10 @@ dependencies {
 
 tasks {
 
-    val downloadOmnisharpMonoZipFile by registering(Download::class) {
-        src("https://artifactory.autorabit.com/artifactory/generic-local/omnisharp-$omnisharpVersion-mono.zip")
-        dest(File(buildDir, "omnisharp-$omnisharpVersion-mono.zip"))
-        overwrite(false)
-    }
+    val omnisharpZips = project.configurations["omnisharp"]
 
-    val downloadOmnisharpWinZipFile by registering(Download::class) {
-        src("https://artifactory.autorabit.com/artifactory/generic-local/omnisharp-$omnisharpVersion-net472.zip")
-        dest(File(buildDir, "omnisharp-$omnisharpVersion-net472.zip"))
-        overwrite(false)
-    }
-
-    val downloadOmnisharpNet6ZipFile by registering(Download::class) {
-        src("https://artifactory.autorabit.com/artifactory/generic-local/omnisharp-$omnisharpVersion-net6.zip")
-        dest(File(buildDir, "omnisharp-$omnisharpVersion-net6.zip"))
-        overwrite(false)
-    }
+    fun omnisharpZip(classifier: String): File =
+            omnisharpZips.resolvedConfiguration.resolvedArtifacts.single { it.classifier == classifier }.file
 
     fun copyPlugins(destinationDir: File, pluginName: Property<String>) {
         copy {
@@ -268,21 +272,21 @@ tasks {
 
     fun copyOmnisharp(destinationDir: File, pluginName: Property<String>) {
         copy {
-            from(zipTree(downloadOmnisharpMonoZipFile.get().dest))
+            from(zipTree(omnisharpZip("mono")))
             into(file("$destinationDir/${pluginName.get()}/omnisharp/mono"))
         }
         copy {
-            from(zipTree(downloadOmnisharpWinZipFile.get().dest))
+            from(zipTree(omnisharpZip("net472")))
             into(file("$destinationDir/${pluginName.get()}/omnisharp/win"))
         }
         copy {
-            from(zipTree(downloadOmnisharpNet6ZipFile.get().dest))
+            from(zipTree(omnisharpZip("net6")))
             into(file("$destinationDir/${pluginName.get()}/omnisharp/net6"))
         }
     }
 
     prepareSandbox {
-        dependsOn(downloadOmnisharpMonoZipFile, downloadOmnisharpWinZipFile, downloadOmnisharpNet6ZipFile)
+        inputs.files(omnisharpZips)
         doLast {
             copyPlugins(destinationDir, pluginName)
             copyOmnisharp(destinationDir, pluginName)
@@ -290,7 +294,7 @@ tasks {
     }
 
     prepareTestingSandbox {
-        dependsOn(downloadOmnisharpMonoZipFile, downloadOmnisharpWinZipFile, downloadOmnisharpNet6ZipFile)
+        inputs.files(omnisharpZips)
         doLast {
             copyPlugins(destinationDir, pluginName)
             copyOmnisharp(destinationDir, pluginName)
