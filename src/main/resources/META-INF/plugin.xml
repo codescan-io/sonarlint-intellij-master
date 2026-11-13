@@ -20,8 +20,8 @@
 
 -->
 <idea-plugin url="https://docs.sonarsource.com/sonarlint/intellij/" require-restart="true">
-    <id>org.sonarlint.idea</id>
-    <name>SonarQube for IDE</name>
+    <id>com.code-scan.intellij</id>
+    <name>CodeScan</name>
     <version>${project.version}</version>
     <vendor url="https://www.sonarsource.com">SonarSource</vendor>
 
