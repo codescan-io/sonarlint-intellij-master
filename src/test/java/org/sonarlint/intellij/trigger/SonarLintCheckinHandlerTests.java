@@ -192,18 +192,12 @@ class SonarLintCheckinHandlerTests extends AbstractSonarLintLightTests {
   }
 
   @Test
-  void gives_up_and_cancels_the_commit_when_the_analysis_does_not_finish_in_time() {
-    var uuid = UUID.randomUUID();
-    var analysisState = new AnalysisState(uuid, checkInCallable, Collections.singleton(file), getModule(), TriggerType.CHECK_IN, null);
-    when(runningAnalysesTracker.getById(uuid)).thenReturn(analysisState);
-    when(checkInCallable.analysisSucceeded()).thenReturn(true);
-    when(checkInCallable.getResults()).thenReturn(List.of());
-    when(analysisSubmitter.analyzeFilesPreCommit(Collections.singleton(file)))
-      .thenReturn(Pair.of(checkInCallable, List.of(uuid)));
+  void gives_up_after_the_time_limit_and_aborts_the_commit_when_the_user_chooses_abort() {
+    var uuid = stubAnalysisThatNeverFinishes();
     var messages = new ArrayList<>();
     TestDialogManager.setTestDialog(msg -> {
       messages.add(msg);
-      return Messages.OK;
+      return Messages.CANCEL;
     });
 
     handler = new SonarLintCheckinHandler(getProject(), checkinProjectPanel, 300);
@@ -217,5 +211,28 @@ class SonarLintCheckinHandlerTests extends AbstractSonarLintLightTests {
     assertThat(messages.get(0).toString()).contains("did not finish");
     verify(runningAnalysesTracker).cancel(uuid);
     verify(checkInCallable, never()).getResults();
+  }
+
+  @Test
+  void lets_the_user_commit_anyway_when_the_analysis_does_not_finish_in_time() {
+    var uuid = stubAnalysisThatNeverFinishes();
+    TestDialogManager.setTestDialog(msg -> Messages.OK);
+
+    handler = new SonarLintCheckinHandler(getProject(), checkinProjectPanel, 300);
+    var result = handler.beforeCheckin(null, null);
+
+    assertThat(result).isEqualTo(CheckinHandler.ReturnResult.COMMIT);
+    verify(runningAnalysesTracker).cancel(uuid);
+  }
+
+  private UUID stubAnalysisThatNeverFinishes() {
+    var uuid = UUID.randomUUID();
+    var analysisState = new AnalysisState(uuid, checkInCallable, Collections.singleton(file), getModule(), TriggerType.CHECK_IN, null);
+    when(runningAnalysesTracker.getById(uuid)).thenReturn(analysisState);
+    when(checkInCallable.analysisSucceeded()).thenReturn(true);
+    when(checkInCallable.getResults()).thenReturn(List.of());
+    when(analysisSubmitter.analyzeFilesPreCommit(Collections.singleton(file)))
+      .thenReturn(Pair.of(checkInCallable, List.of(uuid)));
+    return uuid;
   }
 }

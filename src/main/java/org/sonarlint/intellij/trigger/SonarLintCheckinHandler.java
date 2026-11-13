@@ -55,6 +55,7 @@ import org.sonarlint.intellij.analysis.AnalysisResult;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.analysis.RunningAnalysesTracker;
 import org.sonarlint.intellij.cayc.CleanAsYouCodeService;
+import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.finding.LiveFindings;
 import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot;
@@ -119,8 +120,7 @@ public class SonarLintCheckinHandler extends CheckinHandler {
       var completed = runModalTaskWithResult(project, "Waiting for CodeScan Analysis", indicator -> waitForPreCommitAnalyses(indicator, ids));
       if (!Boolean.TRUE.equals(completed)) {
         cancelAnalyses(analysisIds);
-        showTimeoutMessage(affectedFiles.size());
-        return ReturnResult.CANCEL;
+        return askAfterTimeout(affectedFiles.size());
       }
 
       if (!analysisIdsByCallback.getLeft().analysisSucceeded()) {
@@ -160,12 +160,15 @@ public class SonarLintCheckinHandler extends CheckinHandler {
     analysisIds.forEach(tracker::cancel);
   }
 
-  private void showTimeoutMessage(int numFiles) {
+  private ReturnResult askAfterTimeout(int numFiles) {
     var msg = "CodeScan - Analysis of " + numFiles + " changed file(s) did not finish within "
-      + TimeUnit.MILLISECONDS.toSeconds(preCommitTimeoutMs) + " seconds. The commit was cancelled; try again.";
+      + TimeUnit.MILLISECONDS.toSeconds(preCommitTimeoutMs) + " seconds. Commit without the analysis results, or abort and try again?";
     LOGGER.info(msg);
-    Messages.showErrorDialog(project, msg, "Error Analysing Files");
+    SonarLintConsole.get(project).info(msg);
+    var answer = Messages.showOkCancelDialog(project, msg, "Error Analysing Files", "Commit Anyway", "Abort", UIUtil.getErrorIcon());
+    return answer == Messages.OK ? ReturnResult.COMMIT : ReturnResult.CANCEL;
   }
+
 
   private void handleError(Exception e, int numFiles) {
     var msg = "CodeScan - Error analysing " + numFiles + " changed file(s).";
