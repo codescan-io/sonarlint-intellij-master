@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.sonarlint.intellij.config.global.ServerConnection;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sonarlint.intellij.common.util.SonarLintUtils.DEFAULT_CODESCANCLOUD_URL;
 
 class WizardModelTests {
   @Test
@@ -77,7 +78,7 @@ class WizardModelTests {
     model.setServerType(WizardModel.ServerType.SONARCLOUD);
 
     var server = model.createConnection();
-    assertThat(server.getHostUrl()).isEqualTo("https://sonarcloud.io");
+    assertThat(server.getHostUrl()).isEqualTo(DEFAULT_CODESCANCLOUD_URL);
     assertThat(server.getLogin()).isNull();
     assertThat(server.getPassword()).isNull();
     assertThat(server.getToken()).isEqualTo("token");
@@ -91,12 +92,12 @@ class WizardModelTests {
       .setToken("token")
       .setOrganizationKey("org")
       .setEnableProxy(true)
-      .setHostUrl("https://www.sonarqube.com")
+      .setHostUrl(DEFAULT_CODESCANCLOUD_URL)
       .build();
     var model = new WizardModel(server);
 
     server = model.createConnection();
     assertThat(server.enableProxy()).isTrue();
-    assertThat(server.getHostUrl()).isEqualTo("https://sonarcloud.io");
+    assertThat(server.getHostUrl()).isEqualTo(DEFAULT_CODESCANCLOUD_URL);
   }
 }

@@ -64,6 +64,7 @@ import org.sonarlint.intellij.actions.SonarLintToolWindow
 import org.sonarlint.intellij.analysis.AnalysisSubmitter.collectContributedLanguages
 import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.computeReadActionSafely
 import org.sonarlint.intellij.common.ui.SonarLintConsole
+import org.sonarlint.intellij.common.util.SonarLintUtils
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.common.util.SonarLintUtils.isRider
 import org.sonarlint.intellij.config.Settings.getGlobalSettings
@@ -404,13 +405,17 @@ class BackendService : Disposable {
             getTimeoutProperty("sonarlint.http.responseTimeout"))
     }
 
-    private fun getSonarCloudAlternativeEnvironment(): SonarCloudAlternativeEnvironmentDto? {
-        val sonarCloudUrl = System.getProperty("sonarlint.internal.sonarcloud.url")
-        val sonarCloudWebSocketUrl = System.getProperty("sonarlint.internal.sonarcloud.websocket.url")
-        if (sonarCloudUrl != null && sonarCloudWebSocketUrl != null) {
-            return SonarCloudAlternativeEnvironmentDto(URI.create(sonarCloudUrl), URI.create(sonarCloudWebSocketUrl))
-        }
-        return null
+    // CodeScan: always hand the backend a cloud environment, so cloud connections go to CodeScan (https://app.codescan.io unless
+    // the property says otherwise) and never to sonarcloud.io. CodeScan has no WebSocket address; without one the backend keeps
+    // WebSockets off.
+    private fun getSonarCloudAlternativeEnvironment(): SonarCloudAlternativeEnvironmentDto {
+        val sonarCloudUrl = System.getProperty("sonarlint.internal.sonarcloud.url") ?: SonarLintUtils.DEFAULT_CODESCANCLOUD_URL
+        return SonarCloudAlternativeEnvironmentDto(URI.create(sonarCloudUrl), getSonarCloudWebSocketUri())
+    }
+
+    private fun getSonarCloudWebSocketUri(): URI? {
+        val sonarCloudWebSocketUrl = System.getProperty("sonarlint.internal.sonarcloud.websocket.url") ?: return null
+        return URI.create(sonarCloudWebSocketUrl)
     }
 
     private fun getPathProperty(propertyName: String): Path? {

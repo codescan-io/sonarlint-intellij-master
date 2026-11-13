@@ -43,7 +43,9 @@ public class SonarLintUtils {
 
   private static final Logger LOG = Logger.getInstance(SonarLintUtils.class);
   public static final String DEFAULT_SONARCLOUD_URL = "https://sonarcloud.io";
-  public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_SONARCLOUD_URL);
+  // CodeScan: the "cloud" is CodeScan's, so new cloud connections and their links use this address
+  public static final String DEFAULT_CODESCANCLOUD_URL = "https://app.codescan.io";
+  public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_CODESCANCLOUD_URL);
   private static final Set<String> SONARCLOUD_ALIAS = Set.copyOf(List.of("https://sonarqube.com", "https://www.sonarqube.com",
     "https://www.sonarcloud.io", DEFAULT_SONARCLOUD_URL, SONARCLOUD_URL));
 
