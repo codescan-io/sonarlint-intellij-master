@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# Runs a real IntelliJ IDEA with the CodeScan plugin in a Linux Docker container on a
+# virtual screen, then checks its idea.log with scan-idea-log.sh.
+#
+# Usage: baseline-docker.sh --plugin <plugin.zip> --project <dir>
+#                           [--ide-version 2026.1.5] [--minutes 5] [--out <dir>]
+# Env:   IDE_TARBALL=<file>  use this IDE tarball instead of downloading one
+#        QA_CACHE_DIR        where downloaded IDE tarballs are kept (~/.cache/codescan-qa)
+#        QA_DOCKER_CPUS / QA_DOCKER_MEMORY   container limits (6 / 4g)
+# Exit:  0 = no hits, 1 = log check found hits, 2 = bad usage, 3 = IDE did not run.
+set -u
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+IDE_VERSION=2026.1.5
+MINUTES=5
+PLUGIN=""
+PROJECT=""
+OUT=""
+IMAGE=codescan-qa-ide:1
+
+usage() { sed -n '2,10p' "$0" >&2; exit 2; }
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --plugin) PLUGIN="${2:-}"; shift 2 ;;
+    --project) PROJECT="${2:-}"; shift 2 ;;
+    --ide-version) IDE_VERSION="${2:-}"; shift 2 ;;
+    --minutes) MINUTES="${2:-}"; shift 2 ;;
+    --out) OUT="${2:-}"; shift 2 ;;
+    *) usage ;;
+  esac
+done
+[ -f "$PLUGIN" ] || { echo "error: --plugin <zip> is required and must exist" >&2; usage; }
+[ -d "$PROJECT" ] || { echo "error: --project <dir> is required and must exist" >&2; usage; }
+case "$MINUTES" in ''|*[!0-9]*) echo "error: --minutes must be a whole number" >&2; usage ;; esac
+PLUGIN="$(cd "$(dirname "$PLUGIN")" && pwd)/$(basename "$PLUGIN")"
+PROJECT="$(cd "$PROJECT" && pwd)"
+[ -n "$OUT" ] || OUT="$HERE/../../build/qa/ide-$IDE_VERSION-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$OUT" && OUT="$(cd "$OUT" && pwd)"
+
+docker info >/dev/null 2>&1 || { echo "error: Docker is not running" >&2; exit 3; }
+
+if [ -z "${IDE_TARBALL:-}" ]; then
+  case "$(docker info --format '{{.Architecture}}')" in
+    aarch64|arm64) SUFFIX="-aarch64" ;;
+    *) SUFFIX="" ;;
+  esac
+  CACHE="${QA_CACHE_DIR:-$HOME/.cache/codescan-qa}"
+  mkdir -p "$CACHE"
+  IDE_TARBALL="$CACHE/idea-$IDE_VERSION$SUFFIX.tar.gz"
+  if [ ! -f "$IDE_TARBALL" ]; then
+    URL="https://download.jetbrains.com/idea/idea-$IDE_VERSION$SUFFIX.tar.gz"
+    echo "downloading $URL"
+    curl -fsSL --connect-timeout 30 --max-time 60 --retry 3 -o "$IDE_TARBALL.sha256" "$URL.sha256" \
+      && curl -fSL --connect-timeout 30 --max-time 1800 --retry 3 -o "$IDE_TARBALL.part" "$URL" \
+      || { rm -f "$IDE_TARBALL.part" "$IDE_TARBALL.sha256"; echo "error: IDE download failed" >&2; exit 3; }
+    WANT="$(awk '{print $1}' "$IDE_TARBALL.sha256")"
+    GOT="$(shasum -a 256 "$IDE_TARBALL.part" 2>/dev/null || sha256sum "$IDE_TARBALL.part")"
+    GOT="${GOT%% *}"
+    if [ "$WANT" != "$GOT" ]; then
+      rm -f "$IDE_TARBALL.part"; echo "error: IDE checksum mismatch" >&2; exit 3
+    fi
+    mv "$IDE_TARBALL.part" "$IDE_TARBALL"
+  fi
+fi
+[ -f "$IDE_TARBALL" ] || { echo "error: IDE tarball not found: $IDE_TARBALL" >&2; exit 3; }
+
+# Waits for background job $1 for at most $2 seconds; runs $3 (a command) if time runs out.
+# Returns the job's exit code.
+wait_bounded() {
+  local pid=$1 deadline=$(( $(date +%s) + $2 ))
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      echo "error: still running after $2 s, stopping it" >&2
+      eval "$3"
+      break
+    fi
+    sleep 5
+  done
+  wait "$pid"
+}
+
+echo "building image $IMAGE"
+docker build -q -t "$IMAGE" -f "$HERE/Dockerfile" "$HERE" >/dev/null &
+wait_bounded $! 900 'kill $pid' || { echo "error: docker build failed" >&2; exit 3; }
+
+NAME="codescan-qa-$$"
+trap 'docker kill "$NAME" >/dev/null 2>&1; exit 3' INT TERM
+echo "running IDE $IDE_VERSION for $MINUTES min; results in $OUT"
+docker run --rm --name "$NAME" --cpus "${QA_DOCKER_CPUS:-6}" --memory "${QA_DOCKER_MEMORY:-4g}" --shm-size 1g \
+  -e RUN_MINUTES="$MINUTES" \
+  -v "$IDE_TARBALL:/ide.tar.gz:ro" \
+  -v "$PLUGIN:/plugin.zip:ro" \
+  -v "$PROJECT:/src-project:ro" \
+  -v "$HERE/ide-in-container.sh:/ide-in-container.sh:ro" \
+  -v "$OUT:/out" \
+  "$IMAGE" bash /ide-in-container.sh &
+# Upper bound on the whole container run: the IDE run itself plus start-up and shutdown.
+wait_bounded $! $(( (MINUTES + 15) * 60 )) 'docker kill "$NAME" >/dev/null 2>&1'
+RC=$?
+if [ "$RC" -ne 0 ] || [ ! -s "$OUT/log/idea.log" ]; then
+  echo "error: the IDE run failed (exit $RC); see $OUT/run.log and $OUT/screens" >&2
+  exit 3
+fi
+
+bash "$HERE/scan-idea-log.sh" "$OUT/log/idea.log" > "$OUT/scan.txt"
+SCAN_RC=$?
+sed -n '/^Summary:/,$p' "$OUT/scan.txt"
+echo "full log check: $OUT/scan.txt"
+exit "$SCAN_RC"
