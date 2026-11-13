@@ -26,6 +26,7 @@ import com.intellij.openapi.util.Disposer;
 import com.intellij.ui.components.JBTabbedPane;
 import java.awt.BorderLayout;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.CheckForNull;
 import org.jetbrains.annotations.Nullable;
 import javax.swing.JComponent;
@@ -43,6 +44,12 @@ import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class SonarLintGlobalConfigurable implements Configurable, Configurable.NoScroll {
+  /**
+   * The page currently shown in a settings dialog, if any. Lets the project page read connections that are being edited
+   * but not yet saved without searching every settings page (that search can create other plugins' pages and is slow).
+   */
+  private static final AtomicReference<SonarLintGlobalConfigurable> OPEN_PAGE = new AtomicReference<>();
+
   private static final int SETTINGS_TAB_INDEX = 0;
   private static final int FILE_EXCLUSIONS_TAB_INDEX = 1;
   private static final int RULES_TAB_INDEX = 2;
@@ -64,7 +71,9 @@ public class SonarLintGlobalConfigurable implements Configurable, Configurable.N
   @Nullable
   @Override
   public JComponent createComponent() {
-    return getPanel();
+    var component = getPanel();
+    OPEN_PAGE.set(this);
+    return component;
   }
 
   @Override
@@ -119,6 +128,12 @@ public class SonarLintGlobalConfigurable implements Configurable, Configurable.N
   }
 
   @CheckForNull
+  public static List<ServerConnection> getConnectionsBeingEdited() {
+    var page = OPEN_PAGE.get();
+    return page != null ? page.getCurrentConnections() : null;
+  }
+
+  @CheckForNull
   public List<ServerConnection> getCurrentConnections() {
     if (connectionsPanel != null) {
       return connectionsPanel.getConnections();
@@ -141,6 +156,7 @@ public class SonarLintGlobalConfigurable implements Configurable, Configurable.N
 
   @Override
   public void disposeUIResources() {
+    OPEN_PAGE.compareAndSet(this, null);
     if (rootPanel != null) {
       rootPanel.setVisible(false);
       rootPanel = null;

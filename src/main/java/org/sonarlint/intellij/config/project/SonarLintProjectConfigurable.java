@@ -19,19 +19,15 @@
  */
 package org.sonarlint.intellij.config.project;
 
-import com.intellij.ide.DataManager;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
-import com.intellij.openapi.options.ex.Settings;
 import com.intellij.openapi.project.Project;
 import com.intellij.util.messages.MessageBusConnection;
 import java.util.List;
 import org.jetbrains.annotations.Nullable;
 import javax.swing.JComponent;
 import org.jetbrains.annotations.Nls;
-import org.jetbrains.concurrency.Promise;
-import org.jetbrains.concurrency.Promises;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable;
@@ -44,7 +40,6 @@ import org.sonarlint.intellij.trigger.TriggerType;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
-import static org.sonarlint.intellij.util.ThreadUtilsKt.computeOnPooledThread;
 import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 /**
@@ -113,28 +108,11 @@ public class SonarLintProjectConfigurable implements Configurable, Configurable.
       return;
     }
 
-    getServersFromApplicationConfigurable()
-      .onProcessed(sonarQubeServers -> {
-        var projectSettings = getSettingsFor(project);
-        panel.load(sonarQubeServers != null ? sonarQubeServers : getGlobalSettings().getServerConnections(),
-          projectSettings,
-          getService(project, ProjectBindingManager.class).getModuleOverrides());
-      });
-  }
-
-  private static Promise<List<ServerConnection>> getServersFromApplicationConfigurable() {
-    return DataManager.getInstance().getDataContextFromFocusAsync()
-      .thenAsync(dataContext -> {
-        var allSettings = Settings.KEY.getData(dataContext);
-        if (allSettings != null) {
-          final var globalConfigurable = computeOnPooledThread("Find Global Configurable Task",
-            () -> allSettings.find(SonarLintGlobalConfigurable.class));
-          if (globalConfigurable != null) {
-            return Promises.resolvedPromise(globalConfigurable.getCurrentConnections());
-          }
-        }
-        return Promises.resolvedPromise(null);
-      });
+    // read the connections from the global page directly: searching all settings pages for it is slow and used to freeze the UI
+    var connectionsBeingEdited = SonarLintGlobalConfigurable.getConnectionsBeingEdited();
+    panel.load(connectionsBeingEdited != null ? connectionsBeingEdited : getGlobalSettings().getServerConnections(),
+      getSettingsFor(project),
+      getService(project, ProjectBindingManager.class).getModuleOverrides());
   }
 
   @Override
