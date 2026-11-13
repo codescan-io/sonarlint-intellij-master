@@ -165,6 +165,19 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
     }
 
     @Test
+    fun telemetryIsOffAndNamedCodeScan() {
+        // the backend sends telemetry to SonarSource, and CodeScan has no telemetry server of its own.
+        // The test run sets sonarlint.telemetry.disabled, which an installed plugin does not have, so it is cleared here.
+        withSystemProperties("sonarlint.telemetry.disabled" to null) {
+            val params = startBackendAndCaptureInitializeParams()
+
+            assertThat(params.featureFlags.isEnableTelemetry).`as`("telemetry").isFalse()
+            assertThat(params.telemetryConstantAttributes.productKey).isEqualTo("idea")
+            assertThat(params.telemetryConstantAttributes.productName).isEqualTo("CodeScan IntelliJ")
+        }
+    }
+
+    @Test
     fun backendFeatureFlagsMatchCodeScan() {
         val flags = startBackendAndCaptureInitializeParams().featureFlags
 

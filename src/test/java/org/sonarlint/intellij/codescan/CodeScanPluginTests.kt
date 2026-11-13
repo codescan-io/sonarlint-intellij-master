@@ -27,13 +27,17 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.wm.ToolWindowEP
+import com.intellij.util.ui.UIUtil
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import javax.swing.JCheckBox
 import kotlin.io.path.extension
 import kotlin.io.path.readText
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.verifyNoInteractions
 import org.sonarlint.intellij.AbstractSonarLintHeavyTests
 import org.sonarlint.intellij.SonarLintPlugin
 import org.sonarlint.intellij.actions.MarkAsResolvedAction
@@ -44,8 +48,10 @@ import org.sonarlint.intellij.common.analysis.FilesContributor
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.common.vcs.VcsRepoProvider
 import org.sonarlint.intellij.config.SonarLintColorSettingsPage
+import org.sonarlint.intellij.config.global.SonarLintAboutPanel
 import org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable
 import org.sonarlint.intellij.java.JavaAnalysisConfigurator
+import org.sonarlint.intellij.telemetry.SonarLintTelemetry
 import org.sonarlint.intellij.ui.CurrentFilePanel
 import org.sonarlint.intellij.ui.SonarLintToolWindowFactory
 
@@ -97,6 +103,19 @@ class CodeScanPluginTests : AbstractSonarLintHeavyTests() {
         assertThat(dependencies.filterNot { it.isOptional }.map { it.pluginId.idString })
             .contains("com.intellij.modules.platform", "com.intellij.modules.lang", "com.intellij.modules.java")
         assertThat(dependencies.map { it.pluginId.idString }).doesNotContain("org.jetbrains.plugins.go", "com.intellij.database")
+    }
+
+    @Test
+    fun aboutPageOffersNoStatisticsChoice() {
+        // telemetry is off; ticking or clearing the box would still make the backend call SonarSource's telemetry address
+        val aboutPanel = SonarLintAboutPanel()
+        val telemetry = mock(SonarLintTelemetry::class.java)
+
+        assertThat(UIUtil.findComponentsOfType(aboutPanel.component, JCheckBox::class.java)).isEmpty()
+        aboutPanel.load(telemetry)
+        aboutPanel.save(telemetry)
+        assertThat(aboutPanel.isModified(telemetry)).isFalse()
+        verifyNoInteractions(telemetry)
     }
 
     @Test

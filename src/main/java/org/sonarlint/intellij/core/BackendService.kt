@@ -319,7 +319,6 @@ class BackendService : Disposable {
         val nodejsPath = getGlobalSettings().nodejsPath
         val nonDefaultRpcRulesConfigurationByKey =
             getGlobalSettings().rulesByKey.mapValues { StandaloneRuleConfigDto(it.value.isActive, it.value.params) }
-        val telemetryEnabled = !System.getProperty("sonarlint.telemetry.disabled", "false").toBoolean()
         val nodeJsPath = if (nodejsPath.isBlank()) null else Paths.get(nodejsPath)
         val eslintBridgePath = generateEslintBridgePath()
         val jsTsRequirements = JsTsRequirementsDto(nodeJsPath, eslintBridgePath)
@@ -333,8 +332,8 @@ class BackendService : Disposable {
                 getTelemetryConstantAttributes(),
                 getHttpConfiguration(),
                 getSonarCloudAlternativeEnvironment(),
-                // CodeScan: no taint vulnerabilities (the tab is off too, see SonarLintUtils.isTaintVulnerabilitiesEnabled) and no
-                // server-sent events, which need SonarCloud's WebSocket service
+                // CodeScan: no taint vulnerabilities (the tab is off too, see SonarLintUtils.isTaintVulnerabilitiesEnabled), no
+                // server-sent events, which need SonarCloud's WebSocket service, and no telemetry, which the backend sends to SonarSource
                 generateFeatureFlagsDto(
                     shouldManageSmartNotifications = true,
                     taintVulnerabilitiesEnabled = false,
@@ -344,7 +343,7 @@ class BackendService : Disposable {
                     shouldManageServerSentEvents = false,
                     enableDataflowBugDetection = true,
                     shouldManageFullSynchronization = true,
-                    enableTelemetry = telemetryEnabled,
+                    enableTelemetry = false,
                     canOpenFixSuggestion = true
                 ),
                 getLocalStoragePath(),
@@ -441,7 +440,7 @@ class BackendService : Disposable {
     }
 
     private fun getTelemetryConstantAttributes() =
-        TelemetryClientConstantAttributesDto("idea", "SonarLint IntelliJ", getService(SonarLintPlugin::class.java).version, getIdeVersionForTelemetry(), mapOf("intellij" to mapOf("jcefSupported" to JBCefApp.isSupported())))
+        TelemetryClientConstantAttributesDto("idea", "CodeScan IntelliJ", getService(SonarLintPlugin::class.java).version, getIdeVersionForTelemetry(), mapOf("intellij" to mapOf("jcefSupported" to JBCefApp.isSupported())))
 
     private fun getIdeVersionForTelemetry(): String {
         var ideVersion: String

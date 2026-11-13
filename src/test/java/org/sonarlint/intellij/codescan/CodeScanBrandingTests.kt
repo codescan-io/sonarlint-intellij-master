@@ -189,9 +189,6 @@ class CodeScanBrandingTests {
         // change notes are release history, handled with the README and NOTICE (P30), so only attributes are read here
         private val DESCRIPTOR_TEXT = Regex("\\b(?:text|description|displayName)=\"([^\"]*)\"")
 
-        private val ALLOWED = mapOf(
-            // the product name reported to telemetry; P31 decides what it becomes
-            "BackendService.kt" to setOf("SonarLint IntelliJ"),
-        )
+        private val ALLOWED = emptyMap<String, Set<String>>()
     }
 }
