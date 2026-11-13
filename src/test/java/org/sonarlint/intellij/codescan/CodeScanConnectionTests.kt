@@ -86,6 +86,7 @@ import org.sonarsource.sonarlint.core.rpc.protocol.backend.tracking.ListAllRespo
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.tracking.TaintVulnerabilityTrackingRpcService
 import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogLevel
 import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogParams
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Language
 
 /**
  * The CodeScan behaviour of the plugin, checked through the code paths users hit:
@@ -158,6 +159,14 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
 
         assertThat(flags.areTaintVulnerabilitiesEnabled()).`as`("taint vulnerabilities").isFalse()
         assertThat(flags.shouldManageServerSentEvents()).`as`("server-sent events").isFalse()
+    }
+
+    @Test
+    fun salesforceLanguagesAreAnalysedInConnectedModeOnly() {
+        val params = startBackendAndCaptureInitializeParams()
+
+        assertThat(params.extraEnabledLanguagesInConnectedMode).contains(Language.APEX, Language.SF_META, Language.VF)
+        assertThat(params.enabledLanguagesInStandaloneMode).doesNotContain(Language.APEX, Language.SF_META, Language.VF)
     }
 
     @Test

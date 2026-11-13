@@ -100,6 +100,8 @@ object EnabledLanguages {
                 extraEnabledLanguages.add(Language.PLSQL)
             }
             extraEnabledLanguages.addAll(EnumSet.of(Language.SCALA, Language.SWIFT))
+            // CodeScan: Salesforce languages (Apex, Salesforce metadata, Visualforce and Lightning), from the CodeScan server's analyzer
+            extraEnabledLanguages.addAll(EnumSet.of(Language.APEX, Language.SF_META, Language.VF))
             return extraEnabledLanguages
         }
 
