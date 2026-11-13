@@ -47,11 +47,11 @@ class ExclusionUtils {
         private fun openExclusionsTab() {
             with(remoteRobot) {
                 idea {
-                    toolWindow("SonarQube for IDE") {
+                    toolWindow("CodeScan") {
                         ensureOpen()
                         tabTitleContains("Current File") { select() }
                         content("CurrentFilePanel") {
-                            toolBarButton("Configure SonarQube for IDE").click()
+                            toolBarButton("Configure CodeScan").click()
                         }
                         selectExclusionTab()
                     }

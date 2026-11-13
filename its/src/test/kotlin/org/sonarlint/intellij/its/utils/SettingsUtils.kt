@@ -46,14 +46,14 @@ class SettingsUtils {
                 Pause.pause(3000)
 
                 // Search for SonarLint because sometimes it is off the screen
-                search("SonarQube for IDE")
+                search("CodeScan")
 
                 tree {
                     waitUntilLoaded()
                     // little trick to check if the search has been applied
                     waitFor(Duration.ofSeconds(10), Duration.ofSeconds(1)) { collectRows().size in 1..10 }
                     Pause.pause(1000)
-                    clickPath("Tools", "SonarQube for IDE")
+                    clickPath("Tools", "CodeScan")
                 }
 
                 // let the SonarLint view settle (sometimes the UI thread blocks for a few seconds)

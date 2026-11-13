@@ -157,7 +157,7 @@ open class BaseUiTest {
     private fun sonarlintLogPanel(function: TabContentFixture.() -> Unit = {}) {
         with(remoteRobot) {
             idea {
-                toolWindow("SonarQube for IDE") {
+                toolWindow("CodeScan") {
                     ensureOpen()
                     tabTitleContains("Log") { select() }
                     content("SonarLintLogPanel") {

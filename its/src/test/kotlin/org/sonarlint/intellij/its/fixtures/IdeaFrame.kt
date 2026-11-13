@@ -109,7 +109,7 @@ class IdeaFrame(remoteRobot: RemoteRobot, remoteComponent: RemoteComponent) : Co
     
     fun IdeaFrame.analyzeFile() {
         editorComponent().rightClick()
-        actionMenuItem("Analyze with SonarQube for IDE") {
+        actionMenuItem("Analyze with CodeScan") {
             click()
         }
     }

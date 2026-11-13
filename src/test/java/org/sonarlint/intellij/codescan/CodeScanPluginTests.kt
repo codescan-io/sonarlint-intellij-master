@@ -20,18 +20,34 @@
 package org.sonarlint.intellij.codescan
 
 import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ex.ActionManagerEx
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.extensions.PluginId
+import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.wm.ToolWindowEP
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import kotlin.io.path.extension
+import kotlin.io.path.readText
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.sonarlint.intellij.AbstractSonarLintHeavyTests
 import org.sonarlint.intellij.SonarLintPlugin
+import org.sonarlint.intellij.actions.MarkAsResolvedAction
+import org.sonarlint.intellij.actions.ReviewSecurityHotspotAction
 import org.sonarlint.intellij.common.analysis.AnalysisConfigurator
 import org.sonarlint.intellij.common.analysis.FileExclusionContributor
 import org.sonarlint.intellij.common.analysis.FilesContributor
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.common.vcs.VcsRepoProvider
+import org.sonarlint.intellij.config.SonarLintColorSettingsPage
+import org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable
 import org.sonarlint.intellij.java.JavaAnalysisConfigurator
+import org.sonarlint.intellij.ui.CurrentFilePanel
+import org.sonarlint.intellij.ui.SonarLintToolWindowFactory
 
 /**
  * How the plugin presents itself to the IDE, read from the plugin the test IDE has loaded.
@@ -62,7 +78,86 @@ class CodeScanPluginTests : AbstractSonarLintHeavyTests() {
         assertThat(VcsRepoProvider.EP_NAME.extensionList.map { it.javaClass.name }).contains("org.sonarlint.intellij.git.GitRepoProvider")
     }
 
+    @Test
+    fun vendorAndDescriptionAreCodeScan() {
+        val plugin = PluginManagerCore.getPlugin(PluginId.getId(CODESCAN_PLUGIN_ID))!!
+
+        assertThat(plugin.vendor).isEqualTo("CodeScan")
+        assertThat(plugin.vendorEmail).isEqualTo("support@codescan.io")
+        assertThat(plugin.vendorUrl).isEqualTo("https://codescan.io")
+        assertThat(plugin.url).isEqualTo("https://codescan.io")
+        assertThat(plugin.description).contains("CodeScan").doesNotContainIgnoringCase("sonar")
+    }
+
+    @Test
+    fun toolWindowIsCalledCodeScan() {
+        val ours = ToolWindowEP.EP_NAME.extensionList.filter { it.pluginDescriptor.pluginId == PluginId.getId(CODESCAN_PLUGIN_ID) }
+
+        assertThat(ours.map { it.id }).containsExactly("CodeScan")
+        assertThat(SonarLintToolWindowFactory.TOOL_WINDOW_ID).isEqualTo("CodeScan")
+        assertThat(CurrentFilePanel.SONARLINT_TOOLWINDOW_ID).isEqualTo("CodeScan")
+    }
+
+    @Test
+    fun settingsPagesAreCalledCodeScan() {
+        val pluginId = PluginId.getId(CODESCAN_PLUGIN_ID)
+        val application = Configurable.APPLICATION_CONFIGURABLE.extensionList.filter { it.pluginDescriptor.pluginId == pluginId }
+        val project = Configurable.PROJECT_CONFIGURABLE.getExtensions(project).filter { it.pluginDescriptor.pluginId == pluginId }
+
+        assertThat(application.map { it.displayName }).containsExactly("CodeScan")
+        assertThat(project.map { it.displayName }).isNotEmpty.noneMatch { it.contains("sonar", ignoreCase = true) }
+    }
+
+    @Test
+    fun settingsPageTitlesAreCodeScan() {
+        assertThat(SonarLintGlobalConfigurable().displayName).isEqualTo("CodeScan")
+        assertThat(SonarLintColorSettingsPage().displayName).isEqualTo("CodeScan")
+    }
+
+    @Test
+    fun notificationGroupsAreCalledCodeScan() {
+        val ours = NotificationGroupManager.getInstance().registeredNotificationGroups
+            .filter { it.pluginId == PluginId.getId(CODESCAN_PLUGIN_ID) }
+            .map { it.displayId }
+
+        assertThat(ours).isNotEmpty.allMatch { it == "CodeScan" || it.startsWith("CodeScan: ") }
+        assertThat(ours).contains(ReviewSecurityHotspotAction.REVIEW_HOTSPOT_GROUP, MarkAsResolvedAction.REVIEW_ISSUE_GROUP)
+    }
+
+    @Test
+    fun actionsAreCalledCodeScan() {
+        val ids = ActionManagerEx.getInstanceEx().getPluginActions(PluginId.getId(CODESCAN_PLUGIN_ID)).toList()
+
+        assertThat(ids).isNotEmpty.allMatch { it.startsWith("CodeScan.") }
+        ids.forEach { id ->
+            val presentation = ActionManager.getInstance().getAction(id).templatePresentation
+            assertThat("${presentation.text} / ${presentation.description}").`as`(id).doesNotContainIgnoringCase("sonar")
+        }
+    }
+
+    @Test
+    fun everyActionAndNotificationGroupLookedUpByNameExists() {
+        val lookups = sourceFiles().flatMap { file ->
+            val text = file.readText()
+            ACTION_LOOKUP.findAll(text).map { "action" to it.groupValues[1] } +
+                GROUP_LOOKUP.findAll(text).map { "group" to it.groupValues[1] }
+        }.toSet()
+
+        assertThat(lookups).isNotEmpty
+        lookups.forEach { (kind, name) ->
+            val exists = if (kind == "action") ActionManager.getInstance().getAction(name) != null else NotificationGroupManager.getInstance().isGroupRegistered(name)
+            assertThat(exists).`as`("$kind '$name' looked up by the code is declared in plugin.xml").isTrue()
+        }
+    }
+
+    private fun sourceFiles(): List<Path> = listOf("src/main/java", "common/src/main/java", "git/src/main/java")
+        .map { Paths.get(it) }
+        .filter { Files.isDirectory(it) }
+        .flatMap { root -> Files.walk(root).use { paths -> paths.filter { it.extension == "java" || it.extension == "kt" }.toList() } }
+
     companion object {
         private const val CODESCAN_PLUGIN_ID = "com.code-scan.intellij"
+        private val ACTION_LOOKUP = Regex("""getAction\("([^"]+)"\)""")
+        private val GROUP_LOOKUP = Regex("""getNotificationGroup\("([^"]+)"\)""")
     }
 }

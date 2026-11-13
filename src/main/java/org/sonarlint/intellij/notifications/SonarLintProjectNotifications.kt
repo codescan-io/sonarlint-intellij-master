@@ -65,7 +65,7 @@ class SonarLintProjectNotifications(private val myProject: Project) {
         }
 
         fun projectLessNotification(title: String?, message: String, type: NotificationType, action: AnAction? = null): Notification {
-            return NotificationGroupManager.getInstance().getNotificationGroup("SonarQube for IDE").createNotification(
+            return NotificationGroupManager.getInstance().getNotificationGroup("CodeScan").createNotification(
                 title ?: "",
                 message,
                 type
@@ -79,21 +79,21 @@ class SonarLintProjectNotifications(private val myProject: Project) {
     }
 
     private val inContextPromotionGroup =
-        NotificationGroupManager.getInstance().getNotificationGroup("SonarQube for IDE: In Context Promotions")
+        NotificationGroupManager.getInstance().getNotificationGroup("CodeScan: In Context Promotions")
     private val bindingProblemGroup =
-        NotificationGroupManager.getInstance().getNotificationGroup("SonarQube for IDE: Server Binding Errors")
+        NotificationGroupManager.getInstance().getNotificationGroup("CodeScan: Server Binding Errors")
     private val serverNotificationsGroup =
-        NotificationGroupManager.getInstance().getNotificationGroup("SonarQube for IDE: Server Notifications")
+        NotificationGroupManager.getInstance().getNotificationGroup("CodeScan: Server Notifications")
     private val bindingSuggestionGroup =
-        NotificationGroupManager.getInstance().getNotificationGroup("SonarQube for IDE: Binding Suggestions")
+        NotificationGroupManager.getInstance().getNotificationGroup("CodeScan: Binding Suggestions")
     private val openInIdeGroup: NotificationGroup =
-        NotificationGroupManager.getInstance().getNotificationGroup("SonarQube for IDE: Open in IDE")
+        NotificationGroupManager.getInstance().getNotificationGroup("CodeScan: Open in IDE")
     private val secretDetectionGroup =
-        NotificationGroupManager.getInstance().getNotificationGroup("SonarQube for IDE: Secrets detection")
-    private val taintGroup = NotificationGroupManager.getInstance().getNotificationGroup("SonarQube for IDE: Taint vulnerabilities")
+        NotificationGroupManager.getInstance().getNotificationGroup("CodeScan: Secrets detection")
+    private val taintGroup = NotificationGroupManager.getInstance().getNotificationGroup("CodeScan: Taint vulnerabilities")
     private val analyzerRequirementGroup =
-        NotificationGroupManager.getInstance().getNotificationGroup("SonarQube for IDE: Analyzer Requirement")
-    private val sonarlintGroup = NotificationGroupManager.getInstance().getNotificationGroup("SonarQube for IDE")
+        NotificationGroupManager.getInstance().getNotificationGroup("CodeScan: Analyzer Requirement")
+    private val sonarlintGroup = NotificationGroupManager.getInstance().getNotificationGroup("CodeScan")
 
     private var storageErrorNotificationShown = AtomicBoolean(false)
     private var lastBindingSuggestion: Notification? = null

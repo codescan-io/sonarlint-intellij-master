@@ -58,7 +58,7 @@ public class SonarLintGlobalConfigurable implements Configurable, Configurable.N
   @Nls
   @Override
   public String getDisplayName() {
-    return "SonarQube for IDE";
+    return "CodeScan";
   }
 
   @Nullable

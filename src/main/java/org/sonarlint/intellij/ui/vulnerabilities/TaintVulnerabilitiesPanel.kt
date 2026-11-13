@@ -150,7 +150,7 @@ class TaintVulnerabilitiesPanel(private val project: Project) : SimpleToolWindow
 
         val sonarLintActions = SonarLintActions.getInstance()
         setupToolbar(listOf(
-            ActionManager.getInstance().getAction("SonarLint.SetFocusNewCode"),
+            ActionManager.getInstance().getAction("CodeScan.SetFocusNewCode"),
             RefreshTaintVulnerabilitiesAction(),
             sonarLintActions.includeResolvedTaintVulnerabilitiesAction(),
             sonarLintActions.configure(),

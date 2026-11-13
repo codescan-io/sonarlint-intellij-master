@@ -141,7 +141,7 @@ public class SecurityHotspotsPanel extends SimpleToolWindowPanel implements Disp
   private static DefaultActionGroup createActionGroup() {
     var sonarLintActions = SonarLintActions.getInstance();
     var actionGroup = new DefaultActionGroup();
-    actionGroup.add(ActionManager.getInstance().getAction("SonarLint.SetFocusNewCode"));
+    actionGroup.add(ActionManager.getInstance().getAction("CodeScan.SetFocusNewCode"));
     actionGroup.add(sonarLintActions.filterSecurityHotspots());
     actionGroup.add(sonarLintActions.includeResolvedHotspotAction());
     actionGroup.add(sonarLintActions.configure());

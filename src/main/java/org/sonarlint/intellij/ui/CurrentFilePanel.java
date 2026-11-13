@@ -67,7 +67,7 @@ import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 public class CurrentFilePanel extends AbstractIssuesPanel {
 
-  public static final String SONARLINT_TOOLWINDOW_ID = "SonarQube for IDE";
+  public static final String SONARLINT_TOOLWINDOW_ID = "CodeScan";
   private static final String SPLIT_PROPORTION_PROPERTY = "SONARLINT_ISSUES_SPLIT_PROPORTION";
   private final JBPanelWithEmptyText issuesPanel;
   private final JScrollPane treeScrollPane;
@@ -119,11 +119,11 @@ public class CurrentFilePanel extends AbstractIssuesPanel {
 
   private static Collection<AnAction> actions() {
     return List.of(
-      ActionManager.getInstance().getAction("SonarLint.SetFocusNewCode"),
+      ActionManager.getInstance().getAction("CodeScan.SetFocusNewCode"),
       SonarLintActions.getInstance().analyzeCurrentFileAction(),
-      ActionManager.getInstance().getAction("SonarLint.toolwindow.Cancel"),
+      ActionManager.getInstance().getAction("CodeScan.toolwindow.Cancel"),
       SonarLintActions.getInstance().includeResolvedIssuesAction(),
-      ActionManager.getInstance().getAction("SonarLint.toolwindow.Configure"),
+      ActionManager.getInstance().getAction("CodeScan.toolwindow.Configure"),
       SonarLintActions.getInstance().clearIssues());
   }
 

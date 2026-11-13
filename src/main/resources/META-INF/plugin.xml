@@ -19,42 +19,28 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 -->
-<idea-plugin url="https://docs.sonarsource.com/sonarlint/intellij/" require-restart="true">
+<idea-plugin url="https://codescan.io" require-restart="true">
     <id>com.code-scan.intellij</id>
     <name>CodeScan</name>
     <version>${project.version}</version>
-    <vendor url="https://www.sonarsource.com">SonarSource</vendor>
+    <vendor email="support@codescan.io" url="https://codescan.io">CodeScan</vendor>
 
     <description><![CDATA[
         <html>
             <p>
-                SonarQube for IDE (formerly SonarLint) by <a href="https://www.sonarsource.com/">Sonar</a> is a free IDE extension to find and fix coding issues in real-time, flagging issues as you code, just like a spell-checker.
-                More than a linter, it also delivers rich contextual guidance to help developers understand why there is an issue,
-                assess the risk and educate them on how to fix it. This helps improve their skills, enhance their productivity,
-                and take ownership of their code, taking linting to a different level.
+                CodeScan is a free IDE extension that lets you fix bugs and vulnerabilities as you write code!
+                Like a spell checker, CodeScan highlights coding issues on the fly, with clear remediation
+                guidance so you can fix them before the code is even committed. Across popular IDEs (IntelliJ,
+                VS Code) and popular programming languages, CodeScan helps all developers write better and safer code!
             </p>
             <br/>
             <p>
-                When paired with <a href="https://www.sonarsource.com/products/sonarqube/">SonarQube Server</a> or <a href="https://www.sonarsource.com/products/sonarcloud/">SonarQube Cloud</a> in Connected Mode,
-                SonarQube for IDE forms a powerful end-to-end code quality platform to enrich the CI/CD pipeline, ensuring any code edits or additions are clean.
-                In Connected Mode, your team can share common language rulesets, project analysis settings and <a href="https://www.sonarsource.com/products/sonarlint/features/connected-mode/">more</a>.
+                CodeScan supports only JetBrains IntelliJ IDEA.
             </p>
             <br/>
             <p>
-                SonarQube for IDE is a powerful open-source tool for developers of all experience and skill levels, empowering them
-                to deliver Clean Code - code fit for development and production. An essential linting tool for every developer.
-            </p>
-            <br/>
-            <p>
-                SonarQube for IDE integrates with most JetBrains IDEs including
-                IntelliJ IDEA, CLion, GoLand, WebStorm, PHPStorm, PyCharm, Rider, Aqua, AppCode, Android Studio & RubyMine. Supported languages include
-                C, C++, Java, Go, JavaScript, TypeScript, Python, C#, Kotlin, Ruby, HTML, CSS, PHP & PL/SQL.
-                The full list of supported languages and rules is available in <a href="https://docs.sonarsource.com/sonarlint/intellij/using-sonarlint/rules/">our docs</a>.
-            </p>
-            <br/>
-            <br/>
-            <p>
-                Get started by checking the <a href="https://docs.sonarsource.com/sonarlint/intellij/getting-started/requirements/">Requirements</a> and <a href="https://docs.sonarsource.com/sonarlint/intellij/getting-started/installation/">Installation</a> pages.
+                If your project is analyzed on CodeScan or on CodeScanCloud, CodeScan can connect to
+                the server to retrieve the appropriate quality profiles and settings for that project.
             </p>
         </html>
       ]]></description>
@@ -201,10 +187,10 @@
     </projectListeners>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="SonarQube for IDE" anchor="bottom"
+        <toolWindow id="CodeScan" anchor="bottom"
                     icon="org.sonarlint.intellij.SonarLintIcons.SONARQUBE_FOR_INTELLIJ_EMPTY_TOOLWINDOW"
                     factoryClass="org.sonarlint.intellij.ui.SonarLintToolWindowFactory" canCloseContents="true"/>
-        <applicationConfigurable groupId="tools" id="sonarlint" displayName="SonarQube for IDE"
+        <applicationConfigurable groupId="tools" id="sonarlint" displayName="CodeScan"
                                  instance="org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable"/>
         <projectConfigurable parentId="sonarlint" displayName="Project Settings" instance="org.sonarlint.intellij.config.project.SonarLintProjectConfigurable" nonDefaultProject="true"/>
         <colorSettingsPage implementation="org.sonarlint.intellij.config.SonarLintColorSettingsPage"/>
@@ -253,27 +239,27 @@
 
         <postStartupActivity implementation="org.sonarlint.intellij.StartServicesOnProjectOpened"/>
 
-        <notificationGroup id="SonarQube for IDE: In Context Promotions"
+        <notificationGroup id="CodeScan: In Context Promotions"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarQube for IDE: Server Binding Errors"
+        <notificationGroup id="CodeScan: Server Binding Errors"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarQube for IDE: Analyzer Requirement"
+        <notificationGroup id="CodeScan: Analyzer Requirement"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarQube for IDE: Secrets detection"
+        <notificationGroup id="CodeScan: Secrets detection"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarQube for IDE: Taint vulnerabilities"
+        <notificationGroup id="CodeScan: Taint vulnerabilities"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarQube for IDE: Open in IDE"
+        <notificationGroup id="CodeScan: Open in IDE"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarQube for IDE"
+        <notificationGroup id="CodeScan"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarQube for IDE: Server Notifications"
+        <notificationGroup id="CodeScan: Server Notifications"
                            displayType="STICKY_BALLOON"/>
-        <notificationGroup id="SonarQube for IDE: Binding Suggestions"
+        <notificationGroup id="CodeScan: Binding Suggestions"
                            displayType="STICKY_BALLOON"/>
-        <notificationGroup id="SonarQube for IDE: Security Hotspot Review"
+        <notificationGroup id="CodeScan: Security Hotspot Review"
                            displayType="BALLOON"/>
-        <notificationGroup id="SonarQube for IDE: Mark Issue as Resolved"
+        <notificationGroup id="CodeScan: Mark Issue as Resolved"
                            displayType="BALLOON"/>
         <pluginRepositoryAuthProvider implementation="org.sonarlint.intellij.dogfood.DogfoodPluginRepositoryAuthProvider"/>
     </extensions>
@@ -291,68 +277,68 @@
 
     <actions>
         <!-- Some actions are defined in SonarLintActions so that they aren't registered in ActionManager -->
-      <group id="SonarLint.AnalyzeMenu" searchable="false" text="SonarQube for IDE" popup="false"
+      <group id="CodeScan.AnalyzeMenu" searchable="false" text="CodeScan" popup="false"
                icon="org.sonarlint.intellij.SonarLintIcons.SONARQUBE_FOR_INTELLIJ_13PX">
             <separator/>
             <!-- This group is programmatically added to AnalyzeMenu if it exists -->
         </group>
 
-        <action id="SonarLint.SetFocusNewCode"
+        <action id="CodeScan.SetFocusNewCode"
                 class="org.sonarlint.intellij.actions.SonarFocusOnNewCode"
                 text="Set Focus on New Code"
-                description="Change the current SonarQube for IDE focus to new code"
+                description="Change the current CodeScan focus to new code"
                 icon="org.sonarlint.intellij.SonarLintIcons.FOCUS">
         </action>
 
-        <action id="SonarLint.AnalyzeFiles"
+        <action id="CodeScan.AnalyzeFiles"
                 class="org.sonarlint.intellij.actions.SonarAnalyzeFilesAction"
-                text="Analyze with SonarQube for IDE"
-                description="Run SonarQube for IDE analysis on selected file(s)"
+                text="Analyze with CodeScan"
+                description="Run CodeScan analysis on selected file(s)"
                 icon="org.sonarlint.intellij.SonarLintIcons.SONARQUBE_FOR_INTELLIJ_13PX">
             <keyboard-shortcut first-keystroke="shift ctrl S" keymap="$default"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
-            <add-to-group group-id="SonarLint.AnalyzeMenu"/>
+            <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 
-        <group id="SonarLint.ProjectViewPopupMenu" searchable="false" text="SonarQube for IDE" popup="true"
+        <group id="CodeScan.ProjectViewPopupMenu" searchable="false" text="CodeScan" popup="true"
                icon="org.sonarlint.intellij.SonarLintIcons.SONARQUBE_FOR_INTELLIJ_13PX">
-            <reference ref="SonarLint.AnalyzeFiles"/>
-            <action id="SonarLint.Exclude"
+            <reference ref="CodeScan.AnalyzeFiles"/>
+            <action id="CodeScan.Exclude"
                     class="org.sonarlint.intellij.actions.ExcludeFileAction"
-                    text="Exclude from SonarQube for IDE Analysis"
-                    description="Adds resources to the list exclusions in the SonarQube for IDE project settings"
+                    text="Exclude from CodeScan Analysis"
+                    description="Adds resources to the list exclusions in the CodeScan project settings"
                     icon="org.sonarlint.intellij.SonarLintIcons.SONARQUBE_FOR_INTELLIJ_13PX">
             </action>
             <add-to-group group-id="ProjectViewPopupMenu"/>
         </group>
 
-        <action id="SonarLint.AnalyzeChangedFiles"
+        <action id="CodeScan.AnalyzeChangedFiles"
                 class="org.sonarlint.intellij.actions.SonarAnalyzeChangedFilesAction"
-                text="Analyze VCS Changed Files with SonarQube for IDE"
-                description="Run a SonarQube for IDE analysis on VCS changed files"
+                text="Analyze VCS Changed Files with CodeScan"
+                description="Run a CodeScan analysis on VCS changed files"
                 icon="org.sonarlint.intellij.SonarLintIcons.SONARQUBE_FOR_INTELLIJ_13PX">
-            <add-to-group group-id="SonarLint.AnalyzeMenu"/>
+            <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 
-        <action id="SonarLint.AnalyzeAllFiles"
+        <action id="CodeScan.AnalyzeAllFiles"
                 class="org.sonarlint.intellij.actions.SonarAnalyzeAllFilesAction"
-                text="Analyze All Files with SonarQube for IDE"
-                description="Run a SonarQube for IDE analysis on all files in the project"
+                text="Analyze All Files with CodeScan"
+                description="Run a CodeScan analysis on all files in the project"
                 icon="org.sonarlint.intellij.SonarLintIcons.SONARQUBE_FOR_INTELLIJ_13PX">
-            <add-to-group group-id="SonarLint.AnalyzeMenu"/>
+            <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 
-        <action id="SonarLint.toolwindow.Cancel"
+        <action id="CodeScan.toolwindow.Cancel"
                 class="org.sonarlint.intellij.actions.SonarCancelAction"
-                text="Cancel SonarQube for IDE Analysis"
-                description="Cancel the SonarQube for IDE analysis running"
+                text="Cancel CodeScan Analysis"
+                description="Cancel the CodeScan analysis running"
                 icon="org.sonarlint.intellij.SonarLintIcons.SUSPEND">
         </action>
 
-        <action id="SonarLint.toolwindow.Configure"
+        <action id="CodeScan.toolwindow.Configure"
                 class="org.sonarlint.intellij.actions.SonarConfigureProject"
-                text="Configure SonarQube for IDE"
-                description="Configure SonarQube for IDE"
+                text="Configure CodeScan"
+                description="Configure CodeScan"
                 icon="org.sonarlint.intellij.SonarLintIcons.TOOLS">
         </action>
     </actions>

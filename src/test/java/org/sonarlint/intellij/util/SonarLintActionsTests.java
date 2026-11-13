@@ -39,7 +39,7 @@ class SonarLintActionsTests extends AbstractSonarLintLightTests {
 
   @BeforeEach
   void prepare() {
-    when(actionManager.getAction("SonarLint.AnalyzeMenu")).thenReturn(sonarlintAnalyzeMenuGroup);
+    when(actionManager.getAction("CodeScan.AnalyzeMenu")).thenReturn(sonarlintAnalyzeMenuGroup);
     instance = new SonarLintActions(actionManager);
   }
 

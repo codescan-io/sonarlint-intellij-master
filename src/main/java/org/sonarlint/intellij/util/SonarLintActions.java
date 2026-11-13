@@ -72,12 +72,12 @@ public final class SonarLintActions {
     var analyzeMenu = actionManager.getAction(IdeActions.GROUP_ANALYZE);
     // some flavors of IDEA don't have the Analyze menu, register at runtime to avoid error if declared in plugin.xml
     if (analyzeMenu instanceof DefaultActionGroup analyzeMenuGroup) {
-      var sonarLintAnalyzeMenu = actionManager.getAction("SonarLint.AnalyzeMenu");
+      var sonarLintAnalyzeMenu = actionManager.getAction("CodeScan.AnalyzeMenu");
       analyzeMenuGroup.add(sonarLintAnalyzeMenu);
     }
 
-    cancelAction = actionManager.getAction("SonarLint.toolwindow.Cancel");
-    configureAction = actionManager.getAction("SonarLint.toolwindow.Configure");
+    cancelAction = actionManager.getAction("CodeScan.toolwindow.Cancel");
+    configureAction = actionManager.getAction("CodeScan.toolwindow.Configure");
 
     clearReportAction = new ClearReportAction("Clear Project Files Issues",
       "Clear analysis results",

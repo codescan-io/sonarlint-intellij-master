@@ -222,7 +222,7 @@ class SonarLintDashboardPanel(private val editor: Editor) {
 
     private class MenuAction : DefaultActionGroup(), HintManagerImpl.ActionToIgnore {
         init {
-            add(ActionManager.getInstance().getAction("SonarLint.toolwindow.Configure"))
+            add(ActionManager.getInstance().getAction("CodeScan.toolwindow.Configure"))
             add(ShowLogAction())
             templatePresentation.isPopupGroup = true
             templatePresentation.icon = AllIcons.Actions.More

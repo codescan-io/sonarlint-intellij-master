@@ -63,7 +63,7 @@ class MarkAsResolvedAction(
     ), IntentionAction, PriorityAction, Iconable {
 
     companion object {
-        const val REVIEW_ISSUE_GROUP = "SonarQube for IDE: Mark Issue as Resolved"
+        const val REVIEW_ISSUE_GROUP = "CodeScan: Mark Issue as Resolved"
         private const val ERROR_TITLE = "<b>SonarQube for IDE - Unable to mark the issue as resolved</b>"
         private const val CONTENT = "The issue was successfully marked as resolved"
 
