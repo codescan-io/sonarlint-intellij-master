@@ -53,6 +53,8 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.timeout
 import org.sonarlint.intellij.AbstractSonarLintHeavyTests
 import org.sonarlint.intellij.SonarLintIntelliJClient
+import org.sonarlint.intellij.actions.MarkAsResolvedAction
+import org.sonarlint.intellij.actions.ReopenIssueAction
 import org.sonarlint.intellij.SonarLintPlugin
 import org.sonarlint.intellij.analysis.AnalysisState
 import org.sonarlint.intellij.analysis.SonarLintAnalyzer
@@ -65,6 +67,7 @@ import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.config.global.ServerConnectionMgmtPanel
 import org.sonarlint.intellij.config.global.wizard.WizardModel
 import org.sonarlint.intellij.core.BackendService
+import org.sonarlint.intellij.finding.Issue
 import org.sonarlint.intellij.java.JavaAnalysisConfigurator
 import org.sonarlint.intellij.ui.SonarLintConsoleTestImpl
 import org.sonarlint.intellij.util.GlobalLogOutput
@@ -217,6 +220,20 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
     fun taintTabIsNotShown() {
         // SonarLintToolWindowFactory adds the taint tab only when this is true (script row P8 checks that guard)
         assertThat(SonarLintUtils.isTaintVulnerabilitiesEnabled()).isFalse()
+    }
+
+    @Test
+    fun issueStatusCannotBeChangedFromTheIde() {
+        // as in 7.2.3: the calls that change a status on the server (api/issues/do_transition, add_comment) are not yet checked against CodeScan
+        connectProjectTo(cloudConnection(), "projectKey")
+        val openServerIssue = mock(Issue::class.java)
+        `when`(openServerIssue.isValid()).thenReturn(true)
+        `when`(openServerIssue.getServerKey()).thenReturn("AXserverKey")
+        val resolvedIssue = mock(Issue::class.java)
+        `when`(resolvedIssue.isResolved()).thenReturn(true)
+
+        assertThat(MarkAsResolvedAction.canBeMarkedAsResolved(project, openServerIssue)).`as`("Mark Issue as...").isFalse()
+        assertThat(ReopenIssueAction.canBeReopened(project, resolvedIssue)).`as`("Reopen").isFalse()
     }
 
     @Test

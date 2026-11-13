@@ -67,8 +67,13 @@ class MarkAsResolvedAction(
         private const val ERROR_TITLE = "<b>CodeScan - Unable to mark the issue as resolved</b>"
         private const val CONTENT = "The issue was successfully marked as resolved"
 
+        // CodeScan: changing an issue's status is not offered, as in 7.2.3, until the server calls behind it
+        // (api/issues/do_transition and add_comment) are checked against CodeScan; see row P17 in docs/codescan-customizations.md.
+        // ReopenIssueAction reads the same switch.
+        const val CODESCAN_ISSUE_STATUS_CHANGE_ENABLED = false
+
         fun canBeMarkedAsResolved(project: Project, issue: Issue): Boolean {
-            if (issue.isResolved()) {
+            if (!CODESCAN_ISSUE_STATUS_CHANGE_ENABLED || issue.isResolved()) {
                 return false
             }
             val serverConnection = serverConnection(project)

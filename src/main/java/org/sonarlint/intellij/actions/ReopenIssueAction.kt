@@ -31,6 +31,7 @@ import com.intellij.openapi.ui.DoNotAskOption
 import com.intellij.openapi.ui.MessageDialogBuilder
 import com.intellij.openapi.util.Iconable
 import com.intellij.psi.PsiFile
+import org.sonarlint.intellij.actions.MarkAsResolvedAction.Companion.CODESCAN_ISSUE_STATUS_CHANGE_ENABLED
 import org.sonarlint.intellij.actions.MarkAsResolvedAction.Companion.REVIEW_ISSUE_GROUP
 import org.sonarlint.intellij.common.ui.SonarLintConsole
 import org.sonarlint.intellij.common.util.SonarLintUtils
@@ -57,7 +58,7 @@ class ReopenIssueAction(private var issue: LiveIssue? = null) : AbstractSonarAct
         private const val CONTENT = "The issue was successfully reopened"
 
         fun canBeReopened(project: Project, issue: Issue): Boolean {
-            return serverConnection(project) != null && issue.isResolved()
+            return CODESCAN_ISSUE_STATUS_CHANGE_ENABLED && serverConnection(project) != null && issue.isResolved()
         }
 
         fun reopenIssueDialog(project: Project, issue: Issue) {
