@@ -32,8 +32,10 @@ import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.SourceFolder;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
-import java.util.Set;
+import java.util.Locale;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.NotNull;
@@ -46,8 +48,10 @@ public class SonarLintUtils {
   // CodeScan: the "cloud" is CodeScan's, so new cloud connections and their links use this address
   public static final String DEFAULT_CODESCANCLOUD_URL = "https://app.codescan.io";
   public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_CODESCANCLOUD_URL);
-  private static final Set<String> SONARCLOUD_ALIAS = Set.copyOf(List.of("https://sonarqube.com", "https://www.sonarqube.com",
-    "https://www.sonarcloud.io", DEFAULT_SONARCLOUD_URL, SONARCLOUD_URL));
+  // CodeScan: every host on these domains is CodeScan
+  private static final List<String> CODESCAN_DOMAINS = List.of("codescan.io", "autorabit.com");
+  @Nullable
+  private static final String SONARCLOUD_HOST = hostOf(SONARCLOUD_URL);
 
   private SonarLintUtils() {
     // Utility class
@@ -81,8 +85,66 @@ public class SonarLintUtils {
     }
   }
 
+  /**
+   * CodeScan: tells whether a server is CodeScan, which the plugin treats as a "cloud" server (it has organizations).
+   * That is the case for the cloud address, for any host on codescan.io or autorabit.com (the host itself; the rest of the
+   * address does not count), and for a self-hosted CodeScan server on its own domain that answers CodeScan's health check.
+   * On the UI thread the health check is never waited for, see {@link CodeScanServerCheck}.
+   */
   public static boolean isSonarCloudAlias(@Nullable String url) {
-    return url != null && SONARCLOUD_ALIAS.contains(url);
+    if (isBlank(url)) {
+      return false;
+    }
+    URI uri;
+    try {
+      uri = new URI(url.trim());
+    } catch (URISyntaxException e) {
+      return false;
+    }
+    var scheme = uri.getScheme();
+    var host = uri.getHost();
+    if (scheme == null || host == null || !("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))) {
+      return false;
+    }
+    host = host.toLowerCase(Locale.ROOT);
+    if (isCodeScanHost(host)) {
+      return true;
+    }
+    var application = ApplicationManager.getApplication();
+    if (application == null) {
+      // no IDE around (plain unit tests), so no health check
+      return false;
+    }
+    return application.getService(CodeScanServerCheck.class).isCodeScanServer(serverAddress(scheme, host, uri));
+  }
+
+  private static boolean isCodeScanHost(String host) {
+    if (host.equals(SONARCLOUD_HOST)) {
+      return true;
+    }
+    return CODESCAN_DOMAINS.stream().anyMatch(domain -> host.equals(domain) || host.endsWith("." + domain));
+  }
+
+  @CheckForNull
+  private static String hostOf(String url) {
+    try {
+      var host = new URI(url).getHost();
+      return host == null ? null : host.toLowerCase(Locale.ROOT);
+    } catch (URISyntaxException e) {
+      return null;
+    }
+  }
+
+  /**
+   * The address without user name, query, fragment or trailing slashes, so each server is asked once.
+   */
+  private static String serverAddress(String scheme, String host, URI uri) {
+    var port = uri.getPort() == -1 ? "" : (":" + uri.getPort());
+    var path = uri.getRawPath() == null ? "" : uri.getRawPath();
+    while (path.endsWith("/")) {
+      path = path.substring(0, path.length() - 1);
+    }
+    return scheme.toLowerCase(Locale.ROOT) + "://" + host + port + path;
   }
 
   public static boolean isEmpty(@Nullable String str) {

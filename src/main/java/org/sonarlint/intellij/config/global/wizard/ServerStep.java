@@ -21,6 +21,7 @@ package org.sonarlint.intellij.config.global.wizard;
 
 import com.intellij.ide.wizard.AbstractWizardStepEx;
 import com.intellij.ide.wizard.CommitStepException;
+import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.HyperlinkAdapter;
 import com.intellij.ui.components.JBTextField;
@@ -251,8 +252,9 @@ public class ServerStep extends AbstractWizardStepEx {
       model.setServerType(WizardModel.ServerType.SONARCLOUD);
       model.setServerUrl(SONARCLOUD_URL);
     } else {
-      model.setServerType(WizardModel.ServerType.SONARQUBE);
-      model.setServerUrl(urlText.getText().trim());
+      // CodeScan: a self-hosted CodeScan server is recognised by asking it, which can take a few seconds, so not on the UI thread
+      var serverUrl = urlText.getText();
+      ProgressManager.getInstance().runProcessWithProgressSynchronously(() -> model.useServer(serverUrl), "Checking the server\u2026", false, null);
     }
     model.setName(nameField.getText().trim());
   }

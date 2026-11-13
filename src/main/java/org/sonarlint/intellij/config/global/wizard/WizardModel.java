@@ -89,6 +89,20 @@ public class WizardModel {
     return ServerType.SONARCLOUD.equals(serverType);
   }
 
+  /**
+   * CodeScan: uses the server address typed in the wizard. A CodeScan server, including a self-hosted one on its own domain,
+   * becomes a cloud connection, because it has organizations. This can ask the server, so never call it on the UI thread.
+   */
+  public WizardModel useServer(String serverUrl) {
+    var address = serverUrl.trim();
+    while (address.endsWith("/")) {
+      address = address.substring(0, address.length() - 1);
+    }
+    this.serverUrl = address;
+    serverType = SonarLintUtils.isSonarCloudAlias(address) ? ServerType.SONARCLOUD : ServerType.SONARQUBE;
+    return this;
+  }
+
   public boolean isNotificationsSupported() {
     return notificationsSupported;
   }

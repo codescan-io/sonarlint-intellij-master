@@ -47,7 +47,7 @@ class ServerConnectionTests {
   @Test
   void testSonarCloud() {
     var server1 = ServerConnection.newBuilder()
-      .setHostUrl("https://sonarqube.com")
+      .setHostUrl("https://app.codescan.io")
       .setPassword("pass")
       .setToken("token")
       .setName("name")

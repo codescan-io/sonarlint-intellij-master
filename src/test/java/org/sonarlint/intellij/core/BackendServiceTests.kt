@@ -99,7 +99,7 @@ class BackendServiceTests : AbstractSonarLintHeavyTests() {
 
         globalSettings.serverConnections = listOf(
             ServerConnection.newBuilder().setName("id").setHostUrl("url").build(),
-            ServerConnection.newBuilder().setName("id").setHostUrl("https://sonarcloud.io").setOrganizationKey("org")
+            ServerConnection.newBuilder().setName("id").setHostUrl("https://app.codescan.io").setOrganizationKey("org")
                 .build()
         )
 
@@ -159,7 +159,7 @@ class BackendServiceTests : AbstractSonarLintHeavyTests() {
 
     @Test
     fun test_notify_backend_when_adding_a_sonarcloud_connection() {
-        service.connectionsUpdated(listOf(ServerConnection.newBuilder().setName("id").setHostUrl("https://sonarcloud.io").setOrganizationKey("org")
+        service.connectionsUpdated(listOf(ServerConnection.newBuilder().setName("id").setHostUrl("https://app.codescan.io").setOrganizationKey("org")
             .build()))
 
         val paramsCaptor = argumentCaptor<DidUpdateConnectionsParams>()
@@ -582,7 +582,7 @@ class BackendServiceTests : AbstractSonarLintHeavyTests() {
     @Test
     fun test_check_sonarcloud_smart_notification_supported() {
         val serverConnection =
-            ServerConnection.newBuilder().setName("id").setHostUrl("https://sonarcloud.io").setOrganizationKey("org").build()
+            ServerConnection.newBuilder().setName("id").setHostUrl("https://app.codescan.io").setOrganizationKey("org").build()
 
         service.checkSmartNotificationsSupported(serverConnection)
 
@@ -606,7 +606,7 @@ class BackendServiceTests : AbstractSonarLintHeavyTests() {
     @Test
     fun test_check_list_user_organizations_for_sonarcloud() {
         val serverConnection =
-            ServerConnection.newBuilder().setName("id").setHostUrl("https://sonarcloud.io").setOrganizationKey("org").build()
+            ServerConnection.newBuilder().setName("id").setHostUrl("https://app.codescan.io").setOrganizationKey("org").build()
 
         service.listUserOrganizations(serverConnection)
 
@@ -618,7 +618,7 @@ class BackendServiceTests : AbstractSonarLintHeavyTests() {
     @Test
     fun test_get_organization() {
         val serverConnection =
-            ServerConnection.newBuilder().setName("id").setHostUrl("https://sonarcloud.io").setOrganizationKey("org").build()
+            ServerConnection.newBuilder().setName("id").setHostUrl("https://app.codescan.io").setOrganizationKey("org").build()
         val organizationKey = "org"
 
         service.getOrganization(serverConnection, organizationKey)

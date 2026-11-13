@@ -143,7 +143,7 @@ class SonarLintProjectNotificationsTests : AbstractSonarLintLightTests() {
 
     @Test
     fun should_handle_sonarcloud_smart_notification() {
-        val connection = ServerConnection.newBuilder().setName("connectionId").setHostUrl("https://sonarcloud.io").build()
+        val connection = ServerConnection.newBuilder().setName("connectionId").setHostUrl("https://app.codescan.io").build()
         globalSettings.serverConnections = listOf(connection)
 
         val param = ShowSmartNotificationParams(

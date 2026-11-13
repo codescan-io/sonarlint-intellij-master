@@ -28,11 +28,13 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.testFramework.replaceService
 import java.io.File
 import java.net.URI
+import java.time.Duration
 import java.util.concurrent.Callable
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.tuple
+import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -43,6 +45,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.timeout
 import org.sonarlint.intellij.AbstractSonarLintHeavyTests
+import org.sonarlint.intellij.common.util.CodeScanServerCheck
 import org.sonarlint.intellij.common.util.SonarLintUtils
 import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.config.global.wizard.WizardModel
@@ -75,6 +78,8 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
         super.initApplication()
         // Keep the real backend process out of these tests: the application-level service talks to a mock.
         ApplicationManager.getApplication().replaceService(BackendService::class.java, BackendService(launcherFor(mockRpcServer())), testRootDisposable)
+        // Each test starts with no kept answers: WireMock ports can repeat between tests.
+        ApplicationManager.getApplication().replaceService(CodeScanServerCheck::class.java, CodeScanServerCheck(), testRootDisposable)
     }
 
     @BeforeEach
@@ -180,6 +185,36 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
     }
 
     @Test
+    fun healthCheckNeverBlocksTheUiThread() {
+        server.stubFor(get(HEALTH_PATH).willReturn(okJson("""{"status":"UP"}""").withFixedDelay(2_000)))
+        val selfHosted = server.baseUrl()
+
+        // This test runs on the UI thread. A server not asked yet counts as "no" at once and is asked in the background.
+        val started = System.nanoTime()
+        assertThat(SonarLintUtils.isSonarCloudAlias(selfHosted)).isFalse()
+        assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(1))
+
+        // checked on this (UI) thread too, so the answer must come from the background check
+        await().pollInSameThread().atMost(Duration.ofSeconds(15)).until { SonarLintUtils.isSonarCloudAlias(selfHosted) }
+        assertThat(server.allServeEvents).hasSize(1)
+    }
+
+    @Test
+    fun wizardTurnsASelfHostedCodeScanAddressIntoACloudConnection() {
+        server.stubFor(get(HEALTH_PATH).willReturn(okJson("""{"status":"UP"}""")))
+        val selfHosted = server.baseUrl()
+
+        val codeScan = offUiThread { WizardModel().useServer("$selfHosted/") }
+        assertThat(codeScan.serverType).isEqualTo(WizardModel.ServerType.SONARCLOUD)
+        assertThat(codeScan.serverUrl).isEqualTo(selfHosted)
+
+        // nothing answers the health check under this path
+        val other = offUiThread { WizardModel().useServer("$selfHosted/other") }
+        assertThat(other.serverType).isEqualTo(WizardModel.ServerType.SONARQUBE)
+        assertThat(other.serverUrl).isEqualTo("$selfHosted/other")
+    }
+
+    @Test
     fun selfHostedCustomDomainIsUsedForAllCalls() {
         server.stubFor(get(HEALTH_PATH).willReturn(okJson("""{"status":"UP"}""")))
         val selfHosted = server.baseUrl()
@@ -245,8 +280,10 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
         }
     }
 
-    private fun isCodeScanServerOffUiThread(url: String): Boolean =
-        ApplicationManager.getApplication().executeOnPooledThread(Callable { SonarLintUtils.isSonarCloudAlias(url) }).get(30, TimeUnit.SECONDS)
+    private fun isCodeScanServerOffUiThread(url: String): Boolean = offUiThread { SonarLintUtils.isSonarCloudAlias(url) }
+
+    private fun <T> offUiThread(block: () -> T): T =
+        ApplicationManager.getApplication().executeOnPooledThread(Callable { block() }).get(30, TimeUnit.SECONDS)
 
     private fun startBackendAndCaptureInitializeParams(): InitializeParams {
         val rpcServer = mockRpcServer()
