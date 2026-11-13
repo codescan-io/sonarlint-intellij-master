@@ -113,32 +113,77 @@ expect_rc nozipfile nonzero
 
 ICONS="images/CodeScan.png images/CodeScanAction.svg images/CodeScanToolWindow.svg images/codescan-16.png images/codescan-round.png images/codescan@2x.png META-INF/pluginIcon.svg"
 
-make_zip() {
-  zipfile=$1; shift
-  d=$(mktemp -d "$WORK/zip.XXXXXX")
-  mkdir -p "$d/jar" "$d/plugin/CodeScan/lib"
-  for e in "$@"; do mkdir -p "$d/jar/$(dirname "$e")"; echo x > "$d/jar/$e"; done
-  echo x > "$d/jar/placeholder.txt"
-  (cd "$d/jar" && zip -qr "$d/plugin/CodeScan/lib/codescan-intellij-7.3.0.jar" .)
-  (cd "$d/plugin/CodeScan/lib" && echo x > other.txt && zip -q other.jar other.txt && rm other.txt)
-  (cd "$d/plugin" && zip -qr "$zipfile" CodeScan)
+# stage_jar <dir>: lays out what the main plugin jar of a good CodeScan build holds. Real files come from the 7.2.3 tree.
+# The SonarLintIcons.class is a stand-in: a text file with the icon paths, which is what the check looks for in a real class.
+stage_jar() {
+  d=$1
+  mkdir -p "$d/META-INF" "$d/images" "$d/org/sonarlint/intellij"
+  for e in $ICONS; do cp "$PRE/src/main/resources/$e" "$d/$e"; done
+  for e in plugin.xml plugin-java.xml plugin-git.xml; do cp "$PRE/src/main/resources/META-INF/$e" "$d/META-INF/$e"; done
+  : > "$d/org/sonarlint/intellij/SonarLintIcons.class"
+  for e in CodeScan.png codescan-16.png CodeScanToolWindow.svg CodeScanAction.svg codescan-round.png codescan@2x.png execute.png; do
+    echo "/images/$e" >> "$d/org/sonarlint/intellij/SonarLintIcons.class"
+  done
 }
 
-if command -v zip > /dev/null 2>&1; then
-  make_zip "$WORK/good.zip" $ICONS
-  before=$FAILS
-  run_check zipgood --zip "$WORK/good.zip" "$PRE"
-  expect_rc zipgood 0
-  expect_line zipgood "^PASS P4 .*zip"
-  show_output "$before" zipgood
+# pack_zip <jar dir> <zipfile>: a plugin zip with the main jar (from the dir) and one unrelated jar next to it
+pack_zip() {
+  d=$(mktemp -d "$WORK/zip.XXXXXX")
+  mkdir -p "$d/plugin/CodeScan/lib"
+  (cd "$1" && zip -qr "$d/plugin/CodeScan/lib/codescan-intellij-7.3.0.jar" .)
+  (cd "$d/plugin/CodeScan/lib" && echo x > other.txt && zip -q other.jar other.txt && rm other.txt)
+  rm -f "$2"
+  (cd "$d/plugin" && zip -qr "$2" CodeScan)
+}
 
-  make_zip "$WORK/noicon.zip" images/CodeScan.png images/CodeScanAction.svg images/codescan-16.png images/codescan-round.png images/codescan@2x.png META-INF/pluginIcon.svg
+# zip_case <name> <rows> <command...>: stage a good jar, run <command> with the staging dir as $1, zip it, check the 7.2.3 tree
+# with --zip, and expect exactly <rows> to fail ("-" means none must fail).
+zip_case() {
+  zname=$1; zrows=$2; shift 2
+  zd=$(mktemp -d "$WORK/stage.XXXXXX")
+  stage_jar "$zd"
+  "$@" "$zd"
+  pack_zip "$zd" "$WORK/$zname.zip"
   before=$FAILS
-  run_check zipbad --zip "$WORK/noicon.zip" "$PRE"
-  expect_rc zipbad nonzero
+  run_check "$zname" --zip "$WORK/$zname.zip" "$PRE"
+  if [ "$zrows" = "-" ]; then
+    expect_rc "$zname" 0
+    expect_no_line "$zname" "^FAIL "
+  else
+    expect_rc "$zname" nonzero
+    for r in $zrows; do expect_line "$zname" "^FAIL $r .*zip"; done
+    expect_line "$zname" "^Failed rows: $zrows$"
+  fi
+  show_output "$before" "$zname"
+}
+
+# Changes to a staged jar. The staging dir is always the last argument.
+zrm()  { rm -f "$2/$1"; }                           # zrm <relpath> <dir>
+zcp()  { cp "$1" "$3/$2"; }                         # zcp <source file> <relpath> <dir>
+zsed() { sed "$1" "$3/$2" > "$3/$2.new" && mv "$3/$2.new" "$3/$2"; }   # zsed <sed script> <relpath> <dir>
+UPMETA="$UP/src/main/resources/META-INF"
+
+if command -v zip > /dev/null 2>&1; then
+  zip_case zipgood - true
+  expect_line zipgood "^PASS P4 .*zip"
+  expect_line zipgood "^PASS P1 .*zip"
+  expect_line zipgood "^PASS P2 .*zip"
+  expect_line zipgood "^PASS P32 .*zip"
+
+  zip_case zipbad P4 zrm images/CodeScanToolWindow.svg
   expect_line zipbad "^FAIL P4 .*zip.*CodeScanToolWindow.svg"
-  expect_line zipbad "^Failed rows: P4$"
-  show_output "$before" zipbad
+
+  # Finding 4: the icon code and the plugin icon inside the zip must be the CodeScan ones.
+  zip_case zip-icons-code P4 zcp "$UP/src/main/java/org/sonarlint/intellij/SonarLintIcons.kt" org/sonarlint/intellij/SonarLintIcons.class
+  zip_case zip-icon-upstream P4 zcp "$UPMETA/pluginIcon.svg" META-INF/pluginIcon.svg
+  zip_case zip-icon-dark P4 zcp "$UPMETA/pluginIcon_dark.svg" META-INF/pluginIcon_dark.svg
+
+  # Finding 3: plugin.xml inside the zip is read too (the build can rewrite it).
+  zip_case zip-name P1 zsed 's:<name>CodeScan</name>:<name>Renamed</name>:' META-INF/plugin.xml
+  zip_case zip-id "P1" zsed 's:<id>com.code-scan.intellij</id>:<id>org.sonarlint.idea</id>:' META-INF/plugin.xml
+  zip_case zip-vendor P2 zsed 's:>CodeScan</vendor>:>SonarSource</vendor>:' META-INF/plugin.xml
+  zip_case zip-no-plugin-xml "P1 P2 P4 P32" zrm META-INF/plugin.xml
+  zip_case zip-java-ns P32 zsed 's:defaultExtensionNs="com.code-scan.intellij":defaultExtensionNs="org.sonarlint.idea":' META-INF/plugin-java.xml
 
   # a zip that is not a plugin zip at all (no lib/*.jar)
   (cd "$WORK" && echo x > readme.txt && zip -q notplugin.zip readme.txt)
@@ -147,6 +192,22 @@ if command -v zip > /dev/null 2>&1; then
   expect_line zipnotplugin "^FAIL P4 "
 else
   not_ok "zip command not found; cannot test --zip"
+fi
+
+# The real built zip: every check must pass on the 7.2.3 tree. Skipped when the zip has not been built here.
+MAIN_REPO=$(cd "$REPO" && cd "$(git rev-parse --git-common-dir)/.." 2> /dev/null && pwd)
+REAL_ZIP=${REAL_ZIP:-$MAIN_REPO/build/distributions/CodeScan-7.3.0.zip}
+if [ -f "$REAL_ZIP" ]; then
+  before=$FAILS
+  run_check realzip --zip "$REAL_ZIP" "$PRE"
+  expect_rc realzip 0
+  for id in $ROWS; do expect_line realzip "^PASS $id "; done
+  expect_line realzip "^PASS P4 .*zip"
+  expect_line realzip "^PASS P1 .*zip"
+  expect_no_line realzip "^FAIL "
+  show_output "$before" realzip
+else
+  echo "skip   - real zip test: $REAL_ZIP not found (build it with ./gradlew buildPlugin, or set REAL_ZIP)"
 fi
 
 # change_and_expect <name> <tree> <relpath> <PASS|FAIL> <row> <command...>
@@ -238,6 +299,133 @@ if [ "$(id -u)" -ne 0 ]; then
   expect_line header-unreadable "^FAIL P9 "
   expect_no_line header-unreadable "^PASS P9 "
 fi
+
+# ---- Fix round 2: every false PASS the reviewer found. Each case works on a fresh copy of a tree. ----
+
+# new_case <name> [up]: copy the 7.2.3 tree (or the upstream tree) to $CASE
+new_case() {
+  CASE="$WORK/case-$1"; rm -rf "$CASE"
+  if [ "${2:-}" = up ]; then cp -R "$UP" "$CASE"; else cp -R "$PRE" "$CASE"; fi
+}
+# case_sed <relpath> <sed script>
+case_sed() { sed "$2" "$CASE/$1" > "$CASE/$1.new" && mv "$CASE/$1.new" "$CASE/$1"; }
+# expect_rows <name> <rows>: the check must fail exactly these rows on $CASE (rows "-": nothing may fail)
+expect_rows() {
+  rname=$1; rrows=$2
+  before=$FAILS
+  run_check "$rname" "$CASE"
+  if [ "$rrows" = "-" ]; then
+    expect_rc "$rname" 0
+    expect_no_line "$rname" "^FAIL "
+  else
+    expect_rc "$rname" nonzero
+    for r in $rrows; do expect_line "$rname" "^FAIL $r "; done
+    expect_line "$rname" "^Failed rows: $rrows$"
+  fi
+  show_output "$before" "$rname"
+  rm -rf "$CASE"
+}
+UPICONS="$UP/src/main/java/org/sonarlint/intellij/SonarLintIcons.kt"
+PIC=src/main/java/org/sonarlint/intellij/SonarLintIcons.kt
+META=src/main/resources/META-INF
+
+# P1: only the name changes, the id stays.
+new_case name-only
+case_sed $META/plugin.xml 's:<name>CodeScan</name>:<name>SonarLint</name>:'
+expect_rows name-only "P1 P2"
+
+# 1. P5 must follow the backend. In 10.x the wizard constant only fills the connection wizard.
+new_case p5-wizard-only up
+case_sed common/src/main/java/org/sonarlint/intellij/common/util/SonarLintUtils.java 's|DEFAULT_SONARCLOUD_URL = "https://sonarcloud.io"|DEFAULT_SONARCLOUD_URL = "https://app.codescan.io"|'
+run_check p5-wizard-only "$CASE"
+expect_line p5-wizard-only "^FAIL P5 "
+expect_no_line p5-wizard-only "^PASS P5 "
+rm -rf "$CASE"
+# ... and the backend forms must PASS: a default in getProperty, or an elvis fallback.
+new_case p5-backend-default up
+case_sed src/main/java/org/sonarlint/intellij/core/BackendService.kt 's|getProperty("sonarlint.internal.sonarcloud.url")|getProperty("sonarlint.internal.sonarcloud.url", "https://app.codescan.io")|'
+run_check p5-backend-default "$CASE"
+expect_line p5-backend-default "^PASS P5 "
+rm -rf "$CASE"
+new_case p5-backend-elvis up
+case_sed src/main/java/org/sonarlint/intellij/core/BackendService.kt 's|getProperty("sonarlint.internal.sonarcloud.url")$|getProperty("sonarlint.internal.sonarcloud.url") ?: "https://app.codescan.io"|'
+run_check p5-backend-elvis "$CASE"
+expect_line p5-backend-elvis "^PASS P5 "
+rm -rf "$CASE"
+
+# 2. P4: the icon code and the plugin icon must be the CodeScan ones, not only present.
+# (upstream's file with the CodeScan license header on top, so that only P4 is affected, not P9)
+new_case p4-icons-code
+{ head -19 "$CASE/$PIC"; tail -n +20 "$UPICONS"; } > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$PIC"
+expect_rows p4-icons-code P4
+new_case p4-plugin-icon
+cp "$UP/$META/pluginIcon.svg" "$CASE/$META/pluginIcon.svg"
+expect_rows p4-plugin-icon P4
+new_case p4-plugin-icon-dark
+cp "$UP/$META/pluginIcon_dark.svg" "$CASE/$META/pluginIcon_dark.svg"
+expect_rows p4-plugin-icon-dark P4
+new_case p4-icons-code-one-path
+case_sed $PIC 's|"/images/CodeScanToolWindow.svg"|"/images/sonarlint-toolwindow.svg"|'
+expect_rows p4-icons-code-one-path P4
+
+# 3 (source part): P4 must fail for upstream's SonarLintIcons.kt, and P1/P2 name the zip when the zip is wrong: see the zip cases above.
+
+# 4. P8: a commented-out guard is not a guard.
+new_case p8-comment-line
+awk '/if \(SonarLintUtils\.isTaintVulnerabilitiesEnabled\(\)\) \{/ { print "    // " $0; g = 1; next }
+     g && /^ *}/ { print "    // " $0; g = 0; next } { print }' "$CASE/$TOOLWIN" > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$TOOLWIN"
+expect_rows p8-comment-line P8
+new_case p8-comment-block
+awk '/if \(SonarLintUtils\.isTaintVulnerabilitiesEnabled\(\)\) \{/ { print "    /* " $0 " */"; g = 1; next }
+     g && /^ *}/ { print "    /* " $0 " */"; g = 0; next } { print }' "$CASE/$TOOLWIN" > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$TOOLWIN"
+expect_rows p8-comment-block P8
+# A comment next to the real code must not break the real code: a trailing note after "return false;" is fine.
+new_case p8-trailing-note
+case_sed common/src/main/java/org/sonarlint/intellij/common/util/SonarLintUtils.java '/isTaintVulnerabilitiesEnabled()/,/}/s|return false;|return false; // was: return true;|'
+expect_rows p8-trailing-note -
+
+# 5. P5: a commented-out line is not a use. And a "//" inside a string is not a comment.
+new_case p5-comment
+case_sed src/main/java/org/sonarlint/intellij/config/global/wizard/ServerStep.java 's|^\( *\)model.setServerUrl(CodescanCloudConstants.CODESCAN_US_URL);|\1// model.setServerUrl(CodescanCloudConstants.CODESCAN_US_URL);|'
+expect_rows p5-comment P5
+new_case p5-comment-block
+case_sed src/main/java/org/sonarlint/intellij/config/global/wizard/ServerStep.java 's|^\( *\)model.setServerUrl(CodescanCloudConstants.CODESCAN_US_URL);|\1/* model.setServerUrl(CodescanCloudConstants.CODESCAN_US_URL); */|'
+expect_rows p5-comment-block P5
+new_case p5-url-in-string
+case_sed src/main/java/org/sonarlint/intellij/config/global/wizard/ServerStep.java 's|^\( *\)model.setServerUrl(CodescanCloudConstants.CODESCAN_US_URL);|\1model.setServerUrl("https://app.codescan.io"); // not https://sonarcloud.io|'
+expect_rows p5-url-in-string -
+new_case p5-url-in-string-comment-only
+case_sed src/main/java/org/sonarlint/intellij/config/global/wizard/ServerStep.java 's|^\( *\)model.setServerUrl(CodescanCloudConstants.CODESCAN_US_URL);|\1model.setServerUrl("https://sonarcloud.io"); // was "https://app.codescan.io"|'
+expect_rows p5-url-in-string-comment-only P5
+# An XML comment around the real <name> must not hide a wrong one.
+new_case p1-xml-comment
+awk '/<name>CodeScan<\/name>/ { print "    <!-- <name>CodeScan</name> -->"; print "    <name>SonarLint</name>"; next } { print }' "$CASE/$META/plugin.xml" > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$META/plugin.xml"
+expect_rows p1-xml-comment "P1 P2"
+
+# 6. P32: plugin-java.xml must register under com.code-scan.intellij; other plugin-*.xml files that plugin.xml loads too.
+new_case p32-java-ns
+case_sed $META/plugin-java.xml 's:defaultExtensionNs="com.code-scan.intellij":defaultExtensionNs="org.sonarlint.idea":'
+expect_rows p32-java-ns P32
+new_case p32-other-loaded
+case_sed $META/plugin.xml 's:<depends optional="true" config-file="plugin-git.xml">Git4Idea</depends>:&<depends optional="true" config-file="plugin-plsql.xml">com.intellij.modules.plsql</depends>:'
+expect_rows p32-other-loaded P32
+# plugin-git.xml has the old name in 7.2.3 on purpose (row P33, Task 5 fixes it): it must not fail P32, and the output must say so.
+run_check p32-git-note "$PRE"
+expect_line p32-git-note "^PASS P32 .*plugin-git.xml.*P33"
+
+# 8. P9: an empty source file has no header.
+new_case p9-empty
+: > "$CASE/src/main/java/org/sonarlint/intellij/EmptyThing.java"
+expect_rows p9-empty P9
+# 9. P9: hand-written code in a folder called proto still needs the header. (Generated code is in build/, which is skipped.)
+new_case p9-proto-dir
+mkdir -p "$CASE/src/main/java/org/sonarlint/intellij/proto"
+printf 'package org.sonarlint.intellij.proto;\nclass Handwritten {}\n' > "$CASE/src/main/java/org/sonarlint/intellij/proto/Handwritten.java"
+expect_rows p9-proto-dir P9
+new_case p9-generated-skipped
+mkdir -p "$CASE/build/generated/source/proto/main/java"
+printf 'package x;\nclass Gen {}\n' > "$CASE/build/generated/source/proto/main/java/Gen.java"
+expect_rows p9-generated-skipped -
 
 run_check pre-again "$PRE"
 expect_rc pre-again 0
