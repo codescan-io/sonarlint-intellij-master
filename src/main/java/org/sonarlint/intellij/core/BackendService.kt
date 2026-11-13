@@ -333,13 +333,15 @@ class BackendService : Disposable {
                 getTelemetryConstantAttributes(),
                 getHttpConfiguration(),
                 getSonarCloudAlternativeEnvironment(),
+                // CodeScan: no taint vulnerabilities (the tab is off too, see SonarLintUtils.isTaintVulnerabilitiesEnabled) and no
+                // server-sent events, which need SonarCloud's WebSocket service
                 generateFeatureFlagsDto(
                     shouldManageSmartNotifications = true,
-                    taintVulnerabilitiesEnabled = true,
+                    taintVulnerabilitiesEnabled = false,
                     shouldSynchronizeProjects = true,
                     shouldManageLocalServer = true,
                     enableSecurityHotspots = true,
-                    shouldManageServerSentEvents = true,
+                    shouldManageServerSentEvents = false,
                     enableDataflowBugDetection = true,
                     shouldManageFullSynchronization = true,
                     enableTelemetry = telemetryEnabled,

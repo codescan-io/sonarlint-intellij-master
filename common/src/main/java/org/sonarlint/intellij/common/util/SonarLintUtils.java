@@ -199,8 +199,9 @@ public class SonarLintUtils {
     return getAppInfo().getFullApplicationName().toLowerCase().contains("appcode");
   }
 
+  /** CodeScan: taint vulnerabilities are not shown (no tab, no editor marks). */
   public static boolean isTaintVulnerabilitiesEnabled() {
-    return !isCLion() && !isGoIde();
+    return false;
   }
 
   public static boolean isModuleLevelBindingEnabled() {
