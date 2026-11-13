@@ -225,6 +225,7 @@ dependencies {
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.kotlin)
     testImplementation(libs.awaitility)
+    testImplementation(libs.wiremock)
     "sqplugins"(libs.bundles.sonar.analyzers)
     "sloop"("org.sonarsource.sonarlint.core:sonarlint-backend-cli:${libs.versions.sonarlint.core.get()}:no-arch@zip")
 }

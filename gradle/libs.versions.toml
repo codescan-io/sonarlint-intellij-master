@@ -27,6 +27,7 @@ findbugs-jsr305 = "3.0.2"
 junit-bom = "5.11.3"
 mockito-kotlin = "5.4.0"
 awaitility = "4.2.2"
+wiremock = "3.13.2"
 
 its-remote = "0.11.23"
 its-sonar-scala = "1.8.3.2219"
@@ -56,6 +57,7 @@ findbugs-jsr305 = { module = "com.google.code.findbugs:jsr305", version.ref = "f
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit-bom" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockito-kotlin" }
 awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
+wiremock = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 
 its-sonar-scala = { module = "org.sonarsource.slang:sonar-scala-plugin", version.ref = "its-sonar-scala" }
 its-sonar-ws = { module = "org.sonarsource.sonarqube:sonar-ws", version.ref = "its-sonar-ws" }
