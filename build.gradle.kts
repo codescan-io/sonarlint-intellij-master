@@ -37,8 +37,8 @@ buildscript {
     }
 }
 
-group = "org.sonarsource.sonarlint.intellij"
-description = "SonarLint for IntelliJ IDEA"
+group = "com.villagechief.sonarlint.intellij"
+description = "CodeScan for IntelliJ IDEA"
 
 val intellijBuildVersion: String by project
 
@@ -112,7 +112,7 @@ allprojects {
 
     val bomFile = layout.buildDirectory.file("reports/bom.json")
     artifacts.add("archives", bomFile.get().asFile) {
-        name = "sonarlint-intellij"
+        name = "codescan-intellij"
         type = "json"
         classifier = "cyclonedx"
         builtBy("cyclonedxBom")
@@ -145,7 +145,7 @@ subprojects {
 }
 
 intellij {
-    pluginName.set("sonarlint-intellij")
+    pluginName.set("CodeScan")
     updateSinceUntilBuild.set(false)
     plugins.set(listOf("java", "Git4Idea"))
     if (!ideaHome.isNullOrBlank()) {
@@ -165,7 +165,7 @@ tasks.runPluginVerifier {
         ideVersions.set(verifierVersions.split(','))
     } else {
         // Test oldest supported, and latest
-        ideVersions.set(listOf("IC-2022.3.1", "IC-2024.1.4"))
+        ideVersions.set(listOf("IC-2023.1.7", "IC-2024.1.7"))
     }
     failureLevel.set(
         EnumSet.complementOf(
@@ -371,18 +371,18 @@ tasks.artifactoryPublish {
 
 sonar {
     properties {
-        property("sonar.projectName", "SonarLint for IntelliJ IDEA")
+        property("sonar.projectName", "CodeScan for IntelliJ IDEA")
     }
 }
 
 artifactory {
-    clientConfig.info.buildName = "sonarlint-intellij"
+    clientConfig.info.buildName = "codescan-intellij"
     clientConfig.info.buildNumber = System.getenv("BUILD_ID")
     clientConfig.isIncludeEnvVars = true
     clientConfig.envVarsExcludePatterns = "*password*,*PASSWORD*,*secret*,*MAVEN_CMD_LINE_ARGS*,sun.java.command,*token*,*TOKEN*,*LOGIN*,*login*,*key*,*KEY*,*PASSPHRASE*,*signing*"
     clientConfig.info.addEnvironmentProperty(
         "ARTIFACTS_TO_DOWNLOAD",
-        "org.sonarsource.sonarlint.intellij:sonarlint-intellij:zip,org.sonarsource.sonarlint.intellij:sonarlint-intellij:json:cyclonedx"
+        "com.villagechief.sonarlint.intellij:codescan-intellij:zip,com.villagechief.sonarlint.intellij:codescan-intellij:json:cyclonedx"
     )
     setContextUrl(System.getenv("ARTIFACTORY_URL"))
     publish {
@@ -397,7 +397,7 @@ artifactory {
                     "vcs.revision" to System.getenv("CIRRUS_CHANGE_IN_REPO"),
                     "vcs.branch" to (System.getenv("CIRRUS_BASE_BRANCH")
                         ?: System.getenv("CIRRUS_BRANCH")),
-                    "build.name" to "sonarlint-intellij",
+                    "build.name" to "codescan-intellij",
                     "build.number" to System.getenv("BUILD_ID")
                 )
             )
