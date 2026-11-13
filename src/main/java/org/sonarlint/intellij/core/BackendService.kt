@@ -131,7 +131,6 @@ import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.HttpConfig
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.InitializeParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.JsTsRequirementsDto
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.LanguageSpecificRequirements
-import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.OmnisharpRequirementsDto
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.SonarCloudAlternativeEnvironmentDto
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.SslConfigurationDto
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.TelemetryClientConstantAttributesDto
@@ -324,7 +323,6 @@ class BackendService : Disposable {
         val eslintBridgePath = generateEslintBridgePath()
         val jsTsRequirements = JsTsRequirementsDto(nodeJsPath, eslintBridgePath)
         val workDir = Paths.get(PathManager.getTempPath()).resolve("sonarlint")
-        val omnisharpRequirementsDto = generateOmnisharpDto()
         return rpcServer.initialize(
             InitializeParams(
                 ClientConstantInfoDto(
@@ -359,21 +357,11 @@ class BackendService : Disposable {
                 nonDefaultRpcRulesConfigurationByKey,
                 getGlobalSettings().isFocusOnNewCode,
 
-                LanguageSpecificRequirements(jsTsRequirements, omnisharpRequirementsDto),
+                // No C# analyzer is shipped (Rider support removed), so no OmniSharp requirements
+                LanguageSpecificRequirements(jsTsRequirements, null),
                 false,
                 null
             )
-        )
-    }
-
-    private fun generateOmnisharpDto(): OmnisharpRequirementsDto {
-        val pluginPath = getService(SonarLintPlugin::class.java).path
-        return OmnisharpRequirementsDto(
-            pluginPath.resolve("omnisharp/mono"),
-            pluginPath.resolve("omnisharp/net6"),
-            pluginPath.resolve("omnisharp/net472"),
-            pluginPath.resolve("plugins/sonar-csharp-plugin.jar"),
-            pluginPath.resolve("plugins/sonar-csharp-enterprise-plugin.jar"),
         )
     }
 

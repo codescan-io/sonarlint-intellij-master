@@ -41,7 +41,6 @@ group = "org.sonarsource.sonarlint.intellij"
 description = "SonarLint for IntelliJ IDEA"
 
 val intellijBuildVersion: String by project
-val omnisharpVersion: String by project
 
 // The environment variables ARTIFACTORY_PRIVATE_USERNAME and ARTIFACTORY_PRIVATE_PASSWORD are used on CI env
 // On local box, please add artifactoryUsername and artifactoryPassword to ~/.gradle/gradle.properties
@@ -199,7 +198,6 @@ configurations {
         extendsFrom(sqplugins)
         isTransitive = true
     }
-    create("omnisharp")
     create("sloop")
 }
 
@@ -211,9 +209,6 @@ dependencies {
     implementation(libs.commons.text)
     implementation(project(":common"))
     compileOnly(libs.findbugs.jsr305)
-    runtimeOnly(project(":clion"))
-    runtimeOnly(project(":clion-resharper"))
-    runtimeOnly(project(":rider"))
     runtimeOnly(project(":git"))
     testImplementation(platform(libs.junit.bom))
     testImplementation("org.junit.jupiter:junit-jupiter")
@@ -222,13 +217,6 @@ dependencies {
     testImplementation(libs.mockito.kotlin)
     testImplementation(libs.awaitility)
     "sqplugins"(libs.bundles.sonar.analyzers)
-    if (artifactoryUsername.isNotEmpty() && artifactoryPassword.isNotEmpty()) {
-        "sqplugins"(libs.sonar.cfamily)
-        "sqplugins"(libs.sonar.dotnet.enterprise)
-        "omnisharp"("org.sonarsource.sonarlint.omnisharp:omnisharp-roslyn:$omnisharpVersion:mono@zip")
-        "omnisharp"("org.sonarsource.sonarlint.omnisharp:omnisharp-roslyn:$omnisharpVersion:net472@zip")
-        "omnisharp"("org.sonarsource.sonarlint.omnisharp:omnisharp-roslyn:$omnisharpVersion:net6@zip")
-    }
     "sloop"("org.sonarsource.sonarlint.core:sonarlint-backend-cli:${libs.versions.sonarlint.core.get()}:no-arch@zip")
 }
 
@@ -237,26 +225,6 @@ tasks {
         copy {
             from(project.configurations["sqplugins"])
             into(file("$destinationDir/${pluginName.get()}/plugins"))
-        }
-    }
-
-    fun renameCsharpPlugins(destinationDir: File, pluginName: Property<String>) {
-        val pluginsDir = File("$destinationDir/${pluginName.get()}/plugins")
-        pluginsDir.listFiles()?.forEach { file ->
-            if (file.name.matches(Regex("sonar-csharp-enterprise-plugin-.*\\.jar"))) {
-                file.renameTo(File(pluginsDir, "sonar-csharp-enterprise-plugin.jar"))
-            } else if (file.name.matches(Regex("sonar-csharp-plugin-.*\\.jar"))) {
-                file.renameTo(File(pluginsDir, "sonar-csharp-plugin.jar"))
-            }
-        }
-    }
-
-    fun copyOmnisharp(destinationDir: File, pluginName: Property<String>) {
-        configurations["omnisharp"].resolvedConfiguration.resolvedArtifacts.forEach { artifact ->
-            copy {
-                from(zipTree(artifact.file))
-                into(file("$destinationDir/${pluginName.get()}/omnisharp/${artifact.classifier}"))
-            }
         }
     }
 
@@ -316,8 +284,6 @@ tasks {
     prepareSandbox {
         doLast {
             copyPlugins(destinationDir, pluginName)
-            renameCsharpPlugins(destinationDir, pluginName)
-            copyOmnisharp(destinationDir, pluginName)
             copySloop(destinationDir, pluginName)
             unzipEslintBridgeBundle(destinationDir, pluginName)
         }
@@ -326,8 +292,6 @@ tasks {
     prepareTestingSandbox {
         doLast {
             copyPlugins(destinationDir, pluginName)
-            renameCsharpPlugins(destinationDir, pluginName)
-            copyOmnisharp(destinationDir, pluginName)
             copySloop(destinationDir, pluginName)
             unzipEslintBridgeBundle(destinationDir, pluginName)
         }

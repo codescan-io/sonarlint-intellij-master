@@ -35,8 +35,6 @@ private const val JUPYTER_PLUGIN_ID = "intellij.jupyter"
 private const val DATABASE_PLUGIN_ID = "com.intellij.database"
 private const val JAVA_MODULE_ID = "com.intellij.modules.java"
 private const val GO_PLUGIN_ID = "org.jetbrains.plugins.go"
-private const val CLION_MODULE_ID = "com.intellij.modules.clion"
-private const val RIDER_MODULE_ID = "com.intellij.modules.rider"
 
 object EnabledLanguages {
     private val ENABLED_LANGUAGES_IN_STANDALONE_MODE_IN_IDEA: Set<Language> = EnumSet.of(
@@ -57,7 +55,6 @@ object EnabledLanguages {
         Language.TERRAFORM,
     )
     private val EMBEDDED_PLUGINS_TO_USE_IN_CONNECTED_MODE = listOf(
-        EmbeddedPlugin(Language.CPP, "CFamily", "sonar-cfamily-plugin-*.jar"),
         EmbeddedPlugin(Language.HTML, "HTML", "sonar-html-plugin-*.jar"),
         EmbeddedPlugin(Language.JS, "JavaScript/TypeScript", "sonar-javascript-plugin-*.jar"),
         EmbeddedPlugin(Language.KOTLIN, "Kotlin", "sonar-kotlin-plugin-*.jar"),
@@ -76,61 +73,34 @@ object EnabledLanguages {
                 embeddedPlugins.put(it.pluginKey, path)
             }
         }
-        findEmbeddedPlugin(getPluginsDir(), "sonarlint-omnisharp-plugin-*.jar", "OmniSharp")?.let {
-            embeddedPlugins.put("omnisharp", it)
-        }
         return embeddedPlugins
     }
 
     @JvmStatic
     val enabledLanguagesInStandaloneMode: Set<Language>
         get() {
-            return when {
-                isIdeModuleEnabled(CLION_MODULE_ID) -> {
-                    EnumSet.of(Language.C, Language.CPP, Language.SECRETS)
-                }
-
-                isIdeModuleEnabled(RIDER_MODULE_ID) -> {
-                    EnumSet.of(Language.CS, Language.SECRETS, Language.HTML, Language.CSS, Language.JS, Language.TS)
-                }
-
-                else -> {
-                    // all other IDEs
-                    val enabledLanguages = EnumSet.copyOf(ENABLED_LANGUAGES_IN_STANDALONE_MODE_IN_IDEA)
-                    if (isIdeModuleEnabled(JAVA_MODULE_ID)) {
-                        enabledLanguages.add(Language.JAVA)
-                    }
-                    if (isIdeModuleEnabled(GO_PLUGIN_ID)) {
-                        enabledLanguages.add(Language.GO)
-                    }
-                    if (isIdeModuleEnabled(JUPYTER_PLUGIN_ID)) {
-                        enabledLanguages.add(Language.IPYTHON)
-                    }
-                    enabledLanguages
-                }
+            val enabledLanguages = EnumSet.copyOf(ENABLED_LANGUAGES_IN_STANDALONE_MODE_IN_IDEA)
+            if (isIdeModuleEnabled(JAVA_MODULE_ID)) {
+                enabledLanguages.add(Language.JAVA)
             }
+            if (isIdeModuleEnabled(GO_PLUGIN_ID)) {
+                enabledLanguages.add(Language.GO)
+            }
+            if (isIdeModuleEnabled(JUPYTER_PLUGIN_ID)) {
+                enabledLanguages.add(Language.IPYTHON)
+            }
+            return enabledLanguages
         }
 
     @JvmStatic
     val extraEnabledLanguagesInConnectedMode: Set<Language>
         get() {
-            return when {
-                isIdeModuleEnabled(RIDER_MODULE_ID) -> {
-                    EnumSet.noneOf(Language::class.java)
-                }
-
-                else -> {
-                    val extraEnabledLanguages = EnumSet.noneOf(Language::class.java)
-                    if (isIdeModuleEnabled(DATABASE_PLUGIN_ID)) {
-                        extraEnabledLanguages.add(Language.PLSQL)
-                    }
-                    if (!isIdeModuleEnabled(CLION_MODULE_ID)) {
-                        // all other IDEs
-                        extraEnabledLanguages.addAll(EnumSet.of(Language.SCALA, Language.SWIFT))
-                    }
-                    extraEnabledLanguages
-                }
+            val extraEnabledLanguages = EnumSet.noneOf(Language::class.java)
+            if (isIdeModuleEnabled(DATABASE_PLUGIN_ID)) {
+                extraEnabledLanguages.add(Language.PLSQL)
             }
+            extraEnabledLanguages.addAll(EnumSet.of(Language.SCALA, Language.SWIFT))
+            return extraEnabledLanguages
         }
 
     @JvmStatic
