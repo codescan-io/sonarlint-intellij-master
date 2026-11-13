@@ -12,6 +12,7 @@ its/projects/**/obj
 *.iml
 *.ipr
 .idea
+.intellijPlatform
 
 # ---- Eclipse
 .classpath
@@ -44,3 +45,6 @@ build
 
 # Visual Studio
 .vs
+
+# Kotlin 2.x compiler session data
+.kotlin

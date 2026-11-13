@@ -138,4 +138,5 @@ class QuickFixTests : AbstractSonarLintLightTests() {
 
         assertThat(convertedFix).isNull()
     }
+
 }

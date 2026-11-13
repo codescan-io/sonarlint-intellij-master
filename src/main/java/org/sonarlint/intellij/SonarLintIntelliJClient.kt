@@ -519,11 +519,23 @@ object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
             throw ResponseErrorException(ResponseError(ResponseErrorCode.InvalidParams, "Unknown connection: $connectionId", connectionId))
         }
         val connection = connectionOpt.get()
-        return if (connection.token != null) {
-            Either.forLeft(TokenDto(connection.token!!))
-        } else {
-            Either.forRight(UsernamePasswordDto(connection.login, connection.password))
+        val token = connection.token
+        if (token != null) {
+            return Either.forLeft(TokenDto(token))
         }
+        val login = connection.login
+        if (login == null) {
+            // No token (none stored, or it could not be read back) and no login: tell the backend plainly instead of
+            // failing with a null-pointer error deep inside this call.
+            throw ResponseErrorException(
+                ResponseError(
+                    ResponseErrorCode.InvalidParams,
+                    "No credentials stored for connection '$connectionId'. Edit the connection and enter a token.",
+                    connectionId
+                )
+            )
+        }
+        return Either.forRight(UsernamePasswordDto(login, connection.password.orEmpty()))
     }
 
     override fun getProxyPasswordAuthentication(

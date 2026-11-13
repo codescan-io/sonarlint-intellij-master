@@ -72,7 +72,7 @@ class EditorOpenTriggerTests extends AbstractSonarLintLightTests {
   @Test
   void should_do_nothing_closed() {
     editorTrigger.fileClosed(editorManager, file);
-    editorTrigger.selectionChanged(new FileEditorManagerEvent(editorManager, null, null, null, null));
+    editorTrigger.selectionChanged(new FileEditorManagerEvent(editorManager, null, null));
 
     verifyNoInteractions(analysisSubmitter);
   }
