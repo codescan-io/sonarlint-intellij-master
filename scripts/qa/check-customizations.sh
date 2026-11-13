@@ -62,9 +62,16 @@ check_p1() {
   fi
 }
 
+element_text() {
+  awk -v t="$1" '
+    !on { i = match($0, "<" t "([[:space:]>/]|$)"); if (!i) next; on = 1; $0 = substr($0, i) }
+    { out = out " " $0 }
+    index($0, "</" t ">") || $0 ~ /\/>/ { print out; exit }' "$PLUGIN_XML" | sed 's/[[:space:]][[:space:]]*/ /g; s/^ //'
+}
+
 check_p2() {
-  name_line=$(grep -m1 '<name>' "$PLUGIN_XML")
-  vendor_line=$(grep -m1 '<vendor' "$PLUGIN_XML")
+  name_line=$(element_text name)
+  vendor_line=$(element_text vendor)
   if [ -z "$name_line" ] || [ -z "$vendor_line" ]; then
     fail P2 "plugin.xml has no <name> or no <vendor> element"
   elif printf '%s\n%s\n' "$name_line" "$vendor_line" | grep -qi 'sonar'; then
@@ -124,21 +131,54 @@ check_p4_zip() {
 }
 
 check_p5() {
-  found=0
-  for d in "$SRC/src/main" "$SRC/common/src/main"; do
-    [ -d "$d" ] || continue
-    hits=$(grep -rlF --include='*.java' --include='*.kt' '"https://app.codescan.io"' "$d" 2> /dev/null | awk 'END { print NR }')
-    found=$((found + hits))
-  done
-  if [ "$found" -gt 0 ]; then
-    pass P5 "default cloud URL https://app.codescan.io is in the sources ($found file(s))"
+  # A string in the code is not enough: the address must reach a place that uses it as the default.
+  # Accepted: setServerUrl/setHostUrl (7.2.3 wizard) or the backend DTO (after the Redo); names holding the URL count too.
+  set --
+  for d in "$SRC/src/main" "$SRC/common/src/main"; do [ -d "$d" ] && set -- "$@" "$d"; done
+  if [ $# -eq 0 ]; then fail P5 "no src/main or common/src/main folder"; return; fi
+  grep -rhE --include='*.java' --include='*.kt' \
+    'app\.codescan\.io|sonarlint\.internal\.sonarcloud\.url|setServerUrl\(|setHostUrl\(|SonarCloudAlternativeEnvironmentDto\(|alternativeSonarCloudEnv' \
+    "$@" > "$TMP/p5.lines" 2> /dev/null
+  awk '
+    function lhs_name(s,   i) {
+      i = index(s, "="); if (!i) return ""
+      s = substr(s, 1, i - 1); sub(/:.*/, "", s)
+      if (!match(s, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]*$/)) return ""
+      s = substr(s, RSTART, RLENGTH); gsub(/[[:space:]]/, "", s); return s
+    }
+    function holds(s,   n) {
+      if (s ~ /"https:\/\/app\.codescan\.io\/?"/) return 1
+      for (n in H) if (s ~ ("(^|[^A-Za-z0-9_])" n "([^A-Za-z0-9_]|$)")) return 1
+      return 0
+    }
+    { L[NR] = $0 }
+    END {
+      for (i = 1; i <= NR; i++)
+        if (L[i] ~ /=[[:space:]]*"https:\/\/app\.codescan\.io\/?"/) { n = lhs_name(L[i]); if (n != "") H[n] = 1 }
+      for (i = 1; i <= NR; i++)
+        if (L[i] ~ /getProperty\("sonarlint\.internal\.sonarcloud\.url",/) {
+          a = L[i]; sub(/.*getProperty\("sonarlint\.internal\.sonarcloud\.url",/, "", a)
+          if (holds(a)) { n = lhs_name(L[i]); if (n != "") H[n] = 1 }
+        }
+      for (n in H) print "NAME " n
+      for (i = 1; i <= NR; i++)
+        if (L[i] ~ /setServerUrl\(|setHostUrl\(|SonarCloudAlternativeEnvironmentDto\(|alternativeSonarCloudEnv/ && holds(L[i])) {
+          s = L[i]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); print "USE " s
+        }
+    }' "$TMP/p5.lines" > "$TMP/p5.out"
+  use=$(sed -n 's/^USE //p' "$TMP/p5.out" | head -1)
+  names=$(sed -n 's/^NAME //p' "$TMP/p5.out" | sort | tr '\n' ' ')
+  if [ -n "$use" ]; then
+    pass P5 "https://app.codescan.io is used as the default cloud address: $use"
+  elif [ -n "$names" ]; then
+    fail P5 "https://app.codescan.io is held by ${names}but never used as the default (setServerUrl/setHostUrl/SonarCloudAlternativeEnvironmentDto)"
   else
-    fail P5 "no \"https://app.codescan.io\" string in src/main or common/src/main"
+    fail P5 "https://app.codescan.io is not used as the default cloud address in src/main or common/src/main"
   fi
 }
 
 check_p8() {
-  # The call that adds the tab must sit behind isTaintVulnerabilitiesEnabled() returning false.
+  # Every call that adds the tab must sit inside an if (...isTaintVulnerabilitiesEnabled()) block, and that switch must return false.
   # No call found means the code moved; FAIL so a person updates this check, instead of guessing PASS.
   callers=$(grep -rlE --include='*.java' --include='*.kt' 'addTaintVulnerabilitiesTab\(project' "$SRC/src/main" 2> /dev/null)
   if [ -z "$callers" ]; then
@@ -147,12 +187,31 @@ check_p8() {
   fi
   unguarded=""
   while IFS= read -r f; do
-    grep -q 'isTaintVulnerabilitiesEnabled()' "$f" || unguarded="$unguarded ${f#"$SRC"/}"
+    # Braces in strings or comments are not special-cased; a wrong count can only produce a FAIL, never a false PASS.
+    lines=$(awk '
+      {
+        line = $0
+        g = index(line, "isTaintVulnerabilitiesEnabled()")
+        c = index(line, "addTaintVulnerabilitiesTab(project")
+        is_guard = g && line ~ /if[[:space:]]*\(/ && line !~ /![[:space:]]*([A-Za-z_][A-Za-z0-9_]*\.)?isTaintVulnerabilitiesEnabled\(\)/
+        if (c && line !~ /(void|fun)[[:space:]]+addTaintVulnerabilitiesTab/ && !(top > 0 || next_guarded || (is_guard && g < c)))
+          print FNR
+        if (next_guarded && line ~ /^[[:space:]]*\{/) stack[++top] = depth
+        if (line ~ /[^[:space:]]/) next_guarded = 0
+        pushed = 0
+        for (k = 1; k <= length(line); k++) {
+          ch = substr(line, k, 1)
+          if (ch == "{") { if (is_guard && k > g && !pushed) { stack[++top] = depth; pushed = 1 } depth++ }
+          else if (ch == "}") { depth--; while (top > 0 && depth <= stack[top]) top-- }
+        }
+        if (is_guard && !pushed && line !~ /;[[:space:]]*$/) next_guarded = 1
+      }' "$f")
+    [ -n "$lines" ] && unguarded="$unguarded ${f#"$SRC"/}:$(echo $lines | tr ' ' ',')"
   done <<EOF2
 $callers
 EOF2
   if [ -n "$unguarded" ]; then
-    fail P8 "taint tab is added without the isTaintVulnerabilitiesEnabled() switch in:$unguarded"
+    fail P8 "taint tab is added outside the isTaintVulnerabilitiesEnabled() switch at:$unguarded"
     return
   fi
   if [ ! -f "$UTILS" ]; then
@@ -206,6 +265,29 @@ check_p9() {
   fi
 }
 
+check_p32() {
+  # The IDE looks extensions up by full name. A name that does not start with the plugin id finds nothing, with no error.
+  prefix="com.code-scan.intellij."
+  common="$SRC/common/src/main"
+  if [ ! -d "$common" ]; then fail P32 "no common/src/main folder"; return; fi
+  grep -rhoE --include='*.java' --include='*.kt' 'ExtensionPointName(\.create)?(<[^>]*>)?\([[:space:]]*"[^"]*"' "$common" 2> /dev/null |
+    sed 's/.*"\([^"]*\)"$/\1/' > "$TMP/ep.names"
+  for x in "$SRC"/src/main/resources/META-INF/plugin*.xml; do
+    [ -f "$x" ] && grep -oE 'qualifiedName="[^"]*"' "$x" | sed 's/.*="\([^"]*\)"$/\1/' >> "$TMP/ep.names"
+  done
+  total=$(awk 'END { print NR }' "$TMP/ep.names")
+  if [ "$total" -eq 0 ]; then
+    fail P32 "no ExtensionPointName.create(\"...\") found in common/src/main; check by hand and update this script"
+    return
+  fi
+  bad=$(awk -v p="$prefix" 'index($0, p) != 1' "$TMP/ep.names" | tr '\n' ' ')
+  if [ -z "$bad" ]; then
+    pass P32 "all $total extension point names start with $prefix"
+  else
+    fail P32 "extension point names that do not start with $prefix (extensions would not be found): $bad"
+  fi
+}
+
 check_p1
 check_p2
 check_p4_source
@@ -213,6 +295,7 @@ check_p4_source
 check_p5
 check_p8
 check_p9
+check_p32
 
 echo
 if [ -z "$FAILED_ROWS" ]; then

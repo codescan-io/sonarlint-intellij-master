@@ -74,7 +74,7 @@ extract() {
   git -C "$REPO" archive --format=tar "$1" | tar -x -C "$2"
 }
 
-ROWS="P1 P2 P4 P5 P8 P9"
+ROWS="P1 P2 P4 P5 P8 P9 P32"
 
 PRE="$WORK/pre tree"      # the space is on purpose: paths with spaces must work
 UP="$WORK/upstream"
@@ -93,7 +93,7 @@ run_check up "$UP"
 expect_rc up nonzero
 for id in $ROWS; do expect_line up "^FAIL $id "; done
 expect_no_line up "^PASS "
-expect_line up "^Failed rows: P1 P2 P4 P5 P8 P9$"
+expect_line up "^Failed rows: P1 P2 P4 P5 P8 P9 P32$"
 show_output "$before" up
 
 run_check missing "$WORK/does-not-exist"
@@ -149,29 +149,71 @@ else
   not_ok "zip command not found; cannot test --zip"
 fi
 
-# Each change below breaks exactly one row in the CodeScan tree; it is put back afterwards.
-mutate_and_expect() {
-  name=$1; file="$PRE/$2"; expr=$3; row=$4
-  if [ ! -f "$file" ]; then not_ok "$name: file to change not found: $2"; return; fi
+# change_and_expect <name> <tree> <relpath> <PASS|FAIL> <row> <command...>
+# Rewrites one file via <command>, runs the check, then restores it.
+# In the CodeScan tree a FAIL must be the only failed row; in the upstream tree other rows fail anyway.
+change_and_expect() {
+  name=$1; tree=$2; rel=$3; want=$4; row=$5; shift 5
+  file="$tree/$rel"
+  if [ ! -f "$file" ]; then not_ok "$name: file to change not found: $rel"; return; fi
   cp "$file" "$WORK/saved"
-  sed "$expr" "$WORK/saved" > "$file"
-  if cmp -s "$file" "$WORK/saved"; then not_ok "$name: the change did nothing to $2"; cp "$WORK/saved" "$file"; return; fi
+  "$@" "$WORK/saved" > "$file"
+  if cmp -s "$file" "$WORK/saved"; then not_ok "$name: the change did nothing to $rel"; cp "$WORK/saved" "$file"; return; fi
   before=$FAILS
-  run_check "$name" "$PRE"
-  expect_rc "$name" nonzero
-  expect_line "$name" "^FAIL $row "
-  expect_line "$name" "^Failed rows: $row$"
+  run_check "$name" "$tree"
+  if [ "$want" = FAIL ]; then
+    expect_line "$name" "^FAIL $row "
+    expect_no_line "$name" "^PASS $row "
+    if [ "$tree" = "$PRE" ]; then
+      expect_rc "$name" nonzero
+      expect_line "$name" "^Failed rows: $row$"
+    fi
+  else
+    expect_line "$name" "^PASS $row "
+    expect_no_line "$name" "^FAIL $row "
+    [ "$tree" = "$PRE" ] && expect_rc "$name" 0
+  fi
   show_output "$before" "$name"
   cp "$WORK/saved" "$file"
 }
 
+# Each change below breaks exactly one row in the CodeScan tree.
+mutate_and_expect() { change_and_expect "$1" "$PRE" "$2" FAIL "$4" sed "$3"; }
+
+TOOLWIN=src/main/java/org/sonarlint/intellij/ui/SonarLintToolWindowFactory.java
 mutate_and_expect id-changed   src/main/resources/META-INF/plugin.xml 's:<id>com.code-scan.intellij</id>:<id>org.sonarlint.idea</id>:' P1
 mutate_and_expect vendor-sonar src/main/resources/META-INF/plugin.xml 's:>CodeScan</vendor>:>SonarSource</vendor>:' P2
+# A <vendor> element written over two lines must be read whole.
+change_and_expect vendor-multiline-sonar "$PRE" src/main/resources/META-INF/plugin.xml FAIL P2 \
+  awk '/<vendor/ { print "    <vendor email=\"support@codescan.io\""; print "            url=\"https://www.sonarsource.com\">SonarSource</vendor>"; next } { print }'
+change_and_expect vendor-multiline-ok "$PRE" src/main/resources/META-INF/plugin.xml PASS P2 \
+  awk '/<vendor/ { print "    <vendor email=\"support@codescan.io\""; print "            url=\"https://codescan.io\">CodeScan</vendor>"; next } { print }'
 mutate_and_expect taint-on     common/src/main/java/org/sonarlint/intellij/common/util/SonarLintUtils.java '/isTaintVulnerabilitiesEnabled()/,/}/s/return false;/return true;/' P8
 # If the code that adds the taint tab moves or is renamed, P8 cannot tell; it must FAIL rather than guess PASS.
-mutate_and_expect taint-call-renamed src/main/java/org/sonarlint/intellij/ui/SonarLintToolWindowFactory.java 's/addTaintVulnerabilitiesTab(project/addSecurityTab(project/' P8
+mutate_and_expect taint-call-renamed "$TOOLWIN" 's/addTaintVulnerabilitiesTab(project/addSecurityTab(project/' P8
+# Every call that adds the tab must be inside the switch, not just somewhere in the same file.
+change_and_expect taint-unguarded-before "$PRE" "$TOOLWIN" FAIL P8 \
+  awk '/if \(SonarLintUtils\.isTaintVulnerabilitiesEnabled\(\)\)/ { print "    addTaintVulnerabilitiesTab(project, contentManager);" } { print }'
+change_and_expect taint-unguarded-after "$PRE" "$TOOLWIN" FAIL P8 \
+  awk '{ print } /addLogTab\(project, toolWindow\);/ { print "    addTaintVulnerabilitiesTab(project, contentManager);" }'
 mutate_and_expect header-bad  src/main/java/org/sonarlint/intellij/SonarLintPlugin.java '2s/CodeScan for IntelliJ IDEA/SonarLint for IntelliJ IDEA/' P9
 expect_line header-bad "SonarLintPlugin.java"
+
+# Extension point names must start with the plugin id, or the IDE silently finds no extensions.
+mutate_and_expect ep-name-reverted common/src/main/java/org/sonarlint/intellij/common/LanguageActivator.java 's/"com\.code-scan\.intellij\.languageActivator"/"org.sonarlint.idea.languageActivator"/' P32
+mutate_and_expect ep-qualified-sonar src/main/resources/META-INF/plugin.xml 's:<extensionPoints>:<extensionPoints><extensionPoint qualifiedName="org.sonarlint.idea.extra" interface="a.B"/>:' P32
+
+# P5: the address must be the value actually used as the default, not just a string somewhere.
+mutate_and_expect url-not-default src/main/java/org/sonarlint/intellij/config/global/wizard/ServerStep.java 's|setServerUrl(CodescanCloudConstants.CODESCAN_US_URL)|setServerUrl("https://sonarcloud.io")|' P5
+mkdir -p "$UP/src/main/java/org/sonarlint/intellij"
+printf 'package org.sonarlint.intellij;\nclass Unused { static final String URL = "https://app.codescan.io"; }\n' > "$UP/src/main/java/org/sonarlint/intellij/Unused.java"
+run_check url-unused-const "$UP"
+expect_line url-unused-const "^FAIL P5 "
+expect_no_line url-unused-const "^PASS P5 "
+rm -f "$UP/src/main/java/org/sonarlint/intellij/Unused.java"
+# After the Redo the address reaches the backend through SonarCloudAlternativeEnvironmentDto; that form must PASS.
+change_and_expect url-redo-form "$UP" src/main/java/org/sonarlint/intellij/core/BackendService.kt PASS P5 \
+  sed 's|getProperty("sonarlint.internal.sonarcloud.url")|getProperty("sonarlint.internal.sonarcloud.url", "https://app.codescan.io")|'
 
 # The URL lives in two files; P5 must fail only when both lose it.
 F2=src/main/java/org/sonarlint/intellij/config/global/wizard/CodescanCloudConstants.java
