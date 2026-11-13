@@ -19,6 +19,7 @@
  */
 package org.sonarlint.intellij.ui.ruledescription
 
+import com.intellij.openapi.application.impl.LaterInvocator
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.util.Disposer
@@ -47,6 +48,28 @@ class RuleCodeSnippetTests : AbstractSonarLintLightTests() {
             PlatformTestUtil.waitWithEventsDispatching("diff highlights never applied", { editor.markupModel.allHighlighters.isNotEmpty() }, 10)
         } finally {
             Disposer.dispose(snippet)
+        }
+    }
+
+    @Test
+    fun diff_highlighting_is_applied_while_a_modal_dialog_such_as_settings_is_open() {
+        val compliant = CodeExampleFragment("val a = 1\nval b = 2\n", CodeExampleType.Compliant, "1")
+        val nonCompliant = CodeExampleFragment("val a = 1\nvar b = 3\n", CodeExampleType.NonCompliant, "1")
+        compliant.diffTarget = nonCompliant
+        // the rules page builds this snippet inside the modal Settings dialog
+        val settingsDialog = Any()
+        LaterInvocator.enterModal(settingsDialog)
+        try {
+            val snippet = RuleCodeSnippet(project, PlainTextFileType.INSTANCE, compliant)
+            try {
+                val editor = EditorFactory.getInstance().allEditors.single { it.getUserData(RuleCodeSnippet.CODE_EXAMPLE_FRAGMENT_KEY) === compliant }
+
+                PlatformTestUtil.waitWithEventsDispatching("diff highlights not applied while the dialog is open", { editor.markupModel.allHighlighters.isNotEmpty() }, 5)
+            } finally {
+                Disposer.dispose(snippet)
+            }
+        } finally {
+            LaterInvocator.leaveModal(settingsDialog)
         }
     }
 

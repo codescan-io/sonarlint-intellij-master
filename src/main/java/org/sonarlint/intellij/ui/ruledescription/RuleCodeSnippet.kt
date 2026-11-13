@@ -23,6 +23,7 @@ import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.diff.tools.util.base.TextDiffSettingsHolder
 import com.intellij.diff.util.DiffUtil
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
@@ -92,6 +93,8 @@ class RuleCodeSnippet(private val project: Project, fileTypeFromRule: FileType, 
     }
 
     private fun computeDiffHighlightingAsync() {
+        // called on the UI thread: remember the modality so the result is applied even inside the modal Settings dialog
+        val modality = ModalityState.current()
         // Move expensive diff computation to background thread
         runOnPooledThread(project) {
             val provider = DiffUtil.createTextDiffProvider(
@@ -105,7 +108,7 @@ class RuleCodeSnippet(private val project: Project, fileTypeFromRule: FileType, 
                 provider.compare(codeExampleFragment.code, codeExampleFragment.diffTarget!!.code, EmptyProgressIndicator())
 
             // Apply highlighting on EDT
-            runOnUiThread(project) {
+            runOnUiThread(project, modality) {
                 if (!project.isDisposed && !myEditor.isDisposed) {
                     val attributeKey = if (codeExampleFragment.type == CodeExampleType.Compliant) DIFF_ADDITION else DIFF_REMOVAL
                     fragments?.forEach { fragment ->
