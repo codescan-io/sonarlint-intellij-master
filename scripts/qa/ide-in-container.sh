@@ -6,18 +6,30 @@
 #         /src-project (sample project, read-only), /out (results, writable).
 # Exit: 0 = IDE ran for the whole time, CodeScan analysed a file, and logs were collected
 #       3 = IDE did not start, or there is no idea.log
-#       4 = IDE exited before the run time was up (logs are still collected)
+#       4 = IDE exited before it was stopped (also when it crashed during the scripted steps, which the wait
+#           loop does not cover), or it stopped without an IDE SHUTDOWN line in idea.log, or it had to be killed
+#           because it was still running 90 s after SIGTERM (logs are still collected)
 #       5 = the CodeScan analysis did not show a result for Hello.java (see "analysis check" below)
 set -u
 
 RUN_MINUTES="${RUN_MINUTES:-5}"
 START_TIMEOUT_SEC="${START_TIMEOUT_SEC:-300}"
-OUT=/out
-IDE=/opt/idea
-IDE_HOME=/work/ide-home
-PROJECT=/work/project
+# The QA_* variables are for test-ide-in-container.sh, which runs this script outside Docker with stub programs.
+# In the container none of them is set, so the defaults apply.
+OUT="${QA_OUT:-/out}"
+IDE="${QA_IDE_DIR:-/opt/idea}"
+WORK="${QA_WORK_DIR:-/work}"
+IDE_TARBALL="${QA_IDE_TARBALL:-/ide.tar.gz}"
+PLUGIN_ZIP="${QA_PLUGIN_ZIP:-/plugin.zip}"
+SRC_PROJECT="${QA_SRC_PROJECT:-/src-project}"
+SLEEP_SCALE="${QA_SLEEP_SCALE:-1}"
+IDE_HOME="$WORK/ide-home"
+PROJECT="$WORK/project"
 SHOTS="$OUT/screens"
 mkdir -p "$OUT" "$SHOTS" "$IDE" "$IDE_HOME/config/options" "$IDE_HOME/system" "$IDE_HOME/plugins" "$IDE_HOME/log"
+
+# sleep, with every length multiplied by QA_SLEEP_SCALE (1 in the container; a test makes it small).
+nap() { sleep "$(awk -v n="$1" -v s="$SLEEP_SCALE" 'BEGIN { printf "%.3f", n * s }')"; }
 
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$OUT/run.log"; }
 shot() { xwd -root -silent 2>/dev/null | convert xwd:- "$SHOTS/$1.png" 2>/dev/null && log "screenshot $1.png"; }
@@ -45,14 +57,14 @@ fail() {
 }
 
 log "unpacking IDE"
-tar -xzf /ide.tar.gz -C "$IDE" --strip-components=1 || fail "cannot unpack IDE tarball"
+tar -xzf "$IDE_TARBALL" -C "$IDE" --strip-components=1 || fail "cannot unpack IDE tarball"
 log "IDE: $(grep -o '"version": *"[^"]*"\|"buildNumber": *"[^"]*"' "$IDE/product-info.json" | tr '\n' ' ')"
 
 log "installing plugin"
-unzip -q /plugin.zip -d "$IDE_HOME/plugins" || fail "cannot unzip plugin"
+unzip -q "$PLUGIN_ZIP" -d "$IDE_HOME/plugins" || fail "cannot unzip plugin"
 
 log "copying sample project"
-cp -a /src-project "$PROJECT" || fail "cannot copy project"
+cp -a "$SRC_PROJECT" "$PROJECT" || fail "cannot copy project"
 chmod -R u+w "$PROJECT"
 rm -rf "$PROJECT/.git" "$PROJECT/.idea" "$PROJECT/.claude"
 mkdir -p "$PROJECT/java-sample/src/main/java/demo"
@@ -87,12 +99,12 @@ cat > "$HOME"/.java/.userPrefs/jetbrains/privacy_policy/prefs.xml <<'XML'
 </map>
 XML
 printf 'rsch.send.usage.stat:1.1:0:%s000\n' "$(date +%s)" > "$HOME/.local/share/JetBrains/consentOptions/accepted"
-cat > "$IDE_HOME/config/options/trusted-paths.xml" <<'XML'
+cat > "$IDE_HOME/config/options/trusted-paths.xml" <<XML
 <application>
   <component name="Trusted.Paths.Settings">
     <option name="TRUSTED_PATHS">
       <list>
-        <option value="/work" />
+        <option value="$WORK" />
       </list>
     </option>
   </component>
@@ -127,7 +139,7 @@ log "starting Xvfb and window manager"
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp > "$OUT/xvfb.txt" 2>&1 &
 i=0
 until xdpyinfo >/dev/null 2>&1; do
-  i=$((i + 1)); [ $i -gt 30 ] && fail "Xvfb did not start"; sleep 1
+  i=$((i + 1)); [ $i -gt 30 ] && fail "Xvfb did not start"; nap 1
 done
 fluxbox >/dev/null 2>&1 &
 
@@ -140,7 +152,7 @@ waited=0
 until grep -q 'Project frame set to' "$IDEA_LOG" 2>/dev/null; do
   kill -0 "$IDE_PID" 2>/dev/null || fail "IDE process exited during start"
   [ $waited -ge "$START_TIMEOUT_SEC" ] && fail "project window not open after ${START_TIMEOUT_SEC}s"
-  sleep 5; waited=$((waited + 5))
+  nap 5; waited=$((waited + 5))
 done
 log "project window open after ~${waited}s"
 grep -m1 'Loaded custom plugins' "$IDEA_LOG" | sed 's/.* - //' | tee -a "$OUT/run.log"
@@ -154,7 +166,7 @@ ide_window() { xdotool search --onlyvisible --name 'project' 2>/dev/null | head 
 keys() {
   local w; w="$(ide_window)"
   [ -n "$w" ] && xdotool windowactivate "$w" >/dev/null 2>&1
-  sleep 1
+  nap 1
   xdotool key --delay 300 Escape Escape "$@"
 }
 # Opens a file in the running IDE and waits (at most 60s) until idea.log says it opened.
@@ -165,24 +177,24 @@ open_file() {
   local p=$! n=0
   until grep -q "fileOpened $name" "$IDEA_LOG"; do
     n=$((n + 1)); [ $n -gt 60 ] && { kill "$p" 2>/dev/null; fail "$name not opened after 60s"; }
-    sleep 1
+    nap 1
   done
   log "$name open after ~${n}s"
   kill "$p" 2>/dev/null
 }
 
-sleep 20
+nap 20
 keys
-sleep 5
+nap 5
 shot "01-project-open"
 open_file "$APEX_FILE"
-sleep 20
+nap 20
 open_file "$JAVA_FILE"
-sleep 20
+nap 20
 shot "02-files-open"
 
 log "running Analyze with CodeScan (ctrl+shift+s) on Hello.java"
-keys ctrl+shift+s; sleep 30
+keys ctrl+shift+s; nap 30
 shot "03-analyze-java"
 # Analysis check, part 1: the plugin prints its result ("Found 4 issues in 1 file") only in the CodeScan tool
 # window, never in idea.log or on disk (it saves findings to disk only for some exits, which is not reliable).
@@ -191,43 +203,67 @@ ANALYSIS_OK=0
 if screen_has "03-analyze-java" 'Found [0-9]+ issues? in [0-9]+ files?'; then
   ANALYSIS_OK=1
 else
-  sleep 20; shot "03b-analyze-java-retry"
+  nap 20; shot "03b-analyze-java-retry"
   screen_has "03b-analyze-java-retry" 'Found [0-9]+ issues? in [0-9]+ files?' && ANALYSIS_OK=1
 fi
 rm -f "$SHOTS/ocr-tmp.png"
 # Recent Files (ctrl+e) has the previous file selected, which is the Apex file.
-keys ctrl+e; sleep 3; xdotool key Return; sleep 3
+keys ctrl+e; nap 3; xdotool key Return; nap 3
 log "running Analyze with CodeScan (ctrl+shift+s) on $(basename "$APEX_FILE")"
-keys ctrl+shift+s; sleep 30
+keys ctrl+shift+s; nap 30
 shot "04-analyze-apex"
 log "opening Settings > CodeScan"
-keys ctrl+alt+s; sleep 8; xdotool type --delay 80 "CodeScan"; sleep 8
+keys ctrl+alt+s; nap 8; xdotool type --delay 80 "CodeScan"; nap 8
 shot "05-settings"
-xdotool key Escape; sleep 3
+xdotool key Escape; nap 3
 
-END=$((T0 + RUN_MINUTES * 60))
+END=$((T0 + $(awk -v m="$RUN_MINUTES" -v s="$SLEEP_SCALE" 'BEGIN { printf "%d", m * 60 * s + 0.999 }')))
 EARLY_EXIT=0
+EXIT_REASON=""
 while [ "$(date +%s)" -lt "$END" ]; do
-  kill -0 "$IDE_PID" 2>/dev/null || { log "IDE exited early"; EARLY_EXIT=1; break; }
-  sleep 10
+  kill -0 "$IDE_PID" 2>/dev/null || { log "IDE exited early"; EARLY_EXIT=1; EXIT_REASON="the IDE exited before the $RUN_MINUTES minutes were up"; break; }
+  nap 10
 done
 shot "06-before-exit"
 
-log "closing IDE (SIGTERM, which IntelliJ handles as a normal exit)"
-kill -TERM "$IDE_PID" 2>/dev/null
-n=0
-while kill -0 "$IDE_PID" 2>/dev/null && [ $n -lt 90 ]; do sleep 2; n=$((n + 2)); done
+# A crash in the scripted steps (about 160 s) is not seen by the loop above when RUN_MINUTES is short,
+# so the IDE is checked again before it is stopped.
+STOPPED_NORMALLY=0
+KILLED=0
 if kill -0 "$IDE_PID" 2>/dev/null; then
-  log "IDE still running after 90s, killing it"
-  kill -KILL "$IDE_PID" 2>/dev/null
+  log "closing IDE (SIGTERM, which IntelliJ handles as a normal exit)"
+  kill -TERM "$IDE_PID" 2>/dev/null
+  n=0
+  while kill -0 "$IDE_PID" 2>/dev/null && [ $n -lt 90 ]; do nap 2; n=$((n + 2)); done
+  if kill -0 "$IDE_PID" 2>/dev/null; then
+    log "IDE still running after 90s, killing it"
+    kill -KILL "$IDE_PID" 2>/dev/null
+    KILLED=1
+  else
+    log "IDE exited"
+  fi
+  STOPPED_NORMALLY=1
 else
-  log "IDE exited"
+  EARLY_EXIT=1
+  [ "$EXIT_REASON" = "" ] && EXIT_REASON="the IDE had already exited before it was stopped (a crash during the run)"
 fi
-grep -q 'IDE SHUTDOWN' "$IDEA_LOG" && log "idea.log has the IDE SHUTDOWN line"
+HAS_SHUTDOWN=0
+grep -q 'IDE SHUTDOWN' "$IDEA_LOG" 2>/dev/null && HAS_SHUTDOWN=1
+[ "$HAS_SHUTDOWN" -eq 1 ] && log "idea.log has the IDE SHUTDOWN line"
 collect
 [ -s "$OUT/log/idea.log" ] || { log "FAILED: no idea.log"; exit 3; }
 if [ "$EARLY_EXIT" -eq 1 ]; then
-  log "FAILED: the IDE exited before the $RUN_MINUTES minutes were up, so the run is not complete"
+  log "FAILED: $EXIT_REASON, so the run is not complete"
+  exit 4
+fi
+# A normal stop writes the IDE SHUTDOWN line. Without it the IDE was killed or stopped badly.
+if [ "$STOPPED_NORMALLY" -eq 1 ] && [ "$HAS_SHUTDOWN" -ne 1 ]; then
+  log "FAILED: idea.log has no IDE SHUTDOWN line, so the IDE did not stop normally"
+  exit 4
+fi
+# A shutdown that starts but has to be killed is a hang (for example a plugin blocking the exit), not a normal stop.
+if [ "$KILLED" -eq 1 ]; then
+  log "FAILED: the IDE did not stop within 90 s of SIGTERM and was killed, so it did not stop normally"
   exit 4
 fi
 

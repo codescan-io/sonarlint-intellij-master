@@ -61,6 +61,13 @@ case "${1:-}" in
         echo "2026-11-13 10:00:09,500 [ 1000]  WARN - #c.i.d.PerformanceWatcherImpl - UI was frozen for 9000ms, details saved to /x/$d" > "$out/log/idea.log" ;;
       clean)
         echo "2026-11-13 10:00:00,100 [ 1000]  INFO - #c.i.Foo - all fine" > "$out/log/idea.log" ;;
+      rotated)
+        # idea.log is clean; the CodeScan error is in the rotated idea.1.log.
+        echo "2026-11-13 10:00:00,100 [ 1000]  INFO - #c.i.Foo - all fine" > "$out/log/idea.log"
+        echo "2026-11-13 09:00:00,100 [ 1000] SEVERE - #org.sonarlint.intellij.Foo - boom" > "$out/log/idea.1.log" ;;
+      unreadable)
+        echo "2026-11-13 10:00:00,100 [ 1000]  INFO - #c.i.Foo - all fine" > "$out/log/idea.log"
+        chmod 000 "$out/log/idea.log" ;;
       none) : ;;
     esac
     exit "${STUB_RC:-0}" ;;
@@ -102,7 +109,7 @@ run_ok_args() {
   rm -rf "$TMP/out"
   LIMIT_TENTHS=600
   run_bounded env PATH="$TMP/bin:$PATH" IDE_TARBALL="$TMP/ide.tar.gz" STUB_MODE="$1" STUB_RC="$2" \
-    bash "$BD" --plugin "$TMP/plugin.zip" --project "$TMP/project" --minutes 1 --out "$TMP/out"
+    bash "$BD" --plugin "$TMP/plugin.zip" --project "$TMP/project" --minutes "${3:-4}" --out "$TMP/out"
   LIMIT_TENTHS=80
 }
 
@@ -117,6 +124,15 @@ expect_code "missing value at the end" 2
 run_bd --plugin ""
 expect_code "empty value" 2
 
+# The scripted steps alone take about 3 minutes, so a shorter run time cannot be a real run.
+for m in 0 1 3; do
+  run_bd --plugin "$TMP/plugin.zip" --project "$TMP/project" --minutes "$m" --out "$TMP/out-min"
+  expect_code "minutes $m" 2
+  expect_out "minutes $m" "at least 4"
+done
+run_bd --plugin "$TMP/plugin.zip" --project "$TMP/project" --minutes abc --out "$TMP/out-min"
+expect_code "minutes not a number" 2
+
 run_bd --bogus
 expect_code "unknown flag" 2
 expect_out "unknown flag" "unknown argument: --bogus"
@@ -125,10 +141,14 @@ run_bd --help
 expect_code "help" 0
 expect_out "help" "Usage: baseline-docker.sh"
 expect_out "help" "5 = the CodeScan analysis showed no result"
+expect_out "help" "6 = the log check itself failed"
+# Exit 4 has three causes in ide-in-container.sh; the help and the error must not name only the first one.
+expect_out "help" "4 = the IDE did not run and stop normally"
 
 # Exit codes of the container run are passed on: 4 and 5 as they are, anything else that fails as 3.
 run_ok_args clean 4
 expect_code "container exit 4" 4
+expect_out "container exit 4" "the IDE did not run and stop normally (it exited early, or stopped without the IDE SHUTDOWN line, or had to be killed)"
 run_ok_args clean 5
 expect_code "container exit 5" 5
 run_ok_args clean 3
@@ -148,6 +168,32 @@ expect_out "clean run" "CodeScan total: 0"
 run_ok_args freeze-cs 0
 expect_code "CodeScan freeze" 1
 expect_out "CodeScan freeze" "CodeScan total: 1"
+
+# Every idea*.log is checked, not only idea.log (IntelliJ rotates it to idea.1.log, idea.2.log, ...).
+run_ok_args rotated 0
+expect_code "rotated log has a CodeScan error" 1
+expect_out "rotated log has a CodeScan error" "CodeScan total: 1"
+expect_out "rotated log has a CodeScan error" "idea.1.log"
+
+# A scanner that cannot do its job is its own exit code (6), not "bad usage" (2).
+run_ok_args unreadable 0
+expect_code "scanner fails" 6
+expect_out "scanner fails" "log check failed"
+
+# A reused --out folder must not leave an old idea.log to pass for the new run.
+# (The "scanner fails" run above left an unreadable idea.log there, so the folder is made afresh.)
+rm -rf "$TMP/out"
+mkdir -p "$TMP/out/log"
+echo "2026-11-13 10:00:00,100 [ 1000] SEVERE - #org.sonarlint.intellij.Foo - old run" > "$TMP/out/log/idea.log"
+LIMIT_TENTHS=600
+run_bounded env PATH="$TMP/bin:$PATH" IDE_TARBALL="$TMP/ide.tar.gz" STUB_MODE=none STUB_RC=0 \
+  bash "$BD" --plugin "$TMP/plugin.zip" --project "$TMP/project" --minutes 4 --out "$TMP/out"
+LIMIT_TENTHS=80
+expect_code "stale idea.log in a reused out folder" 3
+
+# The smallest allowed run time is accepted.
+run_ok_args clean 0 4
+expect_code "minutes 4" 0
 
 echo ""
 echo "passed: $PASS, failed: $FAIL"

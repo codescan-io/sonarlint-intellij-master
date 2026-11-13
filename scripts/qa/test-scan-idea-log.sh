@@ -44,6 +44,10 @@ run_scan --strict "$f"
 expect_code "slow-op" 1
 expect_out "slow-op" "Slow operations are prohibited on EDT: 1"
 expect_out "slow-op" "Total: 1"
+run_scan "$f"
+expect_code "slow-op default" 0
+expect_split_early() { printf '%s\n' "$OUT" | grep -A1 '^  Slow operations are prohibited on EDT: 1' | grep -q 'CodeScan: 0  other: 0  unknown: 1'; }
+if expect_split_early; then ok "slow-op default: unknown 1"; else not_ok "slow-op default: unknown 1" "split not 0/0/1"; fi
 
 f="$TMP/empty.log"
 : > "$f"
@@ -297,7 +301,7 @@ make_dump() { # <folder name> <file name> <thread to put first> <extra frame in 
 make_dump "threadDumps-freeze-20261113-110016-IU-261.1-9sec" "threadDump-20261113-110016.txt" \
   "AWT-EventQueue-0" "org.sonarlint.intellij.ui.FindingDetailsPanel.show(FindingDetailsPanel.kt:75)" \
   "DefaultDispatcher-worker-1" "com.intellij.Other.run(Other.java:1)"
-# B: CodeScan only in a background thread.
+# B: CodeScan only in a background thread whose state is not known (no State line): not enough to blame CodeScan.
 make_dump "threadDumps-freeze-20261113-120016-IU-261.1-9sec" "threadDump-20261113-120016.txt" \
   "AWT-EventQueue-0" "com.intellij.ide.IdeEventQueue.run(IdeEventQueue.java:1)" \
   "Thread-7" 'org.sonarlint.intellij.trigger.EditorChangeTrigger$EventWatcher.run(EditorChangeTrigger.java:2)'
@@ -335,13 +339,39 @@ make_dump_runnable "threadDumps-freeze-20261113-190016-IU-261.1-9sec" "threadDum
   "org.sonarlint.intellij.ui.SomePanel.paint(SomePanel.java:10)"
 make_dump_runnable "threadDumps-freeze-20261113-200016-IU-261.1-9sec" "threadDump-20261113-200016.txt" \
   "com.intellij.ui.Other.paint(Other.java:10)"
+# State-aware dumps. make_states <folder> <edt state> <edt frame or -> <thread state> <frame in the other thread>
+make_states() {
+  mkdir -p "$DUMPS/$1"
+  {
+    echo '"AWT-EventQueue-0" prio=0 tid=0x0 nid=0x0 waiting on condition'
+    echo "     java.lang.Thread.State: $2"
+    echo ""
+    if [ "$3" != "-" ]; then echo "	at $3"; fi
+    echo ""
+    echo '"SonarLint analysis" prio=0 tid=0x0 nid=0x0 runnable'
+    echo "     java.lang.Thread.State: $4"
+    echo "	at $5"
+    echo ""
+  } > "$DUMPS/$1/threadDump-20261113-000000.txt"
+}
+LOCK="com.intellij.openapi.application.impl.ApplicationImpl.runWriteAction(ApplicationImpl.java:1)"
+CSF="org.sonarlint.intellij.analysis.Analysis.run(Analysis.java:1)"
+OTHERF="com.intellij.Other.run(Other.java:1)"
+make_states "threadDumps-freeze-20261113-210000-IU-261.1-9sec" WAITING "$LOCK" RUNNABLE "$CSF"
+make_states "threadDumps-freeze-20261113-210100-IU-261.1-9sec" TIMED_WAITING "$LOCK" WAITING "$CSF"
+make_states "threadDumps-freeze-20261113-210200-IU-261.1-9sec" BLOCKED "$LOCK" RUNNABLE "$OTHERF"
+make_states "threadDumps-freeze-20261113-210300-IU-261.1-9sec" BLOCKED "$LOCK" RUNNABLE "$CSF"
+make_states "threadDumps-freeze-20261113-210400-IU-261.1-9sec" RUNNABLE "-" RUNNABLE "$CSF"
+make_states "threadDumps-freeze-20261113-210500-IU-261.1-9sec" RUNNABLE "$LOCK" RUNNABLE "$CSF"
+make_states "threadDumps-freeze-20261113-210600-IU-261.1-9sec" BLOCKED "$LOCK" BLOCKED "org.sonarsource.sonarlint.core.Engine.run(Engine.java:1)"
+make_states "threadDumps-freeze-20261113-210700-IU-261.1-9sec" "WAITING (parking)" "$LOCK" "RUNNABLE" "$CSF"
 # Folders that are not freeze dumps must be ignored.
 make_dump "threadDumps-Dispatchers.IO-20261113-180016-IU-261.1" "threadDump-20261113-180016.txt" \
   "AWT-EventQueue-0" "org.sonarlint.intellij.ui.FindingDetailsPanel.show(FindingDetailsPanel.kt:75)" \
   "Thread-2" "com.intellij.Other.run(Other.java:1)"
 
-# <freeze start hh:mm:ss> [folder name]: a log with one freeze line. IntelliJ logs the line when the freeze
-# ends, so the line time is the start plus the 9000 ms length.
+# <freeze start hh:mm:ss> [folder name]: a log with one freeze line, written at the start plus the 9000 ms length.
+# Without a folder name the line has no "details saved to" part.
 freeze_log() {
   local h m sec end
   h=${1%%:*}; m=${1#*:}; m=${m%%:*}; sec=${1##*:}
@@ -363,62 +393,62 @@ expect_split "freeze named A" "$FZ" 1 0 0
 expect_code "freeze named A" 1
 expect_out "freeze named A" "CodeScan total: 1"
 
-# Matched by time: log at 12:00:18, folder at 12:00:16.
+# The time of the line is no longer used to find a folder: a freeze line with no folder name is unknown,
+# also when a folder exists at the same time (these lines have no "details saved to").
 run_scan --freeze-dumps "$DUMPS" "$(freeze_log 12:00:18)"
-expect_split "freeze by time B" "$FZ" 0 1 0
-expect_code "freeze by time B" 0
-
-# CodeScan appears in the UI thread: matched by time too.
+expect_split "freeze without folder name B" "$FZ" 0 0 1
 run_scan --freeze-dumps "$DUMPS" "$(freeze_log 11:00:17)"
-expect_split "freeze by time A" "$FZ" 1 0 0
-
-# The closest folder wins: 15:00:13 is 3 s from D (CodeScan) and 1 s from E (other).
+expect_split "freeze without folder name A" "$FZ" 0 0 1
 run_scan --freeze-dumps "$DUMPS" "$(freeze_log 15:00:13)"
-expect_split "freeze closest" "$FZ" 0 1 0
-run_scan --freeze-dumps "$DUMPS" "$(freeze_log 15:00:11)"
-expect_split "freeze closest 2" "$FZ" 1 0 0
+expect_split "freeze without folder name D/E" "$FZ" 0 0 1
+expect_code "freeze without folder name" 0
 
-# Empty folder, no folder near, folder with only a report, thread dump without a UI thread: unknown.
-run_scan --freeze-dumps "$DUMPS" "$(freeze_log 13:00:18)"
+# CodeScan on a background thread that is not running (no State line) is not enough: unknown, not other.
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 12:00:18 threadDumps-freeze-20261113-120016-IU-261.1-9sec)"
+expect_split "freeze B named" "$FZ" 0 0 1
+
+# D is CodeScan on the UI thread, E has no CodeScan frame anywhere.
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 15:00:19 threadDumps-freeze-20261113-150010-IU-261.1-9sec)"
+expect_split "freeze D named" "$FZ" 1 0 0
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 15:00:19 threadDumps-freeze-20261113-150014-IU-261.1-9sec)"
+expect_split "freeze E named" "$FZ" 0 1 0
+
+# UI thread waiting or blocked, no CodeScan frame on it: the other threads decide.
+named() { run_scan --freeze-dumps "$DUMPS" "$(freeze_log 21:00:09 "threadDumps-freeze-20261113-$1-IU-261.1-9sec")"; }
+named 210000; expect_split "waiting, CodeScan thread RUNNABLE" "$FZ" 1 0 0
+named 210100; expect_split "timed waiting, CodeScan thread waiting" "$FZ" 0 0 1
+named 210200; expect_split "blocked, no CodeScan thread" "$FZ" 0 1 0
+named 210300; expect_split "blocked, CodeScan thread RUNNABLE" "$FZ" 1 0 0
+named 210400; expect_split "UI block without frames" "$FZ" 0 0 1
+named 210500; expect_split "UI thread RUNNABLE elsewhere, CodeScan thread RUNNABLE" "$FZ" 0 1 0
+named 210600; expect_split "blocked, core library thread blocked too" "$FZ" 0 0 1
+named 210700; expect_split "waiting (parking), CodeScan thread RUNNABLE" "$FZ" 1 0 0
+
+# Empty folder, folder with only a report, thread dump without a UI thread: unknown, with the folder named.
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 13:00:18 threadDumps-freeze-20261113-130016-IU-261.1-9sec)"
 expect_split "freeze empty folder" "$FZ" 0 0 1
-run_scan --freeze-dumps "$DUMPS" "$(freeze_log 14:00:00)"
-expect_split "freeze no dump" "$FZ" 0 0 1
-expect_code "freeze no dump" 0
-run_scan --freeze-dumps "$DUMPS" "$(freeze_log 16:00:18)"
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 16:00:18 threadDumps-freeze-20261113-160016-IU-261.1-9sec)"
 expect_split "freeze report only" "$FZ" 0 0 1
-run_scan --freeze-dumps "$DUMPS" "$(freeze_log 17:00:18)"
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 17:00:18 threadDumps-freeze-20261113-170016-IU-261.1-9sec)"
 expect_split "freeze no UI block" "$FZ" 0 0 1
+expect_code "freeze no UI block" 0
 
-# Further than the window (5 s): unknown, even though a folder exists.
-run_scan --freeze-dumps "$DUMPS" "$(freeze_log 11:00:30)"
-expect_split "freeze out of window" "$FZ" 0 0 1
-
-# A named folder that is missing is unknown. The time match is not used for it.
+# A named folder that is missing is unknown, even though a folder exists at that time.
 run_scan --freeze-dumps "$DUMPS" "$(freeze_log 11:00:18 threadDumps-freeze-20261113-110018-IU-261.1-gone)"
 expect_split "freeze named but missing" "$FZ" 0 0 1
 
 # Not a freeze folder: ignored.
-run_scan --freeze-dumps "$DUMPS" "$(freeze_log 18:00:18)"
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 18:00:18 threadDumps-Dispatchers.IO-20261113-180016-IU-261.1)"
 expect_split "freeze other folder kind" "$FZ" 0 0 1
 
 # A busy UI thread (blank line before the frames): CodeScan frame on it is CodeScan, no CodeScan frame is other.
-run_scan --freeze-dumps "$DUMPS" "$(freeze_log 19:00:17)"
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 19:00:07 threadDumps-freeze-20261113-190016-IU-261.1-9sec)"
 expect_split "freeze runnable layout CodeScan" "$FZ" 1 0 0
-run_scan --freeze-dumps "$DUMPS" "$(freeze_log 20:00:17)"
+run_scan --freeze-dumps "$DUMPS" "$(freeze_log 20:00:07 threadDumps-freeze-20261113-200016-IU-261.1-9sec)"
 expect_split "freeze runnable layout other" "$FZ" 0 1 0
 # ... also when the folder is named in the line.
 run_scan --freeze-dumps "$DUMPS" "$(freeze_log 19:30:00 threadDumps-freeze-20261113-190016-IU-261.1-9sec)"
 expect_split "freeze runnable layout named" "$FZ" 1 0 0
-
-# The time match uses the freeze start (line time minus the length), not the line time.
-# Start 12:00:08 is 8 s from folder B (12:00:16), too far. The line time 12:00:17 is 1 s from B.
-run_scan --freeze-dumps "$DUMPS" "$(freeze_log 12:00:08)"
-expect_split "freeze start time" "$FZ" 0 0 1
-# A line without a length falls back to the line time itself.
-f="$TMP/freeze-nolen.log"
-echo "2026-11-13 12:00:18,500 [ 1000]  WARN - #c.i.d.PerformanceWatcherImpl - UI was frozen" > "$f"
-run_scan --freeze-dumps "$DUMPS" "$f"
-expect_split "freeze no length" "$FZ" 0 1 0
 
 # Without --freeze-dumps a freeze is unknown.
 run_scan "$(freeze_log 11:00:25 threadDumps-freeze-20261113-110016-IU-261.1-9sec)"
@@ -453,6 +483,179 @@ f="$TMP/trace.log"
 echo "$TS  TRACE - #org.sonarlint.x - Slow operations are prohibited on EDT" > "$f"
 run_scan "$f"
 expect_split "trace logger" "Slow operations are prohibited on EDT" 1 0 0
+
+# FINE, FINER and FINEST are levels too.
+for lvl in FINE FINER FINEST; do
+  f="$TMP/level-$lvl.log"
+  echo "$TS $lvl - #org.sonarlint.x - Slow operations are prohibited on EDT" > "$f"
+  run_scan "$f"
+  expect_split "level $lvl" "Slow operations are prohibited on EDT" 1 0 0
+done
+
+# IntelliJ names the plugin it blames. That is CodeScan even when no stack frame says org.sonarlint.
+f="$TMP/blame.log"
+{
+  echo "$TS SEVERE - #c.i.s.ComponentManagerImpl - Cannot create class org.sonarlint.intellij.core.Foo [Plugin: com.code-scan.intellij]"
+  echo "com.intellij.diagnostic.PluginException: Cannot create class org.sonarlint.intellij.core.Foo [Plugin: com.code-scan.intellij]"
+  echo "	at com.intellij.serviceContainer.ComponentManagerImpl.instantiateClass(ComponentManagerImpl.kt:1)"
+} > "$f"
+run_scan "$f"
+expect_code "blame bracket" 1
+expect_split "blame bracket" "ERROR with org.sonarlint in its stack trace" 1 0 0
+f="$TMP/blame2.log"
+echo "$TS SEVERE - #c.i.s.ComponentManagerImpl - Plugin to blame: CodeScan version: 7.3.2" > "$f"
+run_scan "$f"
+expect_code "blame line" 1
+expect_split "blame line" "ERROR with org.sonarlint in its stack trace" 1 0 0
+f="$TMP/blame-other.log"
+{
+  echo "$TS SEVERE - #c.i.s.ComponentManagerImpl - Cannot create class a.b.C [Plugin: org.other.plugin]"
+  echo "	at com.intellij.serviceContainer.ComponentManagerImpl.instantiateClass(ComponentManagerImpl.kt:1)"
+  echo "$TS SEVERE - #c.i.s.ComponentManagerImpl - Plugin to blame: Other plugin version: 1.0"
+} > "$f"
+run_scan "$f"
+expect_code "blame other plugin" 0
+expect_out "blame other plugin" "Total: 0"
+# A platform pattern whose entry blames CodeScan, with no CodeScan frame, is CodeScan.
+f="$TMP/blame-slow.log"
+{
+  echo "$TS SEVERE - #c.i.u.SlowOperations - Slow operations are prohibited on EDT. See javadoc. [Plugin: com.code-scan.intellij]"
+  echo "java.lang.Throwable: Slow operations are prohibited on EDT"
+  echo "	at com.intellij.util.SlowOperations.assertSlowOperationsAreAllowed(SlowOperations.java:117)"
+} > "$f"
+run_scan "$f"
+expect_split "blame slow" "Slow operations are prohibited on EDT" 1 0 0
+
+# One exception that IntelliJ logs under two loggers a few ms apart is one hit. The entries have the same first
+# CodeScan frame; the second starts within 100 ms of the first.
+dup_entry() { # <time with ms> <logger> <first CodeScan frame method>
+  echo "2026-11-13 $1 [  12345] SEVERE - #$2 - Read access is allowed from inside read-action only"
+  echo "java.lang.Throwable: Read access is allowed from inside read-action only"
+  echo "	at com.intellij.psi.impl.PsiFileImpl.isValid(PsiFileImpl.java:232)"
+  echo "	at org.sonarlint.intellij.finding.$3(LiveFinding.java:91)"
+}
+f="$TMP/dup-pair.log"
+{
+  dup_entry "10:00:00,100" "c.i.o.a.i.PluginManager" "LiveFinding.isValid"
+  dup_entry "10:00:00,106" "c.i.o.a.i.ExceptionsKt" "LiveFinding.isValid"
+} > "$f"
+run_scan "$f"
+expect_split "dup pair" "Read access is allowed from inside read-action" 1 0 0
+expect_out "dup pair" "Total: 1"
+expect_out "dup pair" "CodeScan total: 1"
+expect_out "dup pair" "Merged duplicates: 1"
+expect_out "dup pair" "1 x [Read access is allowed from inside read-action] CodeScan"
+
+f="$TMP/dup-far.log"
+{
+  dup_entry "10:00:00,100" "c.i.o.a.i.PluginManager" "LiveFinding.isValid"
+  dup_entry "10:00:00,600" "c.i.o.a.i.ExceptionsKt" "LiveFinding.isValid"
+} > "$f"
+run_scan "$f"
+expect_out "dup 500 ms apart" "Total: 2"
+expect_out "dup 500 ms apart" "Merged duplicates: 0"
+
+f="$TMP/dup-edge.log"
+{
+  dup_entry "10:00:00,100" "c.i.o.a.i.PluginManager" "LiveFinding.isValid"
+  dup_entry "10:00:00,200" "c.i.o.a.i.ExceptionsKt" "LiveFinding.isValid"
+} > "$f"
+run_scan "$f"
+expect_out "dup 100 ms apart" "Total: 1"
+f="$TMP/dup-edge2.log"
+{
+  dup_entry "10:00:00,100" "c.i.o.a.i.PluginManager" "LiveFinding.isValid"
+  dup_entry "10:00:00,201" "c.i.o.a.i.ExceptionsKt" "LiveFinding.isValid"
+} > "$f"
+run_scan "$f"
+expect_out "dup 101 ms apart" "Total: 2"
+
+# Not merged: another first CodeScan frame, the same logger twice, or entries without a CodeScan frame.
+f="$TMP/dup-other-frame.log"
+{
+  dup_entry "10:00:00,100" "c.i.o.a.i.PluginManager" "LiveFinding.isValid"
+  dup_entry "10:00:00,105" "c.i.o.a.i.ExceptionsKt" "LiveFinding.other"
+} > "$f"
+run_scan "$f"
+expect_out "dup other frame" "Total: 2"
+f="$TMP/dup-same-logger.log"
+{
+  dup_entry "10:00:00,100" "c.i.o.a.i.PluginManager" "LiveFinding.isValid"
+  dup_entry "10:00:00,105" "c.i.o.a.i.PluginManager" "LiveFinding.isValid"
+} > "$f"
+run_scan "$f"
+expect_out "dup same logger" "Total: 2"
+f="$TMP/dup-other-day.log"
+{
+  echo "2026-11-12 10:00:00,100 [  12345] SEVERE - #c.i.A - Read access is allowed from inside read-action only"
+  echo "	at org.sonarlint.intellij.finding.LiveFinding.isValid(LiveFinding.java:91)"
+  echo "2026-11-13 10:00:00,105 [  12345] SEVERE - #c.i.B - Read access is allowed from inside read-action only"
+  echo "	at org.sonarlint.intellij.finding.LiveFinding.isValid(LiveFinding.java:91)"
+} > "$f"
+run_scan "$f"
+expect_out "dup other day" "Total: 2"
+
+# IntelliJ writes the report of one exception as several entries a few ms apart: the exception, then
+# "JDK: ...", "OS: ..." and "Plugin to blame: CodeScan version: ..." with no stack. The blame line belongs to the
+# exception before it and is not a hit of its own.
+blame_tail() { # <time with ms> <logger>
+  echo "2026-11-13 $1 [  12345] SEVERE - #$2 - JDK: 25.0.2; VM: OpenJDK 64-Bit Server VM"
+  echo "2026-11-13 $1 [  12345] SEVERE - #$2 - OS: Mac OS X"
+  echo "2026-11-13 $1 [  12345] SEVERE - #$2 - Plugin to blame: CodeScan version: 7.3.2"
+}
+f="$TMP/blame-tail.log"
+{
+  dup_entry "10:00:00,100" "c.i.u.c.ThreadingAssertions" "LiveFinding.isValid"
+  blame_tail "10:00:00,101" "c.i.u.c.ThreadingAssertions"
+} > "$f"
+run_scan "$f"
+expect_out "blame tail" "Total: 1"
+expect_out "blame tail" "CodeScan total: 1"
+expect_out "blame tail" "ERROR with org.sonarlint in its stack trace: 0"
+expect_out "blame tail" "Blame follow-up lines folded: 1"
+
+f="$TMP/blame-tail-pair.log"
+{
+  dup_entry "10:00:00,100" "c.i.u.c.ThreadingAssertions" "LiveFinding.isValid"
+  blame_tail "10:00:00,101" "c.i.u.c.ThreadingAssertions"
+  dup_entry "10:00:00,103" "c.i.p.SingleRootFileViewProvider" "LiveFinding.isValid"
+  blame_tail "10:00:00,104" "c.i.p.SingleRootFileViewProvider"
+} > "$f"
+run_scan "$f"
+expect_out "blame tail pair" "Total: 1"
+expect_out "blame tail pair" "Merged duplicates: 1"
+expect_out "blame tail pair" "Blame follow-up lines folded: 2"
+
+f="$TMP/blame-tail-late.log"
+{
+  dup_entry "10:00:00,100" "c.i.u.c.ThreadingAssertions" "LiveFinding.isValid"
+  blame_tail "10:00:05,000" "c.i.u.c.ThreadingAssertions"
+} > "$f"
+run_scan "$f"
+expect_out "blame tail 5 s later" "Total: 2"
+expect_out "blame tail 5 s later" "Blame follow-up lines folded: 0"
+
+f="$TMP/blame-tail-header.log"
+{
+  echo "$TS SEVERE - #c.i.s.ComponentManagerImpl - Cannot create class org.sonarlint.intellij.core.Foo [Plugin: com.code-scan.intellij]"
+  echo "	at com.intellij.serviceContainer.ComponentManagerImpl.instantiateClass(ComponentManagerImpl.kt:1)"
+  blame_tail "10:00:00,124" "c.i.s.ComponentManagerImpl"
+} > "$f"
+run_scan "$f"
+expect_out "blame after a plugin-named error" "Total: 1"
+expect_out "blame after a plugin-named error" "Blame follow-up lines folded: 1"
+
+# A chain: three loggers within 100 ms of each other are one hit; a later repeat after a gap is a new hit.
+f="$TMP/dup-chain.log"
+{
+  dup_entry "10:00:00,100" "c.i.o.a.i.PluginManager" "LiveFinding.isValid"
+  dup_entry "10:00:00,150" "c.i.o.a.i.ExceptionsKt" "LiveFinding.isValid"
+  dup_entry "10:00:00,200" "c.i.p.i.SingleRootFileViewProvider" "LiveFinding.isValid"
+  dup_entry "10:00:03,000" "c.i.o.a.i.PluginManager" "LiveFinding.isValid"
+} > "$f"
+run_scan "$f"
+expect_out "dup chain" "Total: 2"
+expect_out "dup chain" "Merged duplicates: 2"
 
 # "--" ends the options, so a log file can be named like an option.
 cp "$TMP/trace.log" "$TMP/-x.log"

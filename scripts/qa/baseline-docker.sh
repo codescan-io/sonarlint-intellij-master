@@ -11,8 +11,13 @@
 #        1 = the log check found CodeScan hits (see scan-idea-log.sh)
 #        2 = bad usage
 #        3 = the IDE or the container did not run (no usable idea.log)
-#        4 = the IDE exited before the run time was up
+#        4 = the IDE did not run and stop normally: it exited or crashed before it was stopped, or it stopped
+#            without the IDE SHUTDOWN line in idea.log, or it was still running 90 s after SIGTERM and was killed
 #        5 = the CodeScan analysis showed no result for Hello.java (read from a screenshot)
+#        6 = the log check itself failed (scan-idea-log.sh exited 2 for some log: unreadable file or bad
+#            arguments). The result is incomplete, so this wins over 1; scan.txt shows what was found.
+# --minutes must be at least 4: the scripted steps (open 2 files, 2 analyses, Settings) take about 3 minutes,
+# and a shorter run time would end before the IDE had run long enough to show a crash.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -23,12 +28,12 @@ PROJECT=""
 OUT=""
 IMAGE=codescan-qa-ide:1
 
-usage() { sed -n '2,15p' "$0" >&2; exit 2; }
+usage() { sed -n '2,/^set -u/{/^set -u/!p;}' "$0" >&2; exit 2; }
 # A flag that needs a value must have one; a missing value is a usage error, not a reason to loop.
 need_value() { [ $# -ge 2 ] && [ -n "$2" ] || { echo "error: $1 needs a value" >&2; usage; }; }
 while [ $# -gt 0 ]; do
   case "$1" in
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,/^set -u/{/^set -u/!p;}' "$0"; exit 0 ;;
     --plugin) need_value "$@"; PLUGIN="$2"; shift 2 ;;
     --project) need_value "$@"; PROJECT="$2"; shift 2 ;;
     --ide-version) need_value "$@"; IDE_VERSION="$2"; shift 2 ;;
@@ -40,6 +45,7 @@ done
 [ -f "$PLUGIN" ] || { echo "error: --plugin <zip> is required and must exist" >&2; usage; }
 [ -d "$PROJECT" ] || { echo "error: --project <dir> is required and must exist" >&2; usage; }
 case "$MINUTES" in ''|*[!0-9]*) echo "error: --minutes must be a whole number" >&2; usage ;; esac
+[ "$MINUTES" -ge 4 ] || { echo "error: --minutes must be at least 4 (the scripted steps alone take about 3 minutes)" >&2; usage; }
 PLUGIN="$(cd "$(dirname "$PLUGIN")" && pwd)/$(basename "$PLUGIN")"
 PROJECT="$(cd "$PROJECT" && pwd)"
 [ -n "$OUT" ] || OUT="$HERE/../../build/qa/ide-$IDE_VERSION-$(date +%Y%m%d-%H%M%S)"
@@ -92,6 +98,8 @@ docker build -q -t "$IMAGE" -f "$HERE/Dockerfile" "$HERE" >/dev/null &
 wait_bounded $! 900 'kill $pid' || { echo "error: docker build failed" >&2; exit 3; }
 
 NAME="codescan-qa-$$"
+# A reused --out folder must not leave an old idea.log or screenshots to pass for this run.
+rm -rf "$OUT/log" "$OUT/screens" "$OUT/scan.txt" "$OUT/run.log"
 trap 'docker kill "$NAME" >/dev/null 2>&1; exit 3' INT TERM
 echo "running IDE $IDE_VERSION for $MINUTES min; results in $OUT"
 docker run --rm --name "$NAME" --cpus "${QA_DOCKER_CPUS:-6}" --memory "${QA_DOCKER_MEMORY:-4g}" --shm-size 1g \
@@ -108,7 +116,7 @@ RC=$?
 # The container's own codes 4 and 5 are passed on as they are; any other failure is 3.
 case "$RC" in
   0) ;;
-  4) echo "error: the IDE exited before the run time was up; see $OUT/run.log and $OUT/screens" >&2; exit 4 ;;
+  4) echo "error: the IDE did not run and stop normally (it exited early, or stopped without the IDE SHUTDOWN line, or had to be killed); see $OUT/run.log and $OUT/screens" >&2; exit 4 ;;
   5) echo "error: the CodeScan analysis did not run; see $OUT/run.log and $OUT/screens" >&2; exit 5 ;;
   *) echo "error: the IDE run failed (exit $RC); see $OUT/run.log and $OUT/screens" >&2; exit 3 ;;
 esac
@@ -118,8 +126,24 @@ if [ ! -s "$OUT/log/idea.log" ]; then
 fi
 
 # --freeze-dumps lets the check tell a freeze caused by CodeScan from one caused by the IDE or another plugin.
-bash "$HERE/scan-idea-log.sh" --freeze-dumps "$OUT/log" "$OUT/log/idea.log" > "$OUT/scan.txt"
-SCAN_RC=$?
-sed -n '/^Summary:/,$p' "$OUT/scan.txt"
+# IntelliJ rotates idea.log to idea.1.log, idea.2.log, ..., so every idea*.log in the folder is checked.
+RC=0
+SCAN_FAILED=0
+: > "$OUT/scan.txt"
+for LOG in "$OUT"/log/idea*.log; do
+  [ -f "$LOG" ] || continue
+  {
+    echo "##### $(basename "$LOG")"
+    bash "$HERE/scan-idea-log.sh" --freeze-dumps "$OUT/log" "$LOG"
+  } >> "$OUT/scan.txt" 2>&1
+  SCAN_RC=$?
+  case "$SCAN_RC" in
+    0) ;;
+    1) RC=1 ;;
+    *) SCAN_FAILED=1; echo "error: log check failed for $LOG (exit $SCAN_RC); see $OUT/scan.txt" >&2 ;;
+  esac
+done
+awk '/^##### /{print; s=0; next} /^Summary:/{s=1} s' "$OUT/scan.txt"
 echo "full log check: $OUT/scan.txt"
-exit "$SCAN_RC"
+[ "$SCAN_FAILED" -eq 1 ] && exit 6
+exit "$RC"
