@@ -21,7 +21,7 @@ package org.sonarlint.intellij.sharing
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.modules
-import com.intellij.util.io.exists
+import kotlin.io.path.exists
 import java.nio.file.Path
 import java.nio.file.Paths
 import org.sonarlint.intellij.common.ui.SonarLintConsole
