@@ -222,23 +222,28 @@ public final class SonarLintToolWindow implements ContentManagerListener, Projec
     openTab(SonarLintToolWindowFactory.LOG_TAB_TITLE);
   }
 
+  /**
+   * Safe to call from any thread: the tabs are updated later on the UI thread
+   */
   public void refreshViews() {
     this.updateTab(SonarLintToolWindowFactory.CURRENT_FILE_TAB_TITLE, CurrentFilePanel::refreshView);
     this.updateTab(SonarLintToolWindowFactory.REPORT_TAB_TITLE, ReportPanel::refreshView);
 
-    var hotspotContent = getSecurityHotspotContent();
-    if (hotspotContent != null) {
-      var hotspotsPanel = (SecurityHotspotsPanel) hotspotContent.getComponent();
-      runOnUiThread(project, () -> hotspotContent.setDisplayName(buildTabName(hotspotsPanel.refreshView(), SonarLintToolWindowFactory.SECURITY_HOTSPOTS_TAB_TITLE)));
-    }
+    runOnUiThread(project, () -> {
+      var hotspotContent = getSecurityHotspotContent();
+      if (hotspotContent != null) {
+        var hotspotsPanel = (SecurityHotspotsPanel) hotspotContent.getComponent();
+        hotspotContent.setDisplayName(buildTabName(hotspotsPanel.refreshView(), SonarLintToolWindowFactory.SECURITY_HOTSPOTS_TAB_TITLE));
+      }
 
-    var taintContent = getTaintVulnerabilitiesContent();
-    if (taintContent != null) {
-      var taintPanel = (TaintVulnerabilitiesPanel) taintContent.getComponent();
-      taintPanel.applyFocusOnNewCodeSettings();
-      taintContent.setDisplayName(buildTabName(getService(project, TaintVulnerabilitiesCache.class).getFocusAwareCount(),
-        SonarLintToolWindowFactory.TAINT_VULNERABILITIES_TAB_TITLE));
-    }
+      var taintContent = getTaintVulnerabilitiesContent();
+      if (taintContent != null) {
+        var taintPanel = (TaintVulnerabilitiesPanel) taintContent.getComponent();
+        taintPanel.applyFocusOnNewCodeSettings();
+        taintContent.setDisplayName(buildTabName(getService(project, TaintVulnerabilitiesCache.class).getFocusAwareCount(),
+          SonarLintToolWindowFactory.TAINT_VULNERABILITIES_TAB_TITLE));
+      }
+    });
   }
 
   private void openTab(String name) {
@@ -503,6 +508,6 @@ public final class SonarLintToolWindow implements ContentManagerListener, Projec
 
   @Override
   public void bindingChanged() {
-    runOnPooledThread(project, this::refreshViews);
+    refreshViews();
   }
 }

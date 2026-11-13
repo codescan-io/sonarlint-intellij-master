@@ -55,9 +55,13 @@ class EditorDecorator(private val project: Project) {
         ApplicationManager.getApplication().assertIsDispatchThread()
         currentHighlightedDoc.forEach {
             clearSecondaryLocationNumbers(it)
-            UpdateHighlightersUtil.setHighlightersToEditor(
-                project, it, 0, it.textLength, emptyList(), null, HIGHLIGHT_GROUP_ID
-            )
+            if (!project.isDisposed) {
+                computeReadActionSafely(project) {
+                    UpdateHighlightersUtil.setHighlightersToEditor(
+                        project, it, 0, it.textLength, emptyList(), null, HIGHLIGHT_GROUP_ID
+                    )
+                }
+            }
         }
         currentHighlightedDoc.clear()
         stopBlinking()
@@ -128,10 +132,12 @@ class EditorDecorator(private val project: Project) {
     }
 
     private fun highlightInDocument(highlights: List<HighlightInfo?>, document: Document) {
-        UpdateHighlightersUtil.setHighlightersToEditor(
-            project, document, 0,
-            document.textLength, highlights, null, HIGHLIGHT_GROUP_ID
-        )
+        computeReadActionSafely(project) {
+            UpdateHighlightersUtil.setHighlightersToEditor(
+                project, document, 0,
+                document.textLength, highlights, null, HIGHLIGHT_GROUP_ID
+            )
+        }
         currentHighlightedDoc.add(document)
     }
 

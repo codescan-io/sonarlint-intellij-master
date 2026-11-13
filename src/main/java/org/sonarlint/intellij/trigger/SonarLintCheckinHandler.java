@@ -23,8 +23,9 @@ import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.UnnamedConfigurable;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.progress.Task;
+import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
@@ -41,21 +42,20 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.actions.SonarLintToolWindow;
 import org.sonarlint.intellij.analysis.AnalysisResult;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.analysis.RunningAnalysesTracker;
 import org.sonarlint.intellij.cayc.CleanAsYouCodeService;
+import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.finding.LiveFindings;
 import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot;
@@ -66,19 +66,28 @@ import org.sonarsource.sonarlint.core.commons.api.SonarLanguage;
 
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
+import static org.sonarlint.intellij.tasks.TaskRunnerKt.runModalTaskWithResult;
 import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 public class SonarLintCheckinHandler extends CheckinHandler {
   private static final Logger LOGGER = Logger.getInstance(SonarLintCheckinHandler.class);
   private static final String ACTIVATED_OPTION_NAME = "SONARLINT_PRECOMMIT_ANALYSIS";
+  private static final long PRE_COMMIT_TIMEOUT_MS = 60_000;
+  private static final long PRE_COMMIT_POLL_INTERVAL_MS = 100;
 
   private final Project project;
   private final CheckinProjectPanel checkinPanel;
+  private final long preCommitTimeoutMs;
   private JCheckBox checkBox;
 
   public SonarLintCheckinHandler(Project project, CheckinProjectPanel checkinPanel) {
+    this(project, checkinPanel, PRE_COMMIT_TIMEOUT_MS);
+  }
+
+  SonarLintCheckinHandler(Project project, CheckinProjectPanel checkinPanel, long preCommitTimeoutMs) {
     this.project = project;
     this.checkinPanel = checkinPanel;
+    this.preCommitTimeoutMs = preCommitTimeoutMs;
   }
 
   @Override
@@ -96,37 +105,70 @@ public class SonarLintCheckinHandler extends CheckinHandler {
 
     // de-duplicate as the same file can be present several times in the panel (e.g. in several changelists)
     var affectedFiles = new HashSet<>(checkinPanel.getVirtualFiles());
-    // this will block EDT (modal)
+    List<UUID> analysisIds = List.of();
     try {
+      // the analysis runs in a modal task, off the UI thread
       var analysisIdsByCallback = getService(project, AnalysisSubmitter.class).analyzeFilesPreCommit(affectedFiles);
       if (analysisIdsByCallback == null) {
         return ReturnResult.CANCEL;
       }
+      analysisIds = analysisIdsByCallback.getRight();
 
-      new Task.Modal(project, "Waiting for CodeScan Analysis", true) {
-        public void run(@NotNull final ProgressIndicator progressIndicator) {
-          new Timer().scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-              var analysis = analysisIdsByCallback.getRight().stream().map(id -> getService(project, RunningAnalysesTracker.class).getById(id)).filter(Objects::nonNull).toList();
-              if (analysis.isEmpty()) {
-                cancel();
-              }
-            }
-          }, 0, 100);
-        }
-      }.queue();
+      // results arrive from the backend after the analysis task returns: wait for them in a second modal task,
+      // so the UI thread keeps painting, and give up after a time limit
+      var ids = analysisIds;
+      var completed = runModalTaskWithResult(project, "Waiting for CodeScan Analysis", indicator -> waitForPreCommitAnalyses(indicator, ids));
+      if (!Boolean.TRUE.equals(completed)) {
+        cancelAnalyses(analysisIds);
+        return askAfterTimeout(affectedFiles.size());
+      }
 
       if (!analysisIdsByCallback.getLeft().analysisSucceeded()) {
         return ReturnResult.CANCEL;
       }
       var results = analysisIdsByCallback.getLeft().getResults();
       return processResults(results);
+    } catch (ProcessCanceledException e) {
+      // the user pressed Cancel on the progress dialog
+      cancelAnalyses(analysisIds);
+      LOGGER.debug("CodeScan pre-commit analysis cancelled by the user");
+      return ReturnResult.CANCEL;
     } catch (Exception e) {
       handleError(e, affectedFiles.size());
       return ReturnResult.CANCEL;
     }
   }
+
+  private boolean waitForPreCommitAnalyses(ProgressIndicator indicator, List<UUID> analysisIds) {
+    var tracker = getService(project, RunningAnalysesTracker.class);
+    var deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(preCommitTimeoutMs);
+    while (analysisIds.stream().anyMatch(id -> tracker.getById(id) != null)) {
+      indicator.checkCanceled();
+      if (System.nanoTime() - deadline >= 0) {
+        return false;
+      }
+      ProgressIndicatorUtils.awaitWithCheckCanceled(PRE_COMMIT_POLL_INTERVAL_MS);
+    }
+    return true;
+  }
+
+  private void cancelAnalyses(List<UUID> analysisIds) {
+    if (project.isDisposed()) {
+      return;
+    }
+    var tracker = getService(project, RunningAnalysesTracker.class);
+    analysisIds.forEach(tracker::cancel);
+  }
+
+  private ReturnResult askAfterTimeout(int numFiles) {
+    var msg = "CodeScan - Analysis of " + numFiles + " changed file(s) did not finish within "
+      + TimeUnit.MILLISECONDS.toSeconds(preCommitTimeoutMs) + " seconds. Commit without the analysis results, or abort and try again?";
+    LOGGER.info(msg);
+    SonarLintConsole.get(project).info(msg);
+    var answer = Messages.showOkCancelDialog(project, msg, "Error Analysing Files", "Commit Anyway", "Abort", UIUtil.getErrorIcon());
+    return answer == Messages.OK ? ReturnResult.COMMIT : ReturnResult.CANCEL;
+  }
+
 
   private void handleError(Exception e, int numFiles) {
     var msg = "CodeScan - Error analysing " + numFiles + " changed file(s).";

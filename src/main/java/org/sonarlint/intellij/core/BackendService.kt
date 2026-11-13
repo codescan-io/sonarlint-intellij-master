@@ -34,8 +34,6 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.project.ProjectManagerListener
-import com.intellij.openapi.roots.TestSourcesFilter.isTestSources
-import com.intellij.openapi.util.io.FileUtilRt
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.serviceContainer.NonInjectable
 import com.intellij.ui.jcef.JBCefApp
@@ -79,8 +77,7 @@ import org.sonarlint.intellij.notifications.SonarLintProjectNotifications.Compan
 import org.sonarlint.intellij.ui.UiUtils.Companion.runOnUiThread
 import org.sonarlint.intellij.util.GlobalLogOutput
 import org.sonarlint.intellij.util.SonarLintAppUtils.getRelativePathForAnalysis
-import org.sonarlint.intellij.util.VirtualFileUtils
-import org.sonarlint.intellij.util.VirtualFileUtils.getFileContent
+import org.sonarlint.intellij.util.VirtualFileUtils.toURI
 import org.sonarlint.intellij.util.runOnPooledThread
 import org.sonarsource.sonarlint.core.client.utils.ClientLogOutput
 import org.sonarsource.sonarlint.core.client.utils.IssueResolutionStatus
@@ -889,7 +886,7 @@ class BackendService : Disposable {
     }
 
     fun getExcludedFiles(module: Module, files: Collection<VirtualFile>): List<VirtualFile> {
-        val filesByUri = files.associateBy { VirtualFileUtils.toURI(it) }
+        val filesByUri = files.associateBy { toURI(it) }
         return try {
             val moduleId = moduleId(module)
             requestFromBackend {
@@ -931,7 +928,7 @@ class BackendService : Disposable {
     fun updateFileSystem(filesByModule: Map<Module, List<VirtualFileEvent>>, includeFileContent: Boolean) {
         val deletedFileUris = filesByModule.values
             .flatMap { it.filter { event -> event.type == ModuleFileEvent.Type.DELETED } }
-            .mapNotNull { VirtualFileUtils.toURI(it.virtualFile) }
+            .mapNotNull { toURI(it.virtualFile) }
 
         val addedFiles = filesByModule.entries.flatMap { (module, events) ->
             gatherClientFiles(module, ModuleFileEvent.Type.CREATED, events, includeFileContent)
@@ -952,32 +949,21 @@ class BackendService : Disposable {
         events: List<VirtualFileEvent>,
         shouldIncludeContent: Boolean
     ): List<ClientFileDto> {
-        val virtualFiles = events.filter { it.type == type }.map { it.virtualFile }.toList()
+        val filesOfType = events.filter { it.type == type }
+        val virtualFiles = filesOfType.map { it.virtualFile }.toList()
         val contributedLanguages = collectContributedLanguages(module, virtualFiles)
-        return events.filter { it.type == type }.mapNotNull {
+        val moduleId = moduleId(module)
+        return filesOfType.mapNotNull {
             val relativePath = getRelativePathForAnalysis(module, it.virtualFile) ?: return@mapNotNull null
-            val moduleId = moduleId(module)
             val forcedLanguage = contributedLanguages[it.virtualFile]?.let { fl -> Language.valueOf(fl.name) }
-            VirtualFileUtils.toURI(it.virtualFile)?.let { uri ->
-                computeReadActionSafely(it.virtualFile, module.project) {
-                    ClientFileDto(
-                        uri,
-                        Paths.get(relativePath),
-                        moduleId,
-                        isTestSources(it.virtualFile, module.project),
-                        VirtualFileUtils.getEncoding(it.virtualFile, module.project),
-                        Paths.get(it.virtualFile.path),
-                        // Notebooks require special parsing, we should always send the content
-                        if ((shouldIncludeContent || "ipynb" == it.virtualFile.extension)
-                            && !FileUtilRt.isTooLarge(it.virtualFile.length)
-                        ) getFileContent(it.virtualFile) else {
-                            null
-                        },
-                        forcedLanguage,
-                        true
-                    )
-                }
-            }
+            SonarLintIntelliJClient.toClientFileDto(
+                module.project,
+                moduleId,
+                it.virtualFile,
+                relativePath,
+                forcedLanguage,
+                shouldIncludeContent,
+            )
         }
     }
 

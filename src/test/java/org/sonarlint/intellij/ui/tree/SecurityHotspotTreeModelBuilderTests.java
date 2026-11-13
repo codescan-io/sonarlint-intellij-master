@@ -176,6 +176,22 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
   }
 
   @Test
+  void filtered_nodes_handed_to_a_background_reader_do_not_change_when_the_ui_refilters() {
+    Map<VirtualFile, Collection<LiveSecurityHotspot>> data = new HashMap<>();
+    addFileWithStatusAndFindingKeyForHotspot(data, "file2", 1, HotspotReviewStatus.TO_REVIEW, "keyA");
+    addFileWithStatusAndFindingKeyForHotspot(data, "file2", 1, HotspotReviewStatus.ACKNOWLEDGED, "keyB");
+    addFileWithStatusAndFindingKeyForHotspot(data, "file3", 1, HotspotReviewStatus.FIXED, "keyC");
+    treeBuilder.updateModelWithoutFileNode(data);
+    treeBuilder.filterSecurityHotspots(getProject(), true);
+
+    var seenByAnnotator = treeBuilder.getFilteredNodes();
+    treeBuilder.filterSecurityHotspots(getProject(), false);
+
+    assertThat(seenByAnnotator).hasSize(3);
+    assertThat(treeBuilder.getFilteredNodes()).hasSize(2);
+  }
+
+  @Test
   void shouldUpdateStatusAndApplyCurrentFiltering() {
     Map<VirtualFile, Collection<LiveSecurityHotspot>> data = new HashMap<>();
 

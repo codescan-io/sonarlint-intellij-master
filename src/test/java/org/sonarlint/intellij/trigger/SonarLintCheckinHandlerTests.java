@@ -31,6 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +50,7 @@ import org.sonarlint.intellij.finding.issue.LiveIssue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -157,5 +161,78 @@ class SonarLintCheckinHandlerTests extends AbstractSonarLintLightTests {
     var analysisResult = analysisResultCaptor.getValue();
     assertThat(analysisResult.getFindings().getIssuesPerFile()).containsEntry(file, Set.of(issue));
     verify(analysisSubmitter, timeout(1000)).analyzeFilesPreCommit(Collections.singleton(file));
+  }
+
+  @Test
+  void waits_for_the_running_analysis_to_finish_before_reading_its_results() {
+    var uuid = UUID.randomUUID();
+    var analysisState = new AnalysisState(uuid, checkInCallable, Collections.singleton(file), getModule(), TriggerType.CHECK_IN, null);
+    var issue = mock(LiveIssue.class);
+    when(issue.getRuleKey()).thenReturn("java:S123");
+    var finished = new AtomicBoolean(false);
+    var resultWithIssue = new AnalysisResult(null, new LiveFindings(Map.of(file, Set.of(issue)), Collections.emptyMap()), Set.of(file), TriggerType.CHECK_IN, Instant.now());
+    // the analysis stays tracked, and has no results yet, until the backend reports it finished
+    when(runningAnalysesTracker.getById(uuid)).thenAnswer(inv -> finished.get() ? null : analysisState);
+    when(checkInCallable.analysisSucceeded()).thenReturn(true);
+    when(checkInCallable.getResults()).thenAnswer(inv -> finished.get() ? List.of(resultWithIssue) : List.of());
+    when(analysisSubmitter.analyzeFilesPreCommit(Collections.singleton(file)))
+      .thenReturn(Pair.of(checkInCallable, List.of(uuid)));
+    var finisher = Executors.newSingleThreadScheduledExecutor();
+    finisher.schedule(() -> finished.set(true), 300, TimeUnit.MILLISECONDS);
+    TestDialogManager.setTestDialog(msg -> Messages.OK);
+
+    try {
+      handler = new SonarLintCheckinHandler(getProject(), checkinProjectPanel);
+      var result = handler.beforeCheckin(null, null);
+
+      assertThat(result).isEqualTo(CheckinHandler.ReturnResult.CLOSE_WINDOW);
+    } finally {
+      finisher.shutdownNow();
+    }
+  }
+
+  @Test
+  void gives_up_after_the_time_limit_and_aborts_the_commit_when_the_user_chooses_abort() {
+    var uuid = stubAnalysisThatNeverFinishes();
+    var messages = new ArrayList<>();
+    TestDialogManager.setTestDialog(msg -> {
+      messages.add(msg);
+      return Messages.CANCEL;
+    });
+
+    handler = new SonarLintCheckinHandler(getProject(), checkinProjectPanel, 300);
+    var start = System.nanoTime();
+    var result = handler.beforeCheckin(null, null);
+    var waitedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+    assertThat(result).isEqualTo(CheckinHandler.ReturnResult.CANCEL);
+    assertThat(waitedMs).isGreaterThanOrEqualTo(300).isLessThan(5_000);
+    assertThat(messages).hasSize(1);
+    assertThat(messages.get(0).toString()).contains("did not finish");
+    verify(runningAnalysesTracker).cancel(uuid);
+    verify(checkInCallable, never()).getResults();
+  }
+
+  @Test
+  void lets_the_user_commit_anyway_when_the_analysis_does_not_finish_in_time() {
+    var uuid = stubAnalysisThatNeverFinishes();
+    TestDialogManager.setTestDialog(msg -> Messages.OK);
+
+    handler = new SonarLintCheckinHandler(getProject(), checkinProjectPanel, 300);
+    var result = handler.beforeCheckin(null, null);
+
+    assertThat(result).isEqualTo(CheckinHandler.ReturnResult.COMMIT);
+    verify(runningAnalysesTracker).cancel(uuid);
+  }
+
+  private UUID stubAnalysisThatNeverFinishes() {
+    var uuid = UUID.randomUUID();
+    var analysisState = new AnalysisState(uuid, checkInCallable, Collections.singleton(file), getModule(), TriggerType.CHECK_IN, null);
+    when(runningAnalysesTracker.getById(uuid)).thenReturn(analysisState);
+    when(checkInCallable.analysisSucceeded()).thenReturn(true);
+    when(checkInCallable.getResults()).thenReturn(List.of());
+    when(analysisSubmitter.analyzeFilesPreCommit(Collections.singleton(file)))
+      .thenReturn(Pair.of(checkInCallable, List.of(uuid)));
+    return uuid;
   }
 }

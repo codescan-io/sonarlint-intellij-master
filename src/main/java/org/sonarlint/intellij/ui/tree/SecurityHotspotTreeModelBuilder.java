@@ -73,6 +73,7 @@ public class SecurityHotspotTreeModelBuilder implements FindingTreeModelBuilder 
   private TreeSummary treeSummary;
   private List<LiveSecurityHotspotNode> nonFilteredNodes;
   private List<LiveSecurityHotspotNode> filteredNodes;
+  private volatile List<LiveSecurityHotspotNode> filteredNodesSnapshot = List.of();
 
   public SecurityHotspotTreeModelBuilder() {
     this.index = new FindingTreeIndex();
@@ -88,6 +89,7 @@ public class SecurityHotspotTreeModelBuilder implements FindingTreeModelBuilder 
     model.setRoot(summaryNode);
     nonFilteredNodes = new ArrayList<>();
     filteredNodes = new ArrayList<>();
+    filteredNodesSnapshot = List.of();
     return model;
   }
 
@@ -265,8 +267,9 @@ public class SecurityHotspotTreeModelBuilder implements FindingTreeModelBuilder 
     return false;
   }
 
+  // Read from the external annotator on a background thread, so hand out a copy that later filtering cannot change
   public Collection<LiveSecurityHotspotNode> getFilteredNodes() {
-    return filteredNodes;
+    return filteredNodesSnapshot;
   }
 
   private Collection<VirtualFile> getFilesForNodes() {
@@ -297,6 +300,7 @@ public class SecurityHotspotTreeModelBuilder implements FindingTreeModelBuilder 
         filteredNodes.add(securityHotspotNode);
       }
     }
+    filteredNodesSnapshot = List.copyOf(filteredNodes);
     model.reload();
     treeSummary.refresh(fileList.size(), filteredNodes.size());
     SonarLintUtils.getService(project, CodeAnalyzerRestarter.class).refreshFiles(fileList);
