@@ -36,6 +36,8 @@ done
 if [ -z "$SRC" ]; then
   SRC=$(cd "$(dirname "$0")/../.." && pwd)
 fi
+# "<tree>/" must give the same result as "<tree>": paths are built as "$SRC/..." and compared as text.
+while [ "${#SRC}" -gt 1 ] && [ "${SRC%/}" != "$SRC" ]; do SRC=${SRC%/}; done
 
 PLUGIN_XML="$SRC/src/main/resources/META-INF/plugin.xml"
 UTILS="$SRC/common/src/main/java/org/sonarlint/intellij/common/util/SonarLintUtils.java"
@@ -164,6 +166,9 @@ element_text() {
     index($0, "</" t ">") || $0 ~ /\/>/ { print out; exit }' "$1" | sed 's/[[:space:]][[:space:]]*/ /g; s/^ //'
 }
 
+# unzip reads the names it is given as patterns: [ ] * ? and \ are escaped so an entry name means only itself.
+zip_pat() { printf '%s' "$1" | sed 's/[][*?\\]/\\&/g'; }
+
 ZIP_ERR=""
 ZIP_DIR="$TMP/zip"
 prepare_zip() {
@@ -180,7 +185,7 @@ prepare_zip() {
       */lib/*.jar|lib/*.jar)
         jars=$((jars + 1))
         # Stream the one entry to a fixed file name: nothing from the zip decides where files are written.
-        if unzip -p "$ZIP" "$entry" > "$TMP/inner.jar" 2> /dev/null && unzip -Z1 "$TMP/inner.jar" > "$TMP/inner.lst" 2> /dev/null; then
+        if unzip -p "$ZIP" "$(zip_pat "$entry")" > "$TMP/inner.jar" 2> /dev/null && unzip -Z1 "$TMP/inner.jar" > "$TMP/inner.lst" 2> /dev/null; then
           cat "$TMP/inner.lst" >> "$TMP/entries.lst"
           has_pl=0; has_cls=0
           grep -qxF 'META-INF/plugin.xml' "$TMP/inner.lst" && has_pl=1
@@ -202,6 +207,9 @@ prepare_zip() {
     while IFS= read -r e; do unzip -p "$TMP/main.jar" "$e" > "$ZIP_DIR/$e" 2> /dev/null; done
   : > "$ZIP_DIR/SonarLintIcons.class"
   unzip -p "$TMP/main.jar" org/sonarlint/intellij/SonarLintIcons.class > "$ZIP_DIR/SonarLintIcons.class" 2> /dev/null
+  # '*.class' is the one place where the name is meant as a pattern (unlike zip_pat above).
+  : > "$ZIP_DIR/classes.bin"
+  unzip -p "$TMP/main.jar" '*.class' > "$ZIP_DIR/classes.bin" 2> /dev/null
   return 0
 }
 if [ -n "$ZIP" ]; then prepare_zip; fi
@@ -256,9 +264,33 @@ icon_mark_problems() {
 # upstream's names such as ICON_SONARQUBE_16, but they point at CodeScan images), so nothing is allowed here.
 # Only file-name characters are taken, so in a compiled class file the match stops at the next entry.
 SONAR_IMG_RE='/images/[A-Za-z0-9_./@-]*(sonarqube|sonarlint|sonarsource|sonarcloud)[A-Za-z0-9_./@-]*'
-brand_problems() {   # brand_problems <stripped SonarLintIcons.kt or class file>
-  bad=$(LC_ALL=C grep -aoiE "$SONAR_IMG_RE" "$1" | LC_ALL=C sort -u | tr '\n' ' ')
-  [ -z "$bad" ] || echo "SonarLintIcons refers to SonarSource-branded images: ${bad% }"
+# Any icon class may load an image, not only SonarLintIcons, so every source file and every class is searched.
+BRAND_RE='images/[A-Za-z0-9_./@-]*(sonarqube|sonarlint|sonarsource|sonarcloud)[A-Za-z0-9_./@-]*'
+brand_problems() {   # brand_problems <all classes of the main jar, one after the other>
+  bad=$(LC_ALL=C grep -aoiE "$BRAND_RE" "$1" | LC_ALL=C sort -u | tr '\n' ' ')
+  [ -z "$bad" ] || echo "a class in the main jar refers to SonarSource-branded images: ${bad% }"
+}
+# brand_tree_problems <output of strip_tree>: one "<file>: <image path>" per hit, comments already removed
+brand_tree_problems() {
+  awk -v p="$SRC/" '
+    /^@@FILE / { f = substr($0, 8); if (index(f, p) == 1) f = substr(f, length(p) + 1); next }
+    { s = tolower($0); o = $0
+      while (match(s, /images\/[a-z0-9_.\/@-]*(sonarqube|sonarlint|sonarsource|sonarcloud)[a-z0-9_.\/@-]*/)) {
+        hit[f ": " substr(o, RSTART, RLENGTH)] = 1
+        s = substr(s, RSTART + RLENGTH); o = substr(o, RSTART + RLENGTH)
+      } }
+    END { for (h in hit) print h }' "$1" | LC_ALL=C sort | awk 'NR == 1 { printf "source files refer to SonarSource-branded images: " } NR > 1 { printf ", " } { printf "%s", $0 } END { if (NR) print "" }'
+}
+# icon_value_problems <plugin xml file>...: an icon="..." that is an image path (not a SonarLintIcons field) must not name
+# SonarQube, SonarLint, SonarSource or SonarCloud.
+icon_value_problems() {
+  for x in "$@"; do
+    [ -f "$x" ] || continue
+    strip_xml "$x" | grep -oE 'icon="[^"]*"' | sed 's/^icon="//; s/"$//' |
+      awk -v f="${x##*/}" '{ v = tolower($0) }
+        (index(v, "/") || v ~ /\.(svg|png|gif|jpg)$/) && v ~ /(sonarqube|sonarlint|sonarsource|sonarcloud)/ {
+          print f " uses the SonarSource-branded icon " $0 }'
+  done | LC_ALL=C sort -u
 }
 
 # icon_field_problems <source|class> <icon code: stripped SonarLintIcons.kt, or the class file> <plugin xml file>...
@@ -309,18 +341,26 @@ check_p4_source() {
     strip_code "$kt" > "$TMP/icons.txt"
     p=$(icon_ref_problems "$TMP/icons.txt")
     [ -z "$p" ] || problems="$problems${problems:+; }$p"
-    p=$(brand_problems "$TMP/icons.txt")
-    [ -z "$p" ] || problems="$problems${problems:+; }$p"
     p=$(icon_field_problems source "$TMP/icons.txt" "$SRC"/src/main/resources/META-INF/plugin*.xml | join_problems)
   else
     p="SonarLintIcons.kt not found"
+  fi
+  [ -z "$p" ] || problems="$problems${problems:+; }$p"
+  p=$(icon_value_problems "$SRC"/src/main/resources/META-INF/plugin*.xml | join_problems)
+  [ -z "$p" ] || problems="$problems${problems:+; }$p"
+  set --
+  for d in "$SRC/src/main" "$SRC"/*/src/main; do [ -d "$d" ] && set -- "$@" "$d"; done
+  if ! strip_tree "$TMP/p4.all" "$@"; then
+    p="could not read the source files: $(head -1 "$TMP/strip.err")"
+  else
+    p=$(brand_tree_problems "$TMP/p4.all")
   fi
   [ -z "$p" ] || problems="$problems${problems:+; }$p"
   p=$(icon_mark_problems "$SRC/src/main/resources/META-INF" | join_problems)
   p=${p%$'\n'}
   [ -z "$p" ] || problems="$problems${problems:+; }$p"
   if [ -z "$problems" ]; then
-    pass P4 "CodeScan icon files are in the source tree, SonarLintIcons.kt uses them (and no SonarSource-branded image), plugin.xml icons point at CodeScan images and pluginIcon.svg is the CodeScan logo"
+    pass P4 "CodeScan icon files are in the source tree, SonarLintIcons.kt uses them, no source file and no icon="..." names a SonarSource-branded image, plugin.xml icons point at CodeScan images and pluginIcon.svg is the CodeScan logo"
   else
     fail P4 "$problems"
   fi
@@ -337,17 +377,19 @@ check_p4_zip() {
   if [ -s "$ZIP_DIR/SonarLintIcons.class" ]; then
     p=$(icon_ref_problems "$ZIP_DIR/SonarLintIcons.class")
     [ -z "$p" ] || problems="$problems${problems:+; }zip: $p"
-    p=$(brand_problems "$ZIP_DIR/SonarLintIcons.class")
-    [ -z "$p" ] || problems="$problems${problems:+; }zip: $p"
     p=$(icon_field_problems class "$ZIP_DIR/SonarLintIcons.class" "$ZIP_DIR"/META-INF/plugin*.xml | join_problems)
   else
     p="SonarLintIcons.class not found in the main jar"
   fi
   [ -z "$p" ] || problems="$problems${problems:+; }zip: $p"
+  p=$(brand_problems "$ZIP_DIR/classes.bin")
+  [ -z "$p" ] || problems="$problems${problems:+; }zip: $p"
+  p=$(icon_value_problems "$ZIP_DIR"/META-INF/plugin*.xml | join_problems)
+  [ -z "$p" ] || problems="$problems${problems:+; }zip: $p"
   p=$(icon_mark_problems "$ZIP_DIR/META-INF" | join_problems)
   [ -z "$p" ] || problems="$problems${problems:+; }zip: $p"
   if [ -z "$problems" ]; then
-    pass P4 "zip: CodeScan icon files are inside the plugin zip, SonarLintIcons uses them (and no SonarSource-branded image), plugin.xml icons point at CodeScan images and pluginIcon.svg is the CodeScan logo"
+    pass P4 "zip: CodeScan icon files are inside the plugin zip, SonarLintIcons uses them, no class and no icon="..." names a SonarSource-branded image, plugin.xml icons point at CodeScan images and pluginIcon.svg is the CodeScan logo"
   else
     fail P4 "$problems"
   fi
@@ -431,16 +473,35 @@ END {
   while (s > 1 && F[s - 1] == BS && !isfun(L[s])) s--
   if (!isfun(L[s])) { print "PROB cannot find the function that builds the SonarCloudAlternativeEnvironmentDto in BackendService.kt; check by hand and update this script"; exit }
   fn = L[s]; sub(/\(.*/, "", fn); sub(/.*[. >]/, "", fn); fn = trim(fn)
-  e = di
-  while (e < N && F[e + 1] == BS && !isfun(L[e + 1])) e++
-  hasws = 0; hasnull = 0; addr = 0
+  # The function ends where its braces close; one with no braces (fun f() = ...) runs up to the next fun.
+  e = 0; depth = 0; opened = 0
+  for (k = s; k <= N && F[k] == BS && !e; k++) {
+    t = L[k]; gsub(/"([^"\\]|\\.)*"/, "\"\"", t)
+    for (j = 1; j <= length(t); j++) {
+      ch = substr(t, j, 1)
+      if (ch == "{") { depth++; opened = 1 } else if (ch == "}") { depth--; if (opened && depth == 0) { e = k; break } }
+    }
+    if (!opened && k >= di) break
+  }
+  if (!e) { e = di; while (e < N && F[e + 1] == BS && !isfun(L[e + 1])) e++ }
+  # Any way of handing back null instead of the DTO: a nullable return type, a null value (return null, ?: return null,
+  # else null, null alone), or a call that yields null when its test fails (?.let/run/also/apply, takeIf, takeUnless).
+  # Comparisons with null (x != null) are allowed: the intended fix may test the websocket property.
+  nullk = 0; addr = 0
   for (k = s; k <= e; k++) {
-    if (L[k] ~ /sonarlint\.internal\.sonarcloud\.websocket\.url/) hasws = 1
-    if (L[k] ~ /(return|else)[[:space:]]+null([^A-Za-z0-9_]|$)/) hasnull = 1
+    t = L[k]; gsub(/"([^"\\]|\\.)*"/, "\"\"", t)
+    if (!nullk) {
+      u = t
+      gsub(/[!=]==?[[:space:]]*null([^A-Za-z0-9_]|$)/, " ", u)
+      gsub(/(^|[^A-Za-z0-9_])null[[:space:]]*[!=]==?/, " ", u)
+      if (t ~ /SonarCloudAlternativeEnvironmentDto[[:space:]]*\?/ || u ~ /(^|[^A-Za-z0-9_])null([^A-Za-z0-9_]|$)/ ||
+          t ~ /\?\.[[:space:]]*(let|run|also|apply|takeIf|takeUnless)([^A-Za-z0-9_]|$)/ || t ~ /\.[[:space:]]*(takeIf|takeUnless)[[:space:]]*[({]/)
+        nullk = k
+    }
     if (holds(L[k], BS)) addr = 1
   }
-  if (hasws && hasnull)
-    print "PROB " fn "() builds the SonarCloudAlternativeEnvironmentDto only when the websocket property sonarlint.internal.sonarcloud.websocket.url is set (otherwise it returns null), so the CodeScan address is dropped; it must always return the DTO with https://app.codescan.io"
+  if (nullk)
+    print "PROB " fn "() can return null instead of the SonarCloudAlternativeEnvironmentDto (" trim(L[nullk]) "); upstream returns null unless the websocket property sonarlint.internal.sonarcloud.websocket.url is set, and then the CodeScan address is dropped; it must always return the DTO with https://app.codescan.io"
   if (!addr)
     print "PROB " fn "() does not use https://app.codescan.io as the address of the SonarCloudAlternativeEnvironmentDto"
   ik = 0
@@ -490,63 +551,145 @@ EOF
 }
 
 check_p8() {
-  # Every call that adds the tab must sit inside an if (...isTaintVulnerabilitiesEnabled()) block, and that switch must return false.
+  # Every call that adds the tab (any arguments) must sit inside an if whose condition is a plain
+  # [Class.]isTaintVulnerabilitiesEnabled() test, alone or joined with && (an || or a comparison could turn the tab on).
+  # Every isTaintVulnerabilitiesEnabled() in src/main and common/src/main must return false, and the class a guard names
+  # must define one. In 10.x the backend has its own taint switch: BackendService.kt must also pass
+  # taintVulnerabilitiesEnabled = false and shouldManageServerSentEvents = false (upstream passes true for both).
   # Comments are removed first, so a commented-out guard or call does not count.
   # No call found means the code moved; FAIL so a person updates this check, instead of guessing PASS.
-  candidates=$(grep -rlE --include='*.java' --include='*.kt' 'addTaintVulnerabilitiesTab\(project' "$SRC/src/main" 2> /dev/null)
-  callers=""
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    if strip_code "$f" | grep -q 'addTaintVulnerabilitiesTab(project'; then callers="$callers$f
-"; fi
-  done <<EOF2
-$candidates
-EOF2
-  callers=${callers%?}
-  if [ -z "$callers" ]; then
-    fail P8 "cannot find the code that adds the taint tab (addTaintVulnerabilitiesTab(project...) in src/main, outside comments); check by hand and update this script"
+  set --
+  for d in "$SRC/src/main" "$SRC/common/src/main"; do [ -d "$d" ] && set -- "$@" "$d"; done
+  if [ $# -eq 0 ]; then fail P8 "no src/main or common/src/main folder"; return; fi
+  if ! strip_tree "$TMP/p8.all" "$@"; then
+    fail P8 "could not read the source files: $(head -1 "$TMP/strip.err")"
     return
   fi
-  unguarded=""
-  while IFS= read -r f; do
-    # Braces in strings are not special-cased; a wrong count can only produce a FAIL, never a false PASS.
-    lines=$(strip_code "$f" | awk '
-      {
-        line = $0
-        g = index(line, "isTaintVulnerabilitiesEnabled()")
-        c = index(line, "addTaintVulnerabilitiesTab(project")
-        is_guard = g && line ~ /if[[:space:]]*\(/ && line !~ /![[:space:]]*([A-Za-z_][A-Za-z0-9_]*\.)?isTaintVulnerabilitiesEnabled\(\)/
-        if (c && line !~ /(void|fun)[[:space:]]+addTaintVulnerabilitiesTab/ && !(top > 0 || next_guarded || (is_guard && g < c)))
-          print FNR
-        if (next_guarded && line ~ /^[[:space:]]*\{/) stack[++top] = depth
-        if (line ~ /[^[:space:]]/) next_guarded = 0
-        pushed = 0
-        for (k = 1; k <= length(line); k++) {
-          ch = substr(line, k, 1)
-          if (ch == "{") { if (is_guard && k > g && !pushed) { stack[++top] = depth; pushed = 1 } depth++ }
-          else if (ch == "}") { depth--; while (top > 0 && depth <= stack[top]) top-- }
-        }
-        if (is_guard && !pushed && line !~ /;[[:space:]]*$/) next_guarded = 1
-      }')
-    [ -n "$lines" ] && unguarded="$unguarded ${f#"$SRC"/}:$(echo $lines | tr ' ' ',')"
-  done <<EOF2
-$callers
-EOF2
-  if [ -n "$unguarded" ]; then
-    fail P8 "taint tab is added outside the isTaintVulnerabilitiesEnabled() switch at:$unguarded"
+  cat > "$TMP/p8.awk" <<'EOF'
+function base(path,   b) { b = path; sub(/.*\//, "", b); sub(/\.(java|kt)$/, "", b); return b }
+function rel(path) { return index(path, P) == 1 ? substr(path, length(P) + 1) : path }
+function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+function nostr(s) { gsub(/"([^"\\]|\\.)*"/, "\"\"", s); return s }
+# the text between the ( after "if" at position p and its matching ), or the rest of the line if it does not close
+function cond_at(s, p,   i, d, ch, out) {
+  i = index(substr(s, p), "("); if (!i) return ""
+  i += p - 1; d = 0; out = ""; CEND = length(s)
+  for (; i <= length(s); i++) {
+    ch = substr(s, i, 1)
+    if (ch == "(") { d++; if (d == 1) continue }
+    if (ch == ")") { d--; if (d == 0) { CEND = i; return out } }
+    out = out ch
+  }
+  return out
+}
+# sets Q to the switch the condition depends on ("C:Class" or "F:file"); returns 0 if it is not a safe guard
+function safe(c, f,   n, parts, k, t) {
+  if (index(c, "||")) return 0
+  n = split(c, parts, "&&")
+  for (k = 1; k <= n; k++) {
+    t = trim(parts[k])
+    while (t ~ /^\(.*\)$/) t = trim(substr(t, 2, length(t) - 2))
+    if (t ~ /^([A-Za-z_][A-Za-z0-9_]*\.)*isTaintVulnerabilitiesEnabled\(\)$/) {
+      if (t ~ /\./) { sub(/\.isTaintVulnerabilitiesEnabled\(\)$/, "", t); sub(/.*\./, "", t); Q = "C:" t } else Q = "F:" f
+      return 1
+    }
+  }
+  return 0
+}
+/^@@FILE / {
+  file = substr($0, 8); depth = 0; top = 0; ng = 0; ln = 0
+  if (file ~ /\/BackendService\.kt$/ && BS == "") BS = file
+  next
+}
+{
+  N++; L[N] = $0; F[N] = file; FL[N] = ++ln
+  line = nostr($0)
+  guard = 0; gq = ""; gend = 0; gtext = ""
+  if (match(line, /(^|[^A-Za-z0-9_])if[[:space:]]*\(/) && index(line, "isTaintVulnerabilitiesEnabled")) {
+    c = cond_at(line, RSTART); gend = CEND; gtext = trim(c)
+    guard = safe(c, file) ? 1 : -1
+    gq = guard > 0 ? Q : ""
+  }
+  if (match(line, /addTaintVulnerabilitiesTab[[:space:]]*\(/) && line !~ /(void|fun)[[:space:]]+addTaintVulnerabilitiesTab/) {
+    cpos = RSTART; ncalls++
+    ok = 0; why = ""
+    for (k = 1; k <= top; k++) { if (SQ[k] != "") { ok = 1; USED[SQ[k]] = 1 } else why = ST[k] }
+    if (ng > 0) { ok = 1; USED[ngq] = 1 } else if (ng < 0) why = ngt
+    if (guard && gend && gend < cpos) { if (guard > 0) { ok = 1; USED[gq] = 1 } else why = gtext }
+    if (!ok) print "UNGUARDED " rel(file) ":" ln (why != "" ? " (its if (" why ") is not a plain isTaintVulnerabilitiesEnabled() test)" : "")
+  }
+  if (ng && line ~ /^[[:space:]]*\{/) { top++; SD[top] = depth; SQ[top] = ngq; ST[top] = ngt }
+  if (line ~ /[^[:space:]]/) ng = 0
+  pushed = 0
+  for (k = 1; k <= length(line); k++) {
+    ch = substr(line, k, 1)
+    if (ch == "{") {
+      if (guard && k > gend && !pushed) { top++; SD[top] = depth; SQ[top] = gq; ST[top] = gtext; pushed = 1 }
+      depth++
+    } else if (ch == "}") { depth--; while (top > 0 && depth <= SD[top]) top-- }
+  }
+  if (guard && !pushed && line !~ /;[[:space:]]*$/) { ng = guard; ngq = gq; ngt = gtext }
+}
+END {
+  if (!ncalls) print "NOCALL"
+  for (i = 1; i <= N; i++) {
+    if (L[i] !~ /(boolean|fun)[[:space:]]+isTaintVulnerabilitiesEnabled[[:space:]]*\(/) continue
+    DEFC[base(F[i])] = 1; DEFF[F[i]] = 1
+    t = nostr(L[i]); sub(/.*isTaintVulnerabilitiesEnabled[[:space:]]*\(/, "", t)
+    if (t ~ /^[^{]*=[[:space:]]*false[[:space:]]*;?[[:space:]]*$/) continue
+    body = ""; d = 0; opened = 0; fin = 0
+    for (j = i; j <= N && F[j] == F[i] && !fin; j++) {
+      s = (j == i) ? t : nostr(L[j])
+      for (k = 1; k <= length(s); k++) {
+        ch = substr(s, k, 1)
+        if (ch == "{") { d++; if (d == 1 && !opened) { opened = 1; continue } }
+        else if (ch == "}") { d--; if (opened && d == 0) { fin = 1; break } }
+        if (opened) body = body ch
+      }
+      if (opened) body = body " "
+      if (!opened && s ~ /;[[:space:]]*$/) break
+    }
+    body = trim(body); gsub(/[[:space:]]+/, " ", body)
+    if (body != "return false;" && body != "return false")
+      print "DEFBAD " rel(F[i]) ":" FL[i] " isTaintVulnerabilitiesEnabled() does not return false (body: '" body "')"
+  }
+  for (u in USED) {
+    if (u ~ /^C:/ && !(substr(u, 3) in DEFC)) print "NODEF " substr(u, 3) ".isTaintVulnerabilitiesEnabled() is not defined in src/main or common/src/main, so I cannot tell that it returns false"
+    if (u ~ /^F:/ && !(substr(u, 3) in DEFF)) print "NODEF isTaintVulnerabilitiesEnabled() is not defined in " rel(substr(u, 3)) ", so I cannot tell that it returns false"
+  }
+  if (BS == "") { print "FLAG cannot find BackendService.kt to read the backend feature flags; check by hand and update this script"; exit }
+  for (i = 1; i <= N; i++)
+    if (F[i] == BS && L[i] ~ /^[[:space:]]*import[[:space:]].*core\.clientapi\.backend\.initialize\.InitializeParams/) exit
+  split("taintVulnerabilitiesEnabled shouldManageServerSentEvents", flags, " ")
+  for (k = 1; k <= 2; k++) {
+    fl = flags[k]; seen = 0
+    for (i = 1; i <= N; i++) {
+      if (F[i] != BS) continue
+      s = L[i]
+      while (match(s, "(^|[^A-Za-z0-9_])" fl "[[:space:]]*=[^=]")) {
+        s = substr(s, RSTART + RLENGTH - 1); seen++
+        v = s; sub(/[,)].*/, "", v); v = trim(v)
+        if (v != "false") print "FLAG BackendService.kt:" FL[i] " passes " fl " = " v " to the backend; it must be false"
+      }
+    }
+    if (!seen) print "FLAG BackendService.kt does not pass " fl " = false to the backend (upstream 10.x passes true); check by hand and update this script"
+  }
+}
+EOF
+  awk -v P="$SRC/" -f "$TMP/p8.awk" "$TMP/p8.all" > "$TMP/p8.out" 2> "$TMP/p8.err" || { fail P8 "could not search the source: $(head -1 "$TMP/p8.err")"; return; }
+  if grep -q '^NOCALL' "$TMP/p8.out"; then
+    fail P8 "cannot find the code that adds the taint tab (addTaintVulnerabilitiesTab(...) in src/main or common/src/main, outside comments); check by hand and update this script"
     return
   fi
-  if [ ! -f "$UTILS" ]; then
-    fail P8 "cannot find ${UTILS#"$SRC"/} to read isTaintVulnerabilitiesEnabled()"
-    return
-  fi
-  body=$(strip_code "$UTILS" | awk '/boolean isTaintVulnerabilitiesEnabled\(\)/ { f = 1; next }
-              f && /^[[:space:]]*}/ { exit }
-              f { gsub(/^[[:space:]]+|[[:space:]]+$/, ""); if ($0 != "") print }')
-  if [ "$body" = "return false;" ]; then
-    pass P8 "taint tab is not registered (isTaintVulnerabilitiesEnabled() returns false)"
+  probs=""
+  ung=$(sed -n 's/^UNGUARDED //p' "$TMP/p8.out" | join_problems)
+  [ -z "$ung" ] || probs="taint tab is added outside a safe isTaintVulnerabilitiesEnabled() switch at: $ung"
+  rest=$(sed -n 's/^NODEF //p; s/^DEFBAD //p; s/^FLAG //p' "$TMP/p8.out" | join_problems)
+  [ -z "$rest" ] || probs="$probs${probs:+; }$rest"
+  if [ -n "$probs" ]; then
+    fail P8 "taint vulnerabilities can be turned on: $probs"
   else
-    fail P8 "taint tab is registered: isTaintVulnerabilitiesEnabled() body is '$(echo $body)'"
+    pass P8 "taint tab is not registered (every guard's isTaintVulnerabilitiesEnabled() returns false) and the backend does not turn taint on"
   fi
 }
 
@@ -558,24 +701,36 @@ check_p9() {
     fail P9 "HEADER first line is '$first', expected 'CodeScan for IntelliJ IDEA'"
     return
   fi
-  # The license plugin (SLASHSTAR_STYLE) writes HEADER as a /* ... */ block at the top of each file.
+  # The license plugin writes HEADER as a /* ... */ block (SLASHSTAR_STYLE) at the top of .java/.kt files, and as an
+  # <!-- ... --> block (XML_STYLE: lines indented by 4 spaces, an empty line after <!-- and before -->) at the top of
+  # .svg/.form files, after an <?xml ...?> line if there is one.
   awk 'BEGIN { print "/*" } { sub(/\r$/, ""); if ($0 == "") print " *"; else print " * " $0 } END { print " */" }' "$header" > "$TMP/expected"
-  # Same scope as the license check in build.gradle.kts: java/kt files in the source folders of the root module and
-  # each sub-module. Test data and its/projects/ sample projects are not source folders. Generated protobuf code is
-  # written to build/generated/..., and every folder called build is skipped, so no path-name exclusion is needed:
-  # a hand-written file in a folder that happens to be called "proto" must still carry the header.
-  find "$SRC" \( -name build -o -name .gradle -o -name .git -o -name .worktrees -o -name node_modules \) -prune -o \
-    -type f \( -name '*.java' -o -name '*.kt' \) -print |
-    awk -v p="$SRC/" 'index($0, p) == 1 && substr($0, length(p) + 1) ~ /^([^\/]+\/)?src\/(main|test)\/(java|kotlin)\//' > "$TMP/files"
+  awk 'BEGIN { print "<!--"; print "" } { sub(/\r$/, ""); if ($0 == "") print ""; else print "    " $0 } END { print ""; print "-->" }' "$header" > "$TMP/expected.xml"
+  # Same scope as the license check in build.gradle.kts: the source folders of the root module and each sub-module,
+  # with its mapping (java, kt, svg, form) and its excludes (**/proto/*.java). Test data and its/projects/ sample
+  # projects are not source folders. Only <tree>/build and <tree>/<module>/build (the build output) are skipped, not
+  # every folder called build: find's -path "*" also matches "/", hence the second -path.
+  (cd "$SRC" && find . \( -path ./build -o \( -path './*/build' ! -path './*/*/build' \) -o -name .gradle -o -name .git \
+    -o -name .worktrees -o -name node_modules \) -prune -o \
+    -type f \( -name '*.java' -o -name '*.kt' -o -name '*.svg' -o -name '*.form' \) -print) |
+    awk -v p="$SRC/" '{ r = substr($0, 3) }
+      r ~ /\.(java|kt)$/ && r ~ /^([^\/]+\/)?src\/(main|test)\/(java|kotlin)\// && r !~ /(^|\/)proto\/[^\/]*\.java$/ { print p r; next }
+      r ~ /\.(svg|form)$/ && r ~ /^([^\/]+\/)?src\/(main|test)\// { print p r }' > "$TMP/files"
   total=$(awk 'END { print NR }' "$TMP/files")
-  if [ "$total" -eq 0 ]; then fail P9 "no .java/.kt files found under $SRC"; return; fi
+  if [ "$total" -eq 0 ]; then fail P9 "no .java/.kt/.svg/.form files found under $SRC"; return; fi
   # xargs exits non-zero if awk fails on any batch; a crash must never read as "no bad files".
-  if ! tr '\n' '\0' < "$TMP/files" | xargs -0 awk -v expfile="$TMP/expected" '
-    BEGIN { n = 0; while ((getline line < expfile) > 0) want[++n] = line; if (n < 3) exit 3 }
-    function finish() { if (cur != "" && !bad && matched < n) print cur }
-    FNR == 1 { finish(); cur = FILENAME; bad = 0; matched = 0 }
+  if ! tr '\n' '\0' < "$TMP/files" | xargs -0 awk -v expfile="$TMP/expected" -v xmlfile="$TMP/expected.xml" '
+    BEGIN {
+      n = 0; while ((getline line < expfile) > 0) want[++n] = line
+      m = 0; while ((getline line < xmlfile) > 0) wantx[++m] = line
+      if (n < 3 || m < 5) exit 3
+    }
+    function finish() { if (cur != "" && !bad && matched < need) print cur }
+    FNR == 1 { finish(); cur = FILENAME; bad = 0; matched = 0; off = 0; xml = (FILENAME ~ /\.(svg|form)$/); need = xml ? m : n }
     bad { next }
-    FNR <= n { sub(/\r$/, ""); if ($0 == want[FNR]) matched++; else { bad = 1; print FILENAME } }
+    { sub(/\r$/, "") }
+    FNR == 1 && xml && /^<\?xml/ { off = 1; next }
+    FNR - off <= need { if ($0 == (xml ? wantx[FNR - off] : want[FNR])) matched++; else { bad = 1; print FILENAME } }
     END { finish() }' > "$TMP/bad" 2> "$TMP/awk.err"; then
     fail P9 "could not compare headers: $(head -1 "$TMP/awk.err")"
     return
@@ -586,7 +741,7 @@ check_p9() {
   done < "$TMP/files"
   nbad=$(awk 'END { print NR }' "$TMP/bad")
   if [ "$nbad" -eq 0 ]; then
-    pass P9 "license header matches HEADER in all $total .java/.kt files"
+    pass P9 "license header matches HEADER in all $total .java/.kt/.svg/.form files"
   else
     list=$(head -5 "$TMP/bad" | awk -v p="$SRC/" 'index($0, p) == 1 { $0 = substr($0, length(p) + 1) } { print }' | tr '\n' ' ')
     fail P9 "license header differs from HEADER (or the file is empty) in $nbad of $total files, e.g. $list"
@@ -598,7 +753,9 @@ check_p9() {
 # plugin-*.xml that plugin.xml loads with config-file="...". A file that plugin.xml does not load, such as
 # plugin-clion.xml in 7.2.3, is never read by the IDE and is not checked.
 # plugin-git.xml is left out on purpose: 7.2.3 has the old namespace there (row P33, a known bug that Task 5 fixes), and
-# the script's baseline is that 7.2.3 passes. Add it here once P33 is fixed.
+# the script's baseline is that 7.2.3 passes. Each time it is left out, the line SKIPGIT is printed, and the caller turns
+# it into a WARN line, so the skip cannot be forgotten. Remove the skip once P33 is fixed.
+GIT_SKIP_NOTE="plugin-git.xml is not checked: known bug, row P33 (Task 5 fixes it; remove this skip then)"
 ns_problems() {
   files="plugin-java.xml $(grep -oE 'config-file="[^"]*"' "$2" | sed 's/^config-file="\(.*\)"$/\1/' | tr '\n' ' ')"
   seen=" "
@@ -606,7 +763,7 @@ ns_problems() {
     case "$seen" in *" $f "*) continue ;; esac
     seen="$seen$f "
     case "$f" in */*) echo "$f: plugin.xml names a config file with a path; check by hand"; continue ;; esac
-    [ "$f" = "plugin-git.xml" ] && continue
+    if [ "$f" = "plugin-git.xml" ]; then echo SKIPGIT; continue; fi
     if [ ! -f "$1/$f" ]; then echo "$f is loaded by plugin.xml but not found"; continue; fi
     strip_xml "$1/$f" | grep -oE 'defaultExtensionNs="[^"]*"' | sed 's/^defaultExtensionNs="\(.*\)"$/\1/' > "$TMP/ns.list"
     old=$(grep -E '^org\.sonarlint\.' "$TMP/ns.list" | sort -u | tr '\n' ' ')
@@ -627,6 +784,20 @@ check_p32() {
     fail P32 "could not read the source files in common/src/main: $(head -1 "$TMP/strip.err")"
     return
   fi
+  # A name passed as a constant or expression is not followed (that would need a Java/Kotlin parser): it fails, so
+  # every extension point name must be written as a string literal where it is created.
+  nonlit=$(awk -v p="$SRC/" '
+    /^@@FILE / { f = substr($0, 8); if (index(f, p) == 1) f = substr(f, length(p) + 1); ln = 0; next }
+    { s = $0; ln++
+      while (match(s, /ExtensionPointName(\.create)?(<[^>]*>)?\(/)) {
+        a = substr(s, RSTART + RLENGTH); s = a
+        sub(/^[[:space:]]+/, "", a)
+        if (substr(a, 1, 1) != "\"") { sub(/\).*/, "", a); print f ":" ln " (" a ")" }
+      } }' "$TMP/ep.code" | join_problems)
+  if [ -n "$nonlit" ]; then
+    fail P32 "extension point name is not a string literal, so I cannot check its prefix (constants are not followed): $nonlit"
+    return
+  fi
   grep -oE 'ExtensionPointName(\.create)?(<[^>]*>)?\([[:space:]]*"[^"]*"' "$TMP/ep.code" |
     sed 's/.*"\([^"]*\)"$/\1/' > "$TMP/ep.names"
   for x in "$SRC"/src/main/resources/META-INF/plugin*.xml; do
@@ -643,14 +814,13 @@ check_p32() {
     return
   fi
   strip_xml "$PLUGIN_XML" > "$TMP/src-plugin.xml"
-  problems=$(ns_problems "$SRC/src/main/resources/META-INF" "$TMP/src-plugin.xml" | join_problems)
-  note=""
-  grep -q 'config-file="plugin-git.xml"' "$TMP/src-plugin.xml" &&
-    note="; plugin-git.xml is not checked: known bug, row P33 (Task 5 fixes it)"
+  ns_problems "$SRC/src/main/resources/META-INF" "$TMP/src-plugin.xml" > "$TMP/ns.out"
+  grep -qx SKIPGIT "$TMP/ns.out" && echo "WARN P32 $GIT_SKIP_NOTE"
+  problems=$(grep -vx SKIPGIT "$TMP/ns.out" | join_problems)
   if [ -z "$problems" ]; then
-    pass P32 "all $total extension point names start with $prefix; plugin-java.xml and the other loaded plugin-*.xml register under com.code-scan.intellij$note"
+    pass P32 "all $total extension point names start with $prefix; plugin-java.xml and the other loaded plugin-*.xml register under com.code-scan.intellij"
   else
-    fail P32 "$problems$note"
+    fail P32 "$problems"
   fi
 }
 
@@ -658,7 +828,9 @@ check_p32_zip() {
   [ -n "$ZIP" ] || return 0
   if [ -n "$ZIP_ERR" ]; then fail P32 "zip: $ZIP_ERR"; return; fi
   strip_xml "$ZIP_DIR/META-INF/plugin.xml" > "$TMP/zip-plugin.xml"
-  problems=$(ns_problems "$ZIP_DIR/META-INF" "$TMP/zip-plugin.xml" | join_problems)
+  ns_problems "$ZIP_DIR/META-INF" "$TMP/zip-plugin.xml" > "$TMP/ns.out"
+  grep -qx SKIPGIT "$TMP/ns.out" && echo "WARN P32 zip: $GIT_SKIP_NOTE"
+  problems=$(grep -vx SKIPGIT "$TMP/ns.out" | join_problems)
   if [ -z "$problems" ]; then
     pass P32 "zip: plugin-java.xml and the other loaded plugin-*.xml register under com.code-scan.intellij"
   else

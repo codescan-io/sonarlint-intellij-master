@@ -138,8 +138,9 @@ stage_jar() {
 pack_zip() {
   d=$(mktemp -d "$WORK/zip.XXXXXX")
   mkdir -p "$d/plugin/CodeScan/lib"
-  (cd "$1" && zip -qr "$d/plugin/CodeScan/lib/codescan-intellij-7.3.0.jar" .)
-  (cd "$d/plugin/CodeScan/lib" && echo x > other.txt && zip -q other.jar other.txt && rm other.txt)
+  (cd "$1" && zip -qr "$d/plugin/CodeScan/lib/${JARNAME:-codescan-intellij-7.3.0.jar}" .)
+  (cd "$d/plugin/CodeScan/lib" && echo x > other.txt && zip -q other.jar other.txt && rm other.txt &&
+    if [ -n "${EXTRAJAR:-}" ]; then cp other.jar "$EXTRAJAR"; fi)
   rm -f "$2"
   (cd "$d/plugin" && zip -qr "$2" CodeScan)
 }
@@ -369,11 +370,15 @@ rm -rf "$CASE"
 new_case p4-icons-code
 { head -19 "$CASE/$PIC"; tail -n +20 "$UPICONS"; } > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$PIC"
 expect_rows p4-icons-code P4
+# The same for the plugin icons: the header of CodeScan's pluginIcon.svg (7.2.3 has no dark one), then upstream's image.
+svg_with_our_header() {
+  { awk '{ print } /^-->/ { exit }' "$CASE/$META/pluginIcon.svg"; awk 'seen { print } /^-->/ { seen = 1 }' "$UP/$META/$1"; } > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$META/$1"
+}
 new_case p4-plugin-icon
-cp "$UP/$META/pluginIcon.svg" "$CASE/$META/pluginIcon.svg"
+svg_with_our_header pluginIcon.svg
 expect_rows p4-plugin-icon P4
 new_case p4-plugin-icon-dark
-cp "$UP/$META/pluginIcon_dark.svg" "$CASE/$META/pluginIcon_dark.svg"
+svg_with_our_header pluginIcon_dark.svg
 expect_rows p4-plugin-icon-dark P4
 new_case p4-icons-code-one-path
 case_sed $PIC 's|"/images/CodeScanToolWindow.svg"|"/images/sonarlint-toolwindow.svg"|'
@@ -422,17 +427,22 @@ case_sed $META/plugin.xml 's:<depends optional="true" config-file="plugin-git.xm
 expect_rows p32-other-loaded P32
 # plugin-git.xml has the old name in 7.2.3 on purpose (row P33, Task 5 fixes it): it must not fail P32, and the output must say so.
 run_check p32-git-note "$PRE"
-expect_line p32-git-note "^PASS P32 .*plugin-git.xml.*P33"
+expect_line p32-git-note "^WARN P32 plugin-git.xml is not checked: .*P33"
+expect_line p32-git-note "^PASS P32 "
 
 # 8. P9: an empty source file has no header.
 new_case p9-empty
 : > "$CASE/src/main/java/org/sonarlint/intellij/EmptyThing.java"
 expect_rows p9-empty P9
-# 9. P9: hand-written code in a folder called proto still needs the header. (Generated code is in build/, which is skipped.)
+# 9. P9 skips **/proto/*.java, as the build's license check does (build.gradle.kts excludes it), but not deeper folders.
 new_case p9-proto-dir
 mkdir -p "$CASE/src/main/java/org/sonarlint/intellij/proto"
 printf 'package org.sonarlint.intellij.proto;\nclass Handwritten {}\n' > "$CASE/src/main/java/org/sonarlint/intellij/proto/Handwritten.java"
-expect_rows p9-proto-dir P9
+expect_rows p9-proto-dir -
+new_case p9-proto-subdir
+mkdir -p "$CASE/src/main/java/org/sonarlint/intellij/proto/sub"
+printf 'package org.sonarlint.intellij.proto.sub;\nclass Handwritten {}\n' > "$CASE/src/main/java/org/sonarlint/intellij/proto/sub/Handwritten.java"
+expect_rows p9-proto-subdir P9
 new_case p9-generated-skipped
 mkdir -p "$CASE/build/generated/source/proto/main/java"
 printf 'package x;\nclass Gen {}\n' > "$CASE/build/generated/source/proto/main/java/Gen.java"
@@ -548,9 +558,10 @@ if command -v zip > /dev/null 2>&1; then
 fi
 
 # 3. One upstream file in an otherwise CodeScan tree.
+# Upstream's file also turns taint and server events on in the backend flags, so P8 fails too.
 new_case p5-up-backendservice
 put_up $BS
-expect_rows p5-up-backendservice P5
+expect_rows p5-up-backendservice "P5 P8"
 new_case p32-up-filescontributor
 put_up $FCONTRIB
 expect_rows p32-up-filescontributor P32
@@ -619,6 +630,205 @@ if command -v zip > /dev/null 2>&1; then
   run_check zip-no-version --zip "$WORK/good.zip" "$CASE"
   expect_line zip-no-version '^FAIL P1 .*version'
   rm -rf "$CASE"
+fi
+
+# set_alt_env_body <body file>: in $CASE (an upstream copy), replace getSonarCloudAlternativeEnvironment() with the
+# function in <body file> (from its "private fun" line to its closing "    }").
+set_alt_env_body() {
+  awk -v bf="$1" '/private fun getSonarCloudAlternativeEnvironment\(\)/ {
+         while ((getline l < bf) > 0) print l
+         skip = 1; next }
+       skip && /^    }/ { skip = 0; next }
+       skip { next }
+       { print }' "$CASE/$BS" > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$BS"
+}
+# P5: each way of returning null instead of the DTO must fail.
+cat > "$WORK/body-let.kt" <<'EOF'
+    private fun getSonarCloudAlternativeEnvironment(): SonarCloudAlternativeEnvironmentDto? {
+        val sonarCloudUrl = System.getProperty("sonarlint.internal.sonarcloud.url") ?: "https://app.codescan.io"
+        val ws = System.getProperty("sonarlint.internal.sonarcloud.websocket.url")
+        return ws?.let { SonarCloudAlternativeEnvironmentDto(URI.create(sonarCloudUrl), URI.create(it)) }
+    }
+EOF
+cat > "$WORK/body-env.kt" <<'EOF'
+    private fun getSonarCloudAlternativeEnvironment(): SonarCloudAlternativeEnvironmentDto? {
+        val ws = System.getenv("CODESCAN_WS") ?: return null
+        return SonarCloudAlternativeEnvironmentDto(URI.create("https://app.codescan.io"), URI.create(ws))
+    }
+EOF
+cat > "$WORK/body-takeif.kt" <<'EOF'
+    private fun getSonarCloudAlternativeEnvironment(): SonarCloudAlternativeEnvironmentDto? {
+        val sonarCloudUrl = System.getProperty("sonarlint.internal.sonarcloud.url") ?: "https://app.codescan.io"
+        val sonarCloudWebSocketUrl = System.getProperty("sonarlint.internal.sonarcloud.websocket.url")
+        return SonarCloudAlternativeEnvironmentDto(URI.create(sonarCloudUrl), URI.create(sonarCloudWebSocketUrl ?: "")).takeIf { sonarCloudWebSocketUrl != null }
+    }
+EOF
+cat > "$WORK/body-ifexpr.kt" <<'EOF'
+    private fun getSonarCloudAlternativeEnvironment(): SonarCloudAlternativeEnvironmentDto? {
+        val sonarCloudUrl = System.getProperty("sonarlint.internal.sonarcloud.url") ?: "https://app.codescan.io"
+        val sonarCloudWebSocketUrl = System.getProperty("sonarlint.internal.sonarcloud.websocket.url")
+        return if (sonarCloudWebSocketUrl == null) {
+            null
+        } else SonarCloudAlternativeEnvironmentDto(URI.create(sonarCloudUrl), URI.create(sonarCloudWebSocketUrl))
+    }
+EOF
+# the same null branches, but with a non-null return type (each pattern must fail on its own)
+sed 's/SonarCloudAlternativeEnvironmentDto? {/SonarCloudAlternativeEnvironmentDto {/' "$WORK/body-let.kt" > "$WORK/body-let-nn.kt"
+sed 's/SonarCloudAlternativeEnvironmentDto? {/SonarCloudAlternativeEnvironmentDto {/' "$WORK/body-ifexpr.kt" > "$WORK/body-ifexpr-nn.kt"
+# a nullable return type alone is enough to fail
+cat > "$WORK/body-nullable-type.kt" <<'EOF'
+    private fun getSonarCloudAlternativeEnvironment(): SonarCloudAlternativeEnvironmentDto? {
+        val sonarCloudWebSocketUrl = System.getProperty("sonarlint.internal.sonarcloud.websocket.url") ?: "wss://app.codescan.io/ws"
+        return SonarCloudAlternativeEnvironmentDto(URI.create("https://app.codescan.io"), URI.create(sonarCloudWebSocketUrl))
+    }
+EOF
+# the intended fix may still compare with null; that is not a null branch
+cat > "$WORK/body-fixed-compare.kt" <<'EOF'
+    private fun getSonarCloudAlternativeEnvironment(): SonarCloudAlternativeEnvironmentDto {
+        val ws = System.getProperty("sonarlint.internal.sonarcloud.websocket.url")
+        val wsUri = if (ws != null) URI.create(ws) else URI.create("wss://app.codescan.io/ws")
+        return SonarCloudAlternativeEnvironmentDto(URI.create(System.getProperty("sonarlint.internal.sonarcloud.url", "https://app.codescan.io")), wsUri)
+    }
+EOF
+for b in let env takeif ifexpr let-nn ifexpr-nn nullable-type; do
+  new_case "p5-body-$b" up
+  set_alt_env_body "$WORK/body-$b.kt"
+  expect_row_line "p5-body-$b" FAIL P5 ".*getSonarCloudAlternativeEnvironment\(\) can return null"
+done
+new_case p5-body-fixed-compare up
+set_alt_env_body "$WORK/body-fixed-compare.kt"
+expect_row_line p5-body-fixed-compare PASS P5
+
+# Built on fix_backend, which passes P5 (p5-backend-fixed), so only the one defect can make P5 fail.
+new_case url-unused-const up
+fix_backend
+case_sed $BS 's|?: "https://app.codescan.io"|?: "https://sonarcloud.io"|'
+printf 'package org.sonarlint.intellij;\nclass Unused { static final String URL = "https://app.codescan.io"; }\n' > "$CASE/src/main/java/org/sonarlint/intellij/Unused.java"
+expect_row_line url-unused-const FAIL P5 ".*does not use https://app.codescan.io as the address"
+# A default in getProperty alone is not the Redo: with upstream's null branch left in, P5 must name the null branch.
+new_case url-redo-form up
+case_sed $BS 's|getProperty("sonarlint.internal.sonarcloud.url")|getProperty("sonarlint.internal.sonarcloud.url", "https://app.codescan.io")|'
+expect_row_line url-redo-form FAIL P5 ".*can return null"
+new_case url-redo-form-ok up
+fix_backend
+case_sed $BS 's|getProperty("sonarlint.internal.sonarcloud.url") ?: "https://app.codescan.io"|getProperty("sonarlint.internal.sonarcloud.url", "https://app.codescan.io")|'
+expect_row_line url-redo-form-ok PASS P5
+
+# P8: any arguments, an always-true guard, and a switch in another class.
+new_case p8a
+awk '{ print } /addLogTab\(project, toolWindow\);/ { print "    addTaintVulnerabilitiesTab(toolWindow.getProject(), contentManager);" }' "$CASE/$TOOLWIN" > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$TOOLWIN"
+expect_rows p8a P8
+new_case p8b
+case_sed $TOOLWIN 's/if (SonarLintUtils.isTaintVulnerabilitiesEnabled()) {/if (SonarLintUtils.isTaintVulnerabilitiesEnabled() || true) {/'
+expect_rows p8b P8
+new_case p8-not-false
+case_sed $TOOLWIN 's/if (SonarLintUtils.isTaintVulnerabilitiesEnabled()) {/if (SonarLintUtils.isTaintVulnerabilitiesEnabled() == false) {/'
+expect_rows p8-not-false P8
+new_case p8c
+case_sed $TOOLWIN 's/if (SonarLintUtils.isTaintVulnerabilitiesEnabled()) {/if (TaintSwitch.isTaintVulnerabilitiesEnabled()) {/'
+expect_rows p8c P8
+# p8c with a TaintSwitch class: it must return false too
+taint_switch() {   # taint_switch <return value>
+  { head -19 "$CASE/$TOOLWIN"; printf 'package org.sonarlint.intellij.ui;\nclass TaintSwitch {\n  static boolean isTaintVulnerabilitiesEnabled() {\n    return %s;\n  }\n}\n' "$1"; } > "$CASE/src/main/java/org/sonarlint/intellij/ui/TaintSwitch.java"
+  case_sed $TOOLWIN 's/if (SonarLintUtils.isTaintVulnerabilitiesEnabled()) {/if (TaintSwitch.isTaintVulnerabilitiesEnabled()) {/'
+}
+new_case p8c-true
+taint_switch true
+expect_rows p8c-true P8
+new_case p8c-false
+taint_switch false
+expect_rows p8c-false -
+# an extra condition joined with && keeps the tab off
+new_case p8-and-guard
+case_sed $TOOLWIN 's/if (SonarLintUtils.isTaintVulnerabilitiesEnabled()) {/if (SonarLintUtils.isTaintVulnerabilitiesEnabled() \&\& project != null) {/'
+expect_rows p8-and-guard -
+# 10.x backend feature flags: upstream turns taint and server-sent events on; CodeScan must turn both off.
+taint_off_up() { case_sed common/src/main/java/org/sonarlint/intellij/common/util/SonarLintUtils.java '/isTaintVulnerabilitiesEnabled()/,/}/s/return !isCLion() && !isGoIde();/return false;/'; }
+new_case p8-flags-upstream up
+taint_off_up
+expect_row_line p8-flags-upstream FAIL P8 ".*taintVulnerabilitiesEnabled"
+new_case p8-flags-sse up
+taint_off_up
+case_sed $BS 's/taintVulnerabilitiesEnabled = true,/taintVulnerabilitiesEnabled = false,/'
+expect_row_line p8-flags-sse FAIL P8 ".*shouldManageServerSentEvents"
+new_case p8-flags-fixed up
+taint_off_up
+case_sed $BS 's/taintVulnerabilitiesEnabled = true,/taintVulnerabilitiesEnabled = false,/; s/shouldManageServerSentEvents = true,/shouldManageServerSentEvents = false,/'
+expect_row_line p8-flags-fixed PASS P8
+
+# P4: branded image paths in any icon="..." value and in any source file, not only SonarLintIcons.
+new_case p4a
+case_sed $META/plugin.xml 's|icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION"|icon="/images/sonarqube_for_intellij_13px.svg"|g'
+# the image itself carries the CodeScan header here, so only P4 reacts (the reviewer's copy of upstream's image also fails P9)
+cp "$CASE/src/main/resources/images/CodeScanAction.svg" "$CASE/src/main/resources/images/sonarqube_for_intellij_13px.svg"
+expect_rows p4a P4
+traffic_icons() {   # traffic_icons <dir under the tree>
+  mkdir -p "$CASE/$1"
+  { head -19 "$PRE/$PIC"; printf 'package org.sonarlint.intellij\nimport com.intellij.openapi.util.IconLoader\nobject TrafficIcons { val RED = IconLoader.getIcon("/images/sonarqube_for_intellij_red_13px.svg", TrafficIcons::class.java) }\n'; } > "$CASE/$1/TrafficIcons.kt"
+}
+new_case p4b
+traffic_icons src/main/java/org/sonarlint/intellij
+expect_rows p4b P4
+new_case p4b-common
+traffic_icons common/src/main/java/org/sonarlint/intellij/common
+expect_rows p4b-common P4
+# a branded path inside a comment is not a use
+new_case p4-comment-ok
+printf '// was "/images/sonarqube_for_intellij_red_13px.svg"\n' >> "$CASE/$PIC"
+expect_rows p4-comment-ok -
+if command -v zip > /dev/null 2>&1; then
+  zip_case zip-p4a P4 zsed 's|icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION"|icon="/images/sonarqube_for_intellij_13px.svg"|g' META-INF/plugin.xml
+  zclass() { mkdir -p "$2/org/sonarlint/intellij"; printf 'xx/images/sonarqube_for_intellij_red_13px.svg\001yy' > "$2/org/sonarlint/intellij/$1"; }
+  zip_case zip-p4b P4 zclass TrafficIcons.class
+fi
+
+# P32: the name must be a string literal (decision: no constant is followed, not even a correct one).
+new_case p32a
+case_sed common/src/main/java/org/sonarlint/intellij/common/LanguageActivator.java 's|ExtensionPointName.create("com.code-scan.intellij.languageActivator")|ExtensionPointName.create(EP_ID)|'
+awk '{ print } /^public interface LanguageActivator/ { print "  String EP_ID = \"org.sonarlint.idea.languageActivator\";" }' "$CASE/common/src/main/java/org/sonarlint/intellij/common/LanguageActivator.java" > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/common/src/main/java/org/sonarlint/intellij/common/LanguageActivator.java"
+expect_row_line p32a FAIL P32 ".*not a string literal"
+new_case p32-const-good
+case_sed common/src/main/java/org/sonarlint/intellij/common/LanguageActivator.java 's|ExtensionPointName.create("com.code-scan.intellij.languageActivator")|ExtensionPointName.create(EP_ID)|'
+expect_row_line p32-const-good FAIL P32 ".*not a string literal"
+
+# P9: a source folder named build is still checked; only <tree>/build and <tree>/<module>/build are skipped.
+new_case p9a
+mkdir -p "$CASE/src/main/java/org/sonarlint/intellij/build"
+printf 'package org.sonarlint.intellij.build;\nclass NoHeader {}\n' > "$CASE/src/main/java/org/sonarlint/intellij/build/NoHeader.java"
+expect_rows p9a P9
+new_case p9-module-build
+mkdir -p "$CASE/common/build/generated/src/main/java"
+printf 'package x;\nclass Gen {}\n' > "$CASE/common/build/generated/src/main/java/Gen.java"
+expect_rows p9-module-build -
+run_check slash-no "$PRE"
+run_check slash-yes "$PRE/"
+expect_rc slash-yes 0
+if cmp -s "$WORK/slash-no.out" "$WORK/slash-yes.out"; then ok "slash-yes: same output as without the slash"; else not_ok "slash-yes: output differs from the run without the slash"; show_output -1 slash-yes; fi
+new_case p9a-slash
+mkdir -p "$CASE/src/main/java/org/sonarlint/intellij/build"
+printf 'package org.sonarlint.intellij.build;\nclass NoHeader {}\n' > "$CASE/src/main/java/org/sonarlint/intellij/build/NoHeader.java"
+run_check p9a-slash "$CASE/"
+expect_line p9a-slash "^FAIL P9 .*src/main/java/org/sonarlint/intellij/build/NoHeader.java"
+rm -rf "$CASE"
+# P9 also checks .svg and .form files (the build's license check maps them), and skips **/proto/*.java as the build does.
+new_case p9-svg
+printf '<svg xmlns="http://www.w3.org/2000/svg"/>\n' > "$CASE/src/main/resources/images/NoHeader.svg"
+expect_rows p9-svg P9
+new_case p9-form
+form=$(cd "$CASE" && find src/main/java -name '*.form' | head -1)
+sed '/^<!--$/,/^-->$/d' "$CASE/$form" > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$form"
+expect_rows p9-form P9
+
+# The plugin-git.xml skip prints a WARN line each time it is used (source and zip), so Task 5 removes it after P33.
+run_check p32-git-warn "$PRE"
+expect_line p32-git-warn "^WARN P32 .*plugin-git.xml.*P33"
+if command -v zip > /dev/null 2>&1; then
+  run_check p32-git-warn-zip --zip "$WORK/good.zip" "$PRE"
+  expect_line p32-git-warn-zip "^WARN P32 zip: .*plugin-git.xml.*P33"
+  # Zip entry names with [ ] * ? are read as plain names, not patterns.
+  JARNAME='codescan-intellij-[7].jar' zip_case zip-bracket-name - true
+  # unescaped, this name is a pattern that also matches the decoy jar next to it
+  JARNAME='codescan*intellij?.jar' EXTRAJAR='codescan-intellij-.jar' zip_case zip-star-name - true
 fi
 
 run_check pre-again "$PRE"
