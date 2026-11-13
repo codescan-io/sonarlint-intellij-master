@@ -187,6 +187,10 @@ tasks.runPluginVerifier {
 tasks.test {
     useJUnitPlatform()
     systemProperty("sonarlint.telemetry.disabled", "true")
+    // The tests run in IntelliJ $intellijBuildVersion, which is older than since-build 231 in plugin.xml. Without this the test IDE
+    // skips the sandbox copy of the plugin, loads build/resources/main instead and cannot find the backend in sloop/.
+    // Remove it once intellijBuildVersion is 2023.1 or newer (plan Task 6).
+    systemProperty("idea.ignore.plugin.compatibility", "true")
 }
 
 val runIdeDirectory: String by project

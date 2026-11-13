@@ -70,6 +70,18 @@ class CodeScanPluginTests : AbstractSonarLintHeavyTests() {
     }
 
     @Test
+    fun backendFilesAreInThePluginFolder() {
+        // BackendService starts the backend from <plugin folder>/sloop/lib. If the test IDE skips the sandbox copy of the plugin
+        // (for example because the IDE is older than since-build) it falls back to build/resources/main, which has no such folder,
+        // and every test that needs the backend waits until it times out.
+        val backendJars = getService(SonarLintPlugin::class.java).path.resolve("sloop/lib")
+
+        assertThat(backendJars).isDirectory
+        assertThat(Files.list(backendJars).use { files -> files.map { it.fileName.toString() }.toList() })
+            .anyMatch { it.startsWith("sonarlint-backend-cli-") }
+    }
+
+    @Test
     fun extensionPointsAreFoundUnderThePluginId() {
         listOf(AnalysisConfigurator.EP_NAME, FileExclusionContributor.EP_NAME, FilesContributor.EP_NAME, VcsRepoProvider.EP_NAME).forEach {
             assertThat(it.name).startsWith("$CODESCAN_PLUGIN_ID.")
