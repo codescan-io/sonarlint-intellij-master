@@ -18,7 +18,7 @@
 #        7 = the CodeScan plugin was not loaded by the IDE
 #        6 = the log check itself failed (scan-idea-log.sh exited 2 for some log: unreadable file or bad
 #            arguments). The result is incomplete, so this wins over 1; scan.txt shows what was found.
-# --minutes must be at least 4: the scripted steps (open 2 files, 2 analyses, Settings, Project Settings) take about 3 minutes,
+# --minutes must be at least 4: the scripted steps (open 2 files, 2 analyses, Settings, Project Settings) take about 3 to 4 minutes,
 # and a shorter run time would end before the IDE had run long enough to show a crash.
 set -u
 
@@ -47,7 +47,7 @@ done
 [ -f "$PLUGIN" ] || { echo "error: --plugin <zip> is required and must exist" >&2; usage; }
 [ -d "$PROJECT" ] || { echo "error: --project <dir> is required and must exist" >&2; usage; }
 case "$MINUTES" in ''|*[!0-9]*) echo "error: --minutes must be a whole number" >&2; usage ;; esac
-[ "$MINUTES" -ge 4 ] || { echo "error: --minutes must be at least 4 (the scripted steps alone take about 3 minutes)" >&2; usage; }
+[ "$MINUTES" -ge 4 ] || { echo "error: --minutes must be at least 4 (the scripted steps alone take about 3 to 4 minutes)" >&2; usage; }
 PLUGIN="$(cd "$(dirname "$PLUGIN")" && pwd)/$(basename "$PLUGIN")"
 PROJECT="$(cd "$PROJECT" && pwd)"
 [ -n "$OUT" ] || OUT="$HERE/../../build/qa/ide-$IDE_VERSION-$(date +%Y%m%d-%H%M%S)"

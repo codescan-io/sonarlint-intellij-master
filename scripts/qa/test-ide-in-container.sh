@@ -43,9 +43,15 @@ expect_file() {
 
 BIN="$TMP/bin"
 mkdir -p "$BIN"
-for prog in xdotool Xvfb xdpyinfo fluxbox; do
+for prog in Xvfb xdpyinfo fluxbox; do
   printf '#!/bin/sh\nexit 0\n' > "$BIN/$prog"
 done
+# xdotool: counts Down key presses in $HOME/downs (HOME is per run).
+cat > "$BIN/xdotool" <<'STUB'
+#!/bin/sh
+for a; do [ "$a" = Down ] && echo x >> "$HOME/downs"; done
+exit 0
+STUB
 printf '#!/bin/sh\necho x\n' > "$BIN/xwd"
 # convert xwd:- <file>   or   convert <in> ... <out>: the last argument is written.
 cat > "$BIN/convert" <<'STUB'
@@ -53,10 +59,14 @@ cat > "$BIN/convert" <<'STUB'
 for last; do :; done
 echo image > "$last"
 STUB
-# tesseract <image> stdout: prints the text the test chose.
+# tesseract <image> stdout: prints the text the test chose. With STUB_PAGE_AFTER_DOWNS=N it also prints the
+# Project Settings page text once N Down keys were pressed.
 cat > "$BIN/tesseract" <<'STUB'
 #!/bin/sh
 echo "${STUB_OCR_TEXT:-}"
+n=$(cat "$HOME/downs" 2>/dev/null | wc -l | tr -d ' ')
+[ -n "${STUB_PAGE_AFTER_DOWNS:-}" ] && [ "$n" -ge "$STUB_PAGE_AFTER_DOWNS" ] && echo "Bind project to CodeScan / CodeScanCloud"
+exit 0
 STUB
 cat > "$BIN/unzip" <<'STUB'
 #!/bin/sh
@@ -141,7 +151,7 @@ expect_out "good run" "CodeScan showed its analysis result for Hello.java"
 expect_out "good run" "idea.log has the IDE SHUTDOWN line"
 expect_file "good run" "log/idea.log"
 
-# Blocking 1: the IDE dies during the scripted steps (about 160 s in a real run). With --minutes 1 or 2
+# Blocking 1: the IDE dies during the scripted steps (about 3 to 4 minutes in a real run). With --minutes 1 or 2
 # the wait loop never runs, so only the check before the stop can see the crash.
 run_ic 1 STUB_CRASH_AFTER=04-analyze-apex
 expect_code "crash in the scripted steps, 1 min" 4
@@ -207,9 +217,16 @@ expect_code "Project Settings seen" 0
 expect_out "Project Settings seen" "opening Settings > Tools > CodeScan > Project Settings"
 expect_out "Project Settings seen" "Project Settings page is on screen"
 expect_file "Project Settings seen" "screens/05b-project-settings.png"
+# In the real IDE the search selects Editor > Color Scheme > CodeScan; Project Settings is 4 rows down.
+run_ic 5 STUB_PAGE_AFTER_DOWNS=4
+expect_code "Project Settings 4 rows down" 0
+expect_out "Project Settings 4 rows down" "Project Settings page is on screen after 4 Down key presses"
+expect_no_out "Project Settings 4 rows down" "WARNING: the CodeScan Project Settings page was not seen"
+if [ "$(wc -l < "$RUN_DIR/home/downs" | tr -d ' ')" = 4 ]; then ok "Project Settings 4 rows down: stops at 4 presses"; else not_ok "Project Settings 4 rows down: stops at 4 presses" "pressed $(cat "$RUN_DIR/home/downs" 2>/dev/null | wc -l) times"; fi
 run_ic 5
 expect_code "Project Settings not seen" 0
 expect_out "Project Settings not seen" "WARNING: the CodeScan Project Settings page was not seen"
+if [ "$(wc -l < "$RUN_DIR/home/downs" | tr -d ' ')" = 8 ]; then ok "Project Settings not seen: gives up after 8 presses"; else not_ok "Project Settings not seen: gives up after 8 presses" "pressed $(cat "$RUN_DIR/home/downs" 2>/dev/null | wc -l) times"; fi
 run_ic 1 STUB_CRASH_AFTER=05b-project-settings
 expect_code "crash on the Project Settings page" 4
 

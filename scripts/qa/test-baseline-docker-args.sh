@@ -124,7 +124,7 @@ expect_code "missing value at the end" 2
 run_bd --plugin ""
 expect_code "empty value" 2
 
-# The scripted steps alone take about 3 minutes, so a shorter run time cannot be a real run.
+# The scripted steps alone take about 3 to 4 minutes, so a shorter run time cannot be a real run.
 for m in 0 1 3; do
   run_bd --plugin "$TMP/plugin.zip" --project "$TMP/project" --minutes "$m" --out "$TMP/out-min"
   expect_code "minutes $m" 2

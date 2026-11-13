@@ -220,13 +220,20 @@ log "opening Settings > CodeScan"
 keys ctrl+alt+s; nap 8; xdotool type --delay 80 "CodeScan"; nap 8
 shot "05-settings"
 # Positive control for the log check: building this page in the Settings dialog runs
-# SonarLintProjectConfigurable:125 on the UI thread, a known CodeScan slow operation. The search above leaves
-# Tools > CodeScan selected; Down moves the selection to its child page, Project Settings.
+# SonarLintProjectConfigurable:125 on the UI thread, a known CodeScan slow operation. The search above selects
+# Editor > Color Scheme > CodeScan; Project Settings is a few rows below (Plugins, Tools, CodeScan, Project Settings
+# in IDEA 2026.1). Down moves one row at a time until the page is on screen, at most 8 rows.
 log "opening Settings > Tools > CodeScan > Project Settings"
-xdotool key --delay 300 Down; nap 10
-shot "05b-project-settings"
-if screen_has "05b-project-settings" 'Bind project'; then
-  log "Project Settings page is on screen"
+DOWNS=0
+PAGE_SEEN=0
+while [ "$DOWNS" -lt 8 ]; do
+  xdotool key Down; DOWNS=$((DOWNS + 1)); nap 4
+  shot "05b-project-settings"
+  if screen_has "05b-project-settings" 'Bind project'; then PAGE_SEEN=1; break; fi
+done
+if [ "$PAGE_SEEN" = 1 ]; then
+  log "Project Settings page is on screen after $DOWNS Down key presses"
+  nap 6
 else
   log "WARNING: the CodeScan Project Settings page was not seen on screen, so the known slow operation may not have run; see $SHOTS/05b-project-settings.png"
 fi
@@ -242,7 +249,7 @@ while [ "$(date +%s)" -lt "$END" ]; do
 done
 shot "06-before-exit"
 
-# A crash in the scripted steps (about 170 s) is not seen by the loop above when RUN_MINUTES is short,
+# A crash in the scripted steps (about 3 to 4 minutes) is not seen by the loop above when RUN_MINUTES is short,
 # so the IDE is checked again before it is stopped.
 STOPPED_NORMALLY=0
 KILLED=0
