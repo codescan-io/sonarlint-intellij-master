@@ -137,6 +137,9 @@ intellijPlatform {
     }
     buildSearchableOptions = true
     pluginVerification {
+        // The published plugin ID com.code-scan.intellij contains the word "intellij", which the verifier rejects for new
+        // plugins. Changing the ID would cut existing users off from updates, so this one check is muted.
+        freeArgs = listOf("-mute", "TemplateWordInPluginId")
         // These are the only problems we tolerate; any other kind (compatibility problems, internal API use, ...) fails the task.
         val tolerated = EnumSet.of(
             VerifyPluginTask.FailureLevel.DEPRECATED_API_USAGES,

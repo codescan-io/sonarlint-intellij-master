@@ -55,6 +55,11 @@ tasks {
         }
         testLogging.showStandardStreams = true
     }
+    // This project is a test helper, not a shipped plugin, and has no IDE list for the plugin verifier.
+    // Without this, a root-level `./gradlew verifyPlugin` fails with "No IDE resolved for verification".
+    verifyPlugin {
+        enabled = false
+    }
 }
 
 val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
