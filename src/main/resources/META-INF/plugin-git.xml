@@ -20,7 +20,7 @@
 
 -->
 <idea-plugin>
-  <extensions defaultExtensionNs="org.sonarlint.idea">
+  <extensions defaultExtensionNs="com.code-scan.intellij">
     <vcsProvider implementation="org.sonarlint.intellij.git.GitRepoProvider"/>
   </extensions>
 

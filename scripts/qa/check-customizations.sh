@@ -752,11 +752,8 @@ check_p9() {
 # ns_problems <META-INF folder> <its plugin.xml, comments stripped>: one problem per line.
 # Checked files: plugin-java.xml (its extensions are the Java analysis settings, row P10) and every other
 # plugin-*.xml that plugin.xml loads with config-file="...". A file that plugin.xml does not load, such as
-# plugin-clion.xml in 7.2.3, is never read by the IDE and is not checked.
-# plugin-git.xml is left out on purpose: 7.2.3 has the old namespace there (row P33, a known bug that Task 5 fixes), and
-# the script's baseline is that 7.2.3 passes. Each time it is left out, the line SKIPGIT is printed, and the caller turns
-# it into a WARN line, so the skip cannot be forgotten. Remove the skip once P33 is fixed.
-GIT_SKIP_NOTE="plugin-git.xml is not checked: known bug, row P33 (Task 5 fixes it; remove this skip then)"
+# plugin-clion.xml in 7.2.3, is never read by the IDE and is not checked. plugin-git.xml is checked like the others
+# (row P33: 7.2.3 had the old namespace there, so the git branch provider was never found).
 ns_problems() {
   files="plugin-java.xml $(grep -oE 'config-file="[^"]*"' "$2" | sed 's/^config-file="\(.*\)"$/\1/' | tr '\n' ' ')"
   seen=" "
@@ -764,7 +761,6 @@ ns_problems() {
     case "$seen" in *" $f "*) continue ;; esac
     seen="$seen$f "
     case "$f" in */*) echo "$f: plugin.xml names a config file with a path; check by hand"; continue ;; esac
-    if [ "$f" = "plugin-git.xml" ]; then echo SKIPGIT; continue; fi
     if [ ! -f "$1/$f" ]; then echo "$f is loaded by plugin.xml but not found"; continue; fi
     strip_xml "$1/$f" | grep -oE 'defaultExtensionNs="[^"]*"' | sed 's/^defaultExtensionNs="\(.*\)"$/\1/' > "$TMP/ns.list"
     old=$(grep -E '^org\.sonarlint\.' "$TMP/ns.list" | sort -u | tr '\n' ' ')
@@ -816,8 +812,7 @@ check_p32() {
   fi
   strip_xml "$PLUGIN_XML" > "$TMP/src-plugin.xml"
   ns_problems "$SRC/src/main/resources/META-INF" "$TMP/src-plugin.xml" > "$TMP/ns.out"
-  grep -qx SKIPGIT "$TMP/ns.out" && echo "WARN P32 $GIT_SKIP_NOTE"
-  problems=$(grep -vx SKIPGIT "$TMP/ns.out" | join_problems)
+  problems=$(join_problems < "$TMP/ns.out")
   if [ -z "$problems" ]; then
     pass P32 "all $total extension point names start with $prefix; plugin-java.xml and the other loaded plugin-*.xml register under com.code-scan.intellij"
   else
@@ -830,8 +825,7 @@ check_p32_zip() {
   if [ -n "$ZIP_ERR" ]; then fail P32 "zip: $ZIP_ERR"; return; fi
   strip_xml "$ZIP_DIR/META-INF/plugin.xml" > "$TMP/zip-plugin.xml"
   ns_problems "$ZIP_DIR/META-INF" "$TMP/zip-plugin.xml" > "$TMP/ns.out"
-  grep -qx SKIPGIT "$TMP/ns.out" && echo "WARN P32 zip: $GIT_SKIP_NOTE"
-  problems=$(grep -vx SKIPGIT "$TMP/ns.out" | join_problems)
+  problems=$(join_problems < "$TMP/ns.out")
   if [ -z "$problems" ]; then
     pass P32 "zip: plugin-java.xml and the other loaded plugin-*.xml register under com.code-scan.intellij"
   else

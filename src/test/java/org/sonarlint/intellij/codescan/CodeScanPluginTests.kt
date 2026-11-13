@@ -56,6 +56,12 @@ class CodeScanPluginTests : AbstractSonarLintHeavyTests() {
         assertThat(AnalysisConfigurator.EP_NAME.extensionList).hasAtLeastOneElementOfType(JavaAnalysisConfigurator::class.java)
     }
 
+    @Test
+    fun gitBranchProviderIsRegistered() {
+        // the :git module is only on the runtime class path, so the class is checked by name
+        assertThat(VcsRepoProvider.EP_NAME.extensionList.map { it.javaClass.name }).contains("org.sonarlint.intellij.git.GitRepoProvider")
+    }
+
     companion object {
         private const val CODESCAN_PLUGIN_ID = "com.code-scan.intellij"
     }
