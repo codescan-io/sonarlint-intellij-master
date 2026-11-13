@@ -30,32 +30,39 @@ import org.sonarsource.sonarlint.core.rpc.protocol.common.RuleType
 
 object SonarLintIcons {
 
+    // CodeScan: the field names stay as upstream's (fewer merge conflicts), but every one shows a CodeScan image.
     @JvmField
-    val ICON_SONARQUBE_SERVER = getIcon("/images/sonarqube_server.png")
+    val ICON_SONARQUBE_SERVER = getIcon("/images/CodeScan.png")
     @JvmField
-    val ICON_SONARQUBE_CLOUD = getIcon("/images/sonarqube_cloud.png")
+    val ICON_SONARQUBE_CLOUD = getIcon("/images/CodeScan.png")
     @JvmField
-    val ICON_SONARQUBE_SERVER_16 = getIcon("/images/sonarqube_server_16px.svg")
+    val ICON_SONARQUBE_SERVER_16 = getIcon("/images/codescan-16.png")
     @JvmField
-    val ICON_SONARQUBE_CLOUD_16 = getIcon("/images/sonarqube_cloud_16px.svg")
+    val ICON_SONARQUBE_CLOUD_16 = getIcon("/images/codescan-16.png")
     @JvmField
-    val SONARQUBE_FOR_INTELLIJ_13PX = getIcon("/images/sonarqube_for_intellij_13px.svg")
+    val SONARQUBE_FOR_INTELLIJ_13PX = getIcon("/images/CodeScanAction.svg")
     @JvmField
-    val SONARQUBE_FOR_INTELLIJ_RED_13PX = getIcon("/images/sonarqube_for_intellij_red_13px.svg")
+    val SONARQUBE_FOR_INTELLIJ_RED_13PX = getIcon("/images/CodeScanAction.svg")
     @JvmField
-    val SONARQUBE_FOR_INTELLIJ_GREEN_13PX = getIcon("/images/sonarqube_for_intellij_green_13px.svg")
+    val SONARQUBE_FOR_INTELLIJ_GREEN_13PX = getIcon("/images/CodeScanAction.svg")
     @JvmField
-    val SONARQUBE_FOR_INTELLIJ_ORANGE_13PX = getIcon("/images/sonarqube_for_intellij_orange_13px.svg")
+    val SONARQUBE_FOR_INTELLIJ_ORANGE_13PX = getIcon("/images/CodeScanAction.svg")
 
     @JvmField
-    val SONARQUBE_FOR_INTELLIJ_TOOLWINDOW = getIcon("/images/sonarqube_for_intellij_toolwindow.svg")
+    val SONARQUBE_FOR_INTELLIJ_TOOLWINDOW = getIcon("/images/CodeScanToolWindow.svg")
 
     @JvmField
-    val SONARQUBE_FOR_INTELLIJ_EMPTY_TOOLWINDOW = getIcon("/images/sonarqube_for_intellij_empty_toolwindow.svg")
+    val SONARQUBE_FOR_INTELLIJ_EMPTY_TOOLWINDOW = getIcon("/images/CodeScanToolWindow.svg")
     @JvmField
-    val SONARQUBE_FOR_INTELLIJ = getIcon("/images/sonarqube_for_intellij.svg")
+    val SONARQUBE_FOR_INTELLIJ = getIcon("/images/codescan-round.png")
     @JvmField
-    val SONARQUBE_FOR_INTELLIJ_32PX = getIcon("/images/sonarqube_for_intellij_32px.svg")
+    val SONARQUBE_FOR_INTELLIJ_32PX = getIcon("/images/codescan@2x.png")
+
+    // Used by plugin.xml, so the descriptor never names a SonarQube icon.
+    @JvmField
+    val CODESCAN_ACTION = getIcon("/images/CodeScanAction.svg")
+    @JvmField
+    val CODESCAN_TOOLWINDOW = getIcon("/images/CodeScanToolWindow.svg")
     @JvmField
     val PLAY = getIcon("/images/execute.png")
     @JvmField

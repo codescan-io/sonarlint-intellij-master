@@ -71,6 +71,8 @@ class SonarLintIconsTest {
         assertThat(SonarLintIcons.SONARQUBE_FOR_INTELLIJ_ORANGE_13PX).isNotNull
         assertThat(SonarLintIcons.SONARQUBE_FOR_INTELLIJ).isNotNull
         assertThat(SonarLintIcons.SONARQUBE_FOR_INTELLIJ_32PX).isNotNull
+        assertThat(SonarLintIcons.CODESCAN_ACTION).isNotNull
+        assertThat(SonarLintIcons.CODESCAN_TOOLWINDOW).isNotNull
         assertThat(SonarLintIcons.PLAY).isNotNull
         assertThat(SonarLintIcons.CLEAN).isNotNull
         assertThat(SonarLintIcons.TOOLS).isNotNull
