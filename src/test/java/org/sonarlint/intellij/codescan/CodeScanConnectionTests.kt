@@ -344,7 +344,8 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
 
         // The backend must call the connection's own address, not the global cloud address
         assertThat(params.sonarCloudConnections).extracting("connectionId", "serverUrl").containsExactly(tuple("self-hosted", selfHosted))
-        assertThat(connection.links().formattingSyntaxDoc()).startsWith(selfHosted)
+        // the formatting help is a knowledge base page, not a page on the server
+        assertThat(connection.links().formattingSyntaxDoc()).isEqualTo("https://knowledgebase.autorabit.com/")
         assertThat(server.allServeEvents).allSatisfy { assertThat(it.request.absoluteUrl).startsWith(selfHosted) }
     }
 

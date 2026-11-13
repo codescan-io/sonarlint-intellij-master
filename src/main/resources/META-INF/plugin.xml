@@ -157,7 +157,7 @@
         <additionalTextAttributes scheme="Default" file="colorSchemes/SonarLintDefault.xml"/>
         <additionalTextAttributes scheme="Darcula" file="colorSchemes/SonarLintDarcula.xml"/>
         <editorActionHandler action="EditorEscape" implementationClass="org.sonarlint.intellij.editor.EscapeHandler"/>
-        <errorHandler implementation="org.sonarlint.intellij.errorsubmitter.BlameSonarSource"/>
+        <errorHandler implementation="org.sonarlint.intellij.errorsubmitter.ReportToCodeScan"/>
         <iw.actionProvider implementation="org.sonarlint.intellij.editor.SonarLintEditorWidgetActionProvider"/>
 
         <!-- Empty language attribute corresponds to any language (see com.intellij.lang.Language.ANY) -->

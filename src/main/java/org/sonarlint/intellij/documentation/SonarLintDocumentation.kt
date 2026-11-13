@@ -21,28 +21,32 @@ package org.sonarlint.intellij.documentation
 
 object SonarLintDocumentation {
 
+    // CodeScan: SonarSource's documentation does not describe CodeScan, so every help and "Learn more" link opens the
+    // AutoRABIT knowledge base. It has no pages matching SonarSource's, so all of them open its start page.
+    const val KNOWLEDGE_BASE_URL = "https://knowledgebase.autorabit.com/"
+
     object Intellij {
-        const val BASE_DOCS_URL = "https://docs.sonarsource.com/sonarqube-for-ide/intellij"
-        const val CONNECTED_MODE_LINK = "$BASE_DOCS_URL/team-features/connected-mode"
-        const val CONNECTED_MODE_SETUP_LINK = "$BASE_DOCS_URL/team-features/connected-mode-setup"
-        const val SECURITY_HOTSPOTS_LINK = "$BASE_DOCS_URL/using-sonarlint/security-hotspots"
-        const val TAINT_VULNERABILITIES_LINK = "$BASE_DOCS_URL/using-sonarlint/taint-vulnerabilities"
-        const val CLEAN_CODE_LINK = "$BASE_DOCS_URL/concepts/clean-code/introduction"
-        const val SUPPORT_POLICY_LINK = "$CONNECTED_MODE_SETUP_LINK/#sonarlint-sonarqube-version-support-policy"
-        const val FOCUS_ON_NEW_CODE_LINK = "$BASE_DOCS_URL/using-sonarlint/investigating-issues/#focusing-on-new-code"
-        const val CONNECTED_MODE_BENEFITS_LINK = "$CONNECTED_MODE_LINK/#benefits"
-        const val SHARING_CONNECTED_MODE_CONFIGURATION_LINK = "$CONNECTED_MODE_SETUP_LINK/#reuse-the-binding-configuration"
-        const val TROUBLESHOOTING_CONNECTED_MODE_SETUP_LINK = "$BASE_DOCS_URL/troubleshooting/#troubleshooting-connected-mode-setup"
-        const val RULE_SECTION_LINK = "$BASE_DOCS_URL/using-sonarlint/rules/#rule-selection"
-        const val FILE_EXCLUSION_LINK = "$BASE_DOCS_URL/using-sonarlint/file-exclusions"
+        const val BASE_DOCS_URL = KNOWLEDGE_BASE_URL
+        const val CONNECTED_MODE_LINK = KNOWLEDGE_BASE_URL
+        const val CONNECTED_MODE_SETUP_LINK = KNOWLEDGE_BASE_URL
+        const val SECURITY_HOTSPOTS_LINK = KNOWLEDGE_BASE_URL
+        const val TAINT_VULNERABILITIES_LINK = KNOWLEDGE_BASE_URL
+        const val CLEAN_CODE_LINK = KNOWLEDGE_BASE_URL
+        const val SUPPORT_POLICY_LINK = KNOWLEDGE_BASE_URL
+        const val FOCUS_ON_NEW_CODE_LINK = KNOWLEDGE_BASE_URL
+        const val CONNECTED_MODE_BENEFITS_LINK = KNOWLEDGE_BASE_URL
+        const val SHARING_CONNECTED_MODE_CONFIGURATION_LINK = KNOWLEDGE_BASE_URL
+        const val TROUBLESHOOTING_CONNECTED_MODE_SETUP_LINK = KNOWLEDGE_BASE_URL
+        const val RULE_SECTION_LINK = KNOWLEDGE_BASE_URL
+        const val FILE_EXCLUSION_LINK = KNOWLEDGE_BASE_URL
     }
 
     object SonarQube {
-        const val SMART_NOTIFICATIONS = "https://docs.sonarqube.org/latest/user-guide/sonarlint-connected-mode/"
+        const val SMART_NOTIFICATIONS = KNOWLEDGE_BASE_URL
     }
 
     object SonarCloud {
-        const val SMART_NOTIFICATIONS = "https://docs.sonarsource.com/sonarcloud/improving/sonarlint/#smart-notifications/"
+        const val SMART_NOTIFICATIONS = KNOWLEDGE_BASE_URL
     }
 
     // CodeScan: SonarSource's product, download and sign-up pages do not apply to CodeScan, so every product link opens the CodeScan site

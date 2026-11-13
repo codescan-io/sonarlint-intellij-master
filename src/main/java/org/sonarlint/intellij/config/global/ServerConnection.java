@@ -29,9 +29,8 @@ import javax.annotation.concurrent.Immutable;
 import javax.swing.Icon;
 import org.sonarlint.intellij.SonarLintIcons;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.core.server.KnowledgeBaseLinks;
 import org.sonarlint.intellij.core.server.ServerLinks;
-import org.sonarlint.intellij.core.server.SonarCloudLinks;
-import org.sonarlint.intellij.core.server.SonarQubeLinks;
 
 /**
  * This class is serialized in XML when SonarLintGlobalSettings is saved by IntelliJ.
@@ -183,7 +182,7 @@ public class ServerConnection {
   }
 
   public ServerLinks links() {
-    return isSonarCloud() ? new SonarCloudLinks(hostUrl) : new SonarQubeLinks(hostUrl);
+    return KnowledgeBaseLinks.INSTANCE;
   }
 
   public static class Builder {
