@@ -43,6 +43,8 @@ class SonarLintDocumentationTests {
     }
 
     private fun pagesProvider() = listOf(
+        SonarLintDocumentation.KNOWLEDGE_BASE_URL,
+
         SonarLintDocumentation.Intellij.BASE_DOCS_URL,
         SonarLintDocumentation.Intellij.CONNECTED_MODE_LINK,
         SonarLintDocumentation.Intellij.CONNECTED_MODE_SETUP_LINK,

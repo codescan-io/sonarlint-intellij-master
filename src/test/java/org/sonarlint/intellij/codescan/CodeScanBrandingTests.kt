@@ -79,11 +79,37 @@ class CodeScanBrandingTests {
 
     @Test
     fun productLinksGoToCodeScan() {
-        // CodeScan has no documentation pages matching SonarSource's yet, so only the product and sign-up links change
+        // help links open the knowledge base (see helpLinksGoToTheKnowledgeBase); product and sign-up links open the CodeScan site
         val productLinks = LinkTelemetry.values().filterNot { it.url.startsWith(SonarLintDocumentation.Intellij.BASE_DOCS_URL) }
 
         assertThat(productLinks).isNotEmpty()
         productLinks.forEach { link -> assertThat(link.url).`as`(link.name).startsWith("https://www.codescan.io") }
+    }
+
+    @Test
+    fun noSourceFileLinksToSonarSourceHelp() {
+        val found = mainFiles("java", "kt", "xml", "properties", "html", "form").flatMap { file ->
+            val text = file.readText()
+            SONAR_HELP_LINK.findAll(text).map { "$file:${lineOf(text, it.range.first)}: ${it.value}" }.toList()
+        }
+
+        assertThat(found).`as`("links to SonarSource documentation or community pages").isEmpty()
+    }
+
+    @Test
+    fun helpLinksGoToTheKnowledgeBase() {
+        val docLinks = listOf(SonarLintDocumentation.Intellij::class.java, SonarLintDocumentation.SonarQube::class.java, SonarLintDocumentation.SonarCloud::class.java)
+            .flatMap { holder -> holder.declaredFields.filter { java.lang.reflect.Modifier.isStatic(it.modifiers) && it.type == String::class.java } }
+            .map { field -> field.apply { isAccessible = true }.name to field.get(null) as String }
+
+        assertThat(docLinks).isNotEmpty()
+        docLinks.forEach { (name, url) -> assertThat(url).`as`(name).isEqualTo(KNOWLEDGE_BASE) }
+        // the formatting help no longer opens a page on the user's server
+        listOf("https://app.codescan.io", "https://codescan.example.invalid").forEach { url ->
+            val connection = ServerConnection.newBuilder().setName("c").setHostUrl(url).setToken("t").build()
+
+            assertThat(connection.links().formattingSyntaxDoc()).`as`(url).isEqualTo(KNOWLEDGE_BASE)
+        }
     }
 
     @Test
@@ -153,6 +179,12 @@ class CodeScanBrandingTests {
             .filter { Files.isDirectory(it) }
             .flatMap { root -> Files.walk(root).use { paths -> paths.filter { it.extension in extensions }.toList() } }
 
+    private fun mainFiles(vararg extensions: String): List<Path> =
+        listOf("src/main", "common/src/main", "git/src/main")
+            .map { Paths.get(it) }
+            .filter { Files.isDirectory(it) }
+            .flatMap { root -> Files.walk(root).use { paths -> paths.filter { Files.isRegularFile(it) && it.extension in extensions }.toList() } }
+
     private fun literalValue(token: String) = if (token.startsWith(TRIPLE_QUOTE)) token.removeSurrounding(TRIPLE_QUOTE) else token.removeSurrounding("\"")
 
     private fun namesSonarProduct(value: String): Boolean {
@@ -190,5 +222,8 @@ class CodeScanBrandingTests {
         private val DESCRIPTOR_TEXT = Regex("\\b(?:text|description|displayName)=\"([^\"]*)\"")
 
         private val ALLOWED = emptyMap<String, Set<String>>()
+
+        private const val KNOWLEDGE_BASE = "https://knowledgebase.autorabit.com/"
+        private val SONAR_HELP_LINK = Regex("""https?://(?:docs\.sonarsource\.com|community\.sonarsource\.com|docs\.sonarqube\.org)[^\s"'<>)]*""")
     }
 }
