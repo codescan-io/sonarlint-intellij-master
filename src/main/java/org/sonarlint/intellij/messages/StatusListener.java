@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.messages;
 
@@ -24,7 +24,7 @@ import org.sonarlint.intellij.analysis.AnalysisStatus;
 
 @FunctionalInterface
 public interface StatusListener {
-  Topic<StatusListener> SONARLINT_STATUS_TOPIC = Topic.create("CodeScan Analyzer Status", StatusListener.class);
+  Topic<StatusListener> SONARLINT_STATUS_TOPIC = Topic.create("CodeScan analyzer status", StatusListener.class);
 
   /**
    * Called when the status of the user-initiated analysis changes.

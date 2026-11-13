@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.common.analysis;
 
@@ -26,8 +26,6 @@ import com.intellij.openapi.vfs.VirtualFile;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-
-import org.sonarsource.sonarlint.core.commons.Language;
 
 public interface AnalysisConfigurator {
   // Name is constructed from plugin-id.extension-point-name
@@ -45,8 +43,6 @@ public interface AnalysisConfigurator {
     /**
      * Force the language of a file, instead of relying on default language detection mechanism (based on file suffixes)
      */
-    public final Map<VirtualFile, Language> forcedLanguages = new HashMap<>();
-
-
+    public final Map<VirtualFile, ForcedLanguage> forcedLanguages = new HashMap<>();
   }
 }

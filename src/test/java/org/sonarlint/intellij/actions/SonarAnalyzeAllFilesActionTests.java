@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.actions;
 
@@ -30,6 +30,7 @@ import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -61,6 +62,13 @@ class SonarAnalyzeAllFilesActionTests extends AbstractSonarLintLightTests {
   }
 
   @Test
+  void hideWarningChoiceKeepsTheNameCodeScanUsedBefore() {
+    // CodeScan 7.2.3 stored "Don't show again" under this name, so users who chose it are not asked again after the upgrade
+    assertThat(SonarAnalyzeAllFilesAction.HIDE_WARNING_PROPERTY).isEqualTo("Codescan.analyzeAllFiles.hideWarning");
+    assertThat(SonarAnalyzeAllFilesAction.WARNING_MESSAGE).contains("CodeScan").doesNotContain("SonarQube");
+  }
+
+  @Test
   void testNoProject() {
     AnActionEvent event = mock(AnActionEvent.class);
     when(event.getProject()).thenReturn(null);
@@ -77,7 +85,7 @@ class SonarAnalyzeAllFilesActionTests extends AbstractSonarLintLightTests {
     TestDialogManager.setTestDialog(TestDialog.OK);
     action.actionPerformed(event);
 
-    verify(analysisSubmitter).analyzeAllFiles();
+    verify(analysisSubmitter, timeout(1000)).analyzeAllFiles();
   }
 
 }

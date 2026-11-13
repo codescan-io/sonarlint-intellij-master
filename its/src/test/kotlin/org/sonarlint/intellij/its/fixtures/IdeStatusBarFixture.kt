@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.its.fixtures
 
@@ -26,13 +26,14 @@ import com.intellij.remoterobot.fixtures.ComponentFixture
 import com.intellij.remoterobot.fixtures.DefaultXpath
 import com.intellij.remoterobot.fixtures.FixtureName
 import com.intellij.remoterobot.search.locators.byXpath
+import java.time.Duration
 
 @DefaultXpath(by = "IdeStatusBarImpl type", xpath = "//div[@class='IdeStatusBarImpl']")
 @FixtureName(name = "Status Bar")
 class IdeStatusBarFixture(remoteRobot: RemoteRobot, remoteComponent: RemoteComponent) : CommonContainerFixture(remoteRobot, remoteComponent) {
   val backgroundTaskPendingIcon
-    get() = find(ComponentFixture::class.java, byXpath("//div[@class='AsyncProcessIcon']"))
+    get() = find(ComponentFixture::class.java, byXpath("//div[@class='AsyncProcessIcon']"), Duration.ofSeconds(1))
 
   val pauseButton
-    get() = find(ComponentFixture::class.java, byXpath("//div[@accessiblename='Pause' and @class='InplaceButton']"))
+    get() = find(ComponentFixture::class.java, byXpath("//div[@accessiblename='Pause' and @class='InplaceButton']"), Duration.ofSeconds(1))
 }

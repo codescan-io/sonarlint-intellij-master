@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.actions;
 
@@ -33,13 +33,16 @@ import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.core.BackendService;
 
-import static org.sonarlint.intellij.util.ProjectUtils.hasFiles;
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class SonarAnalyzeAllFilesAction extends AbstractSonarAction {
-  private static final String HIDE_WARNING_PROPERTY = "Codescan.analyzeAllFiles.hideWarning";
+  // CodeScan: the name 7.2.3 stored the choice under, so a "Don't show again" made before the upgrade still applies
+  static final String HIDE_WARNING_PROPERTY = "Codescan.analyzeAllFiles.hideWarning";
   public static final String WARNING_MESSAGE = "Analysing all files may take a considerable amount of time to complete.\n"
-    + "To get the best from Codescan, you should preferably use the automatic analysis of the file you're working on.";
+    + "To get the best from CodeScan, you should preferably use the automatic analysis of the file you're working on.";
 
   public SonarAnalyzeAllFilesAction() {
     super();
@@ -51,7 +54,8 @@ public class SonarAnalyzeAllFilesAction extends AbstractSonarAction {
 
   @Override
   protected boolean isEnabled(AnActionEvent e, Project project, AnalysisStatus status) {
-    return !status.isRunning() && hasFiles(project);
+    var backendIsAlive = getService(BackendService.class).isAlive();
+    return !status.isRunning() && backendIsAlive;
   }
 
   @Override
@@ -67,13 +71,13 @@ public class SonarAnalyzeAllFilesAction extends AbstractSonarAction {
       return;
     }
 
-    SonarLintUtils.getService(project, AnalysisSubmitter.class).analyzeAllFiles();
+    runOnPooledThread(project, () -> SonarLintUtils.getService(project, AnalysisSubmitter.class).analyzeAllFiles());
   }
 
   static boolean userConfirmed(Project project) {
     if (!ApplicationManager.getApplication().isUnitTestMode() && !PropertiesComponent.getInstance().getBoolean(HIDE_WARNING_PROPERTY,
       false)) {
-      return MessageDialogBuilder.yesNo("Codescan - Analyze All Files", WARNING_MESSAGE)
+      return MessageDialogBuilder.yesNo("CodeScan - Analyze All Files", WARNING_MESSAGE)
         .yesText("Proceed")
         .noText("Cancel")
         .icon(Messages.getWarningIcon())

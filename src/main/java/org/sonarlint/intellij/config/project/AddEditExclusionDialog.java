@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.project;
 
@@ -40,7 +40,7 @@ import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NonNls;
 
 import static org.sonarlint.intellij.config.project.ExclusionItem.Type.DIRECTORY;
@@ -144,18 +144,18 @@ public class AddEditExclusionDialog extends DialogWrapper {
 
     if (item != null) {
       switch (item.type()) {
-        case DIRECTORY:
+        case DIRECTORY -> {
           directoryTextField.setText(item.item());
           directoryRadioButton.setSelected(true);
-          break;
-        case FILE:
+        }
+        case FILE -> {
           fileTextField.setText(item.item());
           fileRadioButton.setSelected(true);
-          break;
-        case GLOB:
+        }
+        case GLOB -> {
           globTextField.setText(item.item());
           globRadioButton.setSelected(true);
-          break;
+        }
       }
       updateControls();
     }

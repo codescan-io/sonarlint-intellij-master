@@ -15,44 +15,55 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.finding.issue;
 
 import com.intellij.openapi.editor.RangeMarker;
-import com.intellij.psi.PsiFile;
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.vfs.VirtualFile;
 import java.util.List;
+import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import org.sonarlint.intellij.finding.FindingContext;
+import org.sonarlint.intellij.finding.Issue;
 import org.sonarlint.intellij.finding.LiveFinding;
 import org.sonarlint.intellij.finding.QuickFix;
-import org.sonarsource.sonarlint.core.client.api.common.analysis.Issue;
-import org.sonarsource.sonarlint.core.commons.RuleType;
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.RaisedIssueDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.RuleType;
 
-public class LiveIssue extends LiveFinding implements org.sonarlint.intellij.finding.Issue {
+public class LiveIssue extends LiveFinding implements Issue {
 
-  private RuleType type;
+  @Nullable
+  private final RuleType type;
 
-  public LiveIssue(Issue issue, PsiFile psiFile, List<QuickFix> quickFixes) {
-    this(issue, psiFile, null, null, quickFixes);
+  public LiveIssue(Module module, RaisedIssueDto issue, VirtualFile virtualFile, List<QuickFix> quickFixes) {
+    this(module, issue, virtualFile, null, null, quickFixes);
   }
 
-  public LiveIssue(Issue issue, PsiFile psiFile, @Nullable RangeMarker range, @Nullable FindingContext context, List<QuickFix> quickFixes) {
-    super(issue, psiFile, range, context, quickFixes);
-    this.type = issue.getType();
+  public LiveIssue(Module module, RaisedIssueDto issue, VirtualFile virtualFile, @Nullable RangeMarker range, @Nullable FindingContext context, List<QuickFix> quickFixes) {
+    super(module, issue, virtualFile, range, context, quickFixes);
+    if (issue.getSeverityMode().isLeft()) {
+      this.type = issue.getSeverityMode().getLeft().getType();
+    } else {
+      this.type = null;
+    }
   }
 
+  @CheckForNull
   @Override
   public RuleType getType() {
     return type;
-  }
-
-  public void setType(@Nullable RuleType type) {
-    this.type = type;
   }
 
   @Override
   public void resolve() {
     setResolved(true);
   }
+
+  @Override
+  public void reopen() {
+    setResolved(false);
+  }
+
 }

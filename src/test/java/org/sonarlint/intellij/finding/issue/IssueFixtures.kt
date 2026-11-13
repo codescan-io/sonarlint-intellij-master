@@ -15,86 +15,90 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.finding.issue
 
-import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.RangeMarker
+import com.intellij.openapi.module.Module
 import com.intellij.psi.PsiFile
-import org.sonarlint.intellij.analysis.DefaultClientInputFile
+import java.net.URI
+import java.util.UUID
 import org.sonarlint.intellij.util.getDocument
-import org.sonarsource.sonarlint.core.analysis.api.ClientInputFile
-import org.sonarsource.sonarlint.core.analysis.api.ClientInputFileEdit
-import org.sonarsource.sonarlint.core.analysis.api.Flow
-import org.sonarsource.sonarlint.core.analysis.api.QuickFix
-import org.sonarsource.sonarlint.core.analysis.api.TextEdit
-import org.sonarsource.sonarlint.core.client.api.common.analysis.Issue
-import org.sonarsource.sonarlint.core.commons.CleanCodeAttribute
-import org.sonarsource.sonarlint.core.commons.ImpactSeverity
-import org.sonarsource.sonarlint.core.commons.IssueSeverity
-import org.sonarsource.sonarlint.core.commons.RuleType
-import org.sonarsource.sonarlint.core.commons.SoftwareQuality
-import org.sonarsource.sonarlint.core.commons.TextRange
-import org.sonarsource.sonarlint.core.commons.VulnerabilityProbability
-import java.util.Optional
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.ImpactDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.FileEditDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.QuickFixDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.RaisedIssueDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.TextEditDto
+import org.sonarsource.sonarlint.core.rpc.protocol.common.CleanCodeAttribute
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Either
+import org.sonarsource.sonarlint.core.rpc.protocol.common.ImpactSeverity
+import org.sonarsource.sonarlint.core.rpc.protocol.common.IssueSeverity
+import org.sonarsource.sonarlint.core.rpc.protocol.common.MQRModeDetails
+import org.sonarsource.sonarlint.core.rpc.protocol.common.RuleType
+import org.sonarsource.sonarlint.core.rpc.protocol.common.SoftwareQuality
+import org.sonarsource.sonarlint.core.rpc.protocol.common.TextRangeDto
 
 fun aLiveIssue(
+    module: Module,
     file: PsiFile,
     rangeMarker: RangeMarker? = file.virtualFile.getDocument()!!.createRangeMarker(0, 1),
-    coreIssue: Issue = aCoreIssue(file, toTextRange(rangeMarker))
+    coreIssue: RaisedIssueDto = aRawIssue(toTextRange(rangeMarker)),
 ): LiveIssue {
-    val liveIssue = LiveIssue(coreIssue, file, rangeMarker, null, emptyList())
-    liveIssue.serverFindingKey = "serverIssueKey"
+    val liveIssue = LiveIssue(module, coreIssue, file.virtualFile, rangeMarker, null, emptyList())
+    liveIssue.setServerFindingKey("serverIssueKey")
     return liveIssue
 }
 
-fun aCoreIssue(file: PsiFile, textRange: TextRange? = TextRange(0, 0, 0, 1)) = object : Issue {
-    override fun getTextRange() = textRange
-    override fun getMessage() = "message"
-    override fun getInputFile() = aClientInputFile(file)
-
-    override fun getSeverity() = IssueSeverity.MAJOR
-    override fun getType() = RuleType.BUG
-    override fun getRuleKey() = "ruleKey"
-    override fun flows() = mutableListOf<Flow>()
-    override fun getCleanCodeAttribute() = Optional.of(CleanCodeAttribute.defaultCleanCodeAttribute())
-
-    override fun getImpacts(): MutableMap<SoftwareQuality, ImpactSeverity> {
-        return mutableMapOf(
-            SoftwareQuality.MAINTAINABILITY to ImpactSeverity.HIGH,
-            SoftwareQuality.RELIABILITY to ImpactSeverity.MEDIUM,
-            SoftwareQuality.SECURITY to ImpactSeverity.LOW
-        )
-    }
-
-    override fun quickFixes() = mutableListOf<QuickFix>()
-    override fun getRuleDescriptionContextKey() = Optional.empty<String>()
-    override fun getVulnerabilityProbability() = Optional.empty<VulnerabilityProbability>()
+fun aRawIssue(textRange: TextRangeDto?): RaisedIssueDto {
+    return RaisedIssueDto(
+        UUID.randomUUID(),
+        "serverKey",
+        "rule:key",
+        "message",
+        Either.forRight(
+            MQRModeDetails(
+                CleanCodeAttribute.COMPLETE, listOf(
+                    ImpactDto(SoftwareQuality.MAINTAINABILITY, ImpactSeverity.HIGH),
+                    ImpactDto(SoftwareQuality.MAINTAINABILITY, ImpactSeverity.HIGH),
+                    ImpactDto(SoftwareQuality.MAINTAINABILITY, ImpactSeverity.HIGH)
+                )
+            )
+        ),
+        IssueSeverity.INFO,
+        RuleType.BUG,
+        CleanCodeAttribute.COMPLETE,
+        listOf(
+            ImpactDto(SoftwareQuality.MAINTAINABILITY, ImpactSeverity.HIGH),
+            ImpactDto(SoftwareQuality.RELIABILITY, ImpactSeverity.MEDIUM),
+            ImpactDto(SoftwareQuality.SECURITY, ImpactSeverity.LOW)
+        ),
+        java.time.Instant.now(),
+        false,
+        false,
+        textRange,
+        emptyList(),
+        mutableListOf<QuickFixDto>(),
+        null
+    )
 }
 
-private fun toTextRange(rangeMarker: RangeMarker?): TextRange? {
+private fun toTextRange(rangeMarker: RangeMarker?): TextRangeDto? {
     return rangeMarker?.let {
-        TextRange(1, 2, 3, 4)
+        TextRangeDto(1, 2, 3, 4)
     }
 }
 
-fun aClientInputFile(file: PsiFile) =
-    DefaultClientInputFile(file.virtualFile, file.name, false, file.virtualFile.charset)
+fun aQuickFix(message: String, fileEdits: List<FileEditDto>) = QuickFixDto(fileEdits, message)
 
-fun aClientInputFile(file: PsiFile, document: Document) =
-    DefaultClientInputFile(file.virtualFile, file.name, false, file.virtualFile.charset, document.text, document.modificationStamp, null)
+fun aFileEdit(fileUri: URI, textEdits: List<TextEditDto>) =
+    FileEditDto(fileUri, textEdits)
 
-fun aQuickFix(message: String, fileEdits: List<ClientInputFileEdit>) = QuickFix(fileEdits, message)
-
-fun aFileEdit(file: ClientInputFile, textEdits: List<TextEdit>) = ClientInputFileEdit(file, textEdits)
-
-fun aTextEdit(range: TextRange, newText: String) = TextEdit(range, newText)
+fun aTextEdit(range: TextRangeDto, newText: String) = TextEditDto(range, newText)
 
 fun aTextRange(
     startLine: Int,
     startLineOffset: Int,
     endLine: Int,
-    endLineOffset: Int
-) = TextRange(startLine, startLineOffset, endLine, endLineOffset)
-
+    endLineOffset: Int,
+) = TextRangeDto(startLine, startLineOffset, endLine, endLineOffset)

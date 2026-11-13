@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config;
 
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SonarLintColorSettingsPageTests {
-  private final static String[] SEVERITIES = {"INFO", "MINOR", "MAJOR", "CRITICAL", "BLOCKER"};
+  private static final String[] SEVERITIES = {"LOW", "MEDIUM", "HIGH", "OLD", "SELECTED"};
   private SonarLintColorSettingsPage colorSettingsPage;
 
   @BeforeEach
@@ -46,16 +46,16 @@ class SonarLintColorSettingsPageTests {
   void testDescriptors() {
     assertThat(colorSettingsPage.getAdditionalHighlightingTagToDescriptorMap()).containsValues(
       SonarLintTextAttributes.BLOCKER,
-      SonarLintTextAttributes.INFO,
-      SonarLintTextAttributes.MAJOR,
-      SonarLintTextAttributes.MINOR,
-      SonarLintTextAttributes.CRITICAL);
+      SonarLintTextAttributes.HIGH,
+      SonarLintTextAttributes.MEDIUM,
+      SonarLintTextAttributes.LOW,
+      SonarLintTextAttributes.INFO);
   }
 
   @Test
   void testAttributeDescriptors() {
     // one per severity + selected
-    assertThat(colorSettingsPage.getAttributeDescriptors()).hasSize(6);
+    assertThat(colorSettingsPage.getAttributeDescriptors()).hasSize(7);
   }
 
   @Test
@@ -65,7 +65,7 @@ class SonarLintColorSettingsPageTests {
 
   @Test
   void testDemo() {
-    for (String txt : SEVERITIES) {
+    for (var txt : SEVERITIES) {
       assertThat(colorSettingsPage.getDemoText()).containsIgnoringCase(txt);
     }
   }

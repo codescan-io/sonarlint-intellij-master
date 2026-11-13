@@ -15,14 +15,15 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.core;
 
-import com.intellij.openapi.progress.ProgressManager;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sonarlint.intellij.AbstractSonarLintLightTests;
@@ -30,18 +31,14 @@ import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.exception.InvalidBindingException;
 import org.sonarlint.intellij.notifications.SonarLintProjectNotifications;
-import org.sonarsource.sonarlint.core.client.api.connected.ConnectedSonarLintEngine;
-import org.sonarsource.sonarlint.core.client.api.standalone.StandaloneSonarLintEngine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.Mockito.mock;
+import static org.sonarlint.intellij.core.ProjectBindingManager.BindingMode.AUTOMATIC;
 
 class ProjectBindingManagerTests extends AbstractSonarLintLightTests {
   private ProjectBindingManager projectBindingManager;
-
-  private StandaloneSonarLintEngine standaloneEngine = mock(StandaloneSonarLintEngine.class);
-  private ConnectedSonarLintEngine connectedEngine = mock(ConnectedSonarLintEngine.class);
 
   @BeforeEach
   void before() {
@@ -50,39 +47,7 @@ class ProjectBindingManagerTests extends AbstractSonarLintLightTests {
     replaceProjectService(SonarLintConsole.class, console);
     replaceProjectService(SonarLintProjectNotifications.class, notifications);
 
-    projectBindingManager = new ProjectBindingManager(getProject(), mock(ProgressManager.class));
-  }
-
-  @Test
-  void should_create_facade_standalone() throws InvalidBindingException {
-    assertThat(projectBindingManager.getFacade(getModule())).isInstanceOf(StandaloneSonarLintFacade.class);
-  }
-
-  @Test
-  void should_get_connected_engine() throws InvalidBindingException {
-    connectProjectTo(ServerConnection.newBuilder().setName("server1").build(), "project1");
-    getEngineManager().registerEngine(connectedEngine, "server1");
-
-    var engine = projectBindingManager.getConnectedEngine();
-
-    assertThat(engine).isEqualTo(connectedEngine);
-  }
-
-  @Test
-  void fail_get_connected_engine_if_not_connected() {
-    var throwable = catchThrowable(() -> projectBindingManager.getConnectedEngine());
-
-    assertThat(throwable).isInstanceOf(IllegalStateException.class);
-  }
-
-  @Test
-  void should_create_facade_connected() throws InvalidBindingException {
-    connectProjectTo(ServerConnection.newBuilder().setName("server1").build(), "project1");
-    getEngineManager().registerEngine(connectedEngine, "server1");
-
-    var facade = projectBindingManager.getFacade(getModule());
-
-    assertThat(facade).isInstanceOf(ConnectedSonarLintFacade.class);
+    projectBindingManager = new ProjectBindingManager(getProject());
   }
 
   @Test
@@ -110,77 +75,11 @@ class ProjectBindingManagerTests extends AbstractSonarLintLightTests {
   }
 
   @Test
-  void fail_invalid_server_binding() {
-    getProjectSettings().setBindingEnabled(true);
-
-    var throwable = catchThrowable(() -> projectBindingManager.getFacade(getModule()));
-
-    assertThat(throwable)
-      .isInstanceOf(InvalidBindingException.class)
-      .hasMessage("Project has an invalid binding");
-  }
-
-  @Test
-  void fail_invalid_module_binding() {
-    getProjectSettings().setBindingEnabled(true);
-    getProjectSettings().setConnectionName("server1");
-    getProjectSettings().setProjectKey(null);
-
-    var throwable = catchThrowable(() -> projectBindingManager.getFacade(getModule()));
-
-    assertThat(throwable)
-      .isInstanceOf(InvalidBindingException.class)
-      .hasMessage("Project has an invalid binding");
-  }
-
-  @Test
-  void should_return_connected_engine_if_started() {
-    getProjectSettings().setBindingEnabled(true);
-    getProjectSettings().setConnectionName("server1");
-    getProjectSettings().setProjectKey("key");
-    getEngineManager().registerEngine(connectedEngine, "server1");
-
-    var engine = projectBindingManager.getEngineIfStarted();
-
-    assertThat(engine).isEqualTo(connectedEngine);
-  }
-
-  @Test
-  void should_return_standalone_engine_if_started() {
-    getProjectSettings().setBindingEnabled(false);
-    getEngineManager().registerEngine(standaloneEngine);
-
-    var engine = projectBindingManager.getEngineIfStarted();
-
-    assertThat(engine).isEqualTo(standaloneEngine);
-  }
-
-  @Test
-  void should_not_return_connected_engine_if_not_started() {
-    getProjectSettings().setBindingEnabled(true);
-    getProjectSettings().setConnectionName("server1");
-    getProjectSettings().setProjectKey(null);
-
-    var engine = projectBindingManager.getEngineIfStarted();
-
-    assertThat(engine).isNull();
-  }
-
-  @Test
-  void should_not_return_standalone_engine_if_not_started() {
-    getProjectSettings().setBindingEnabled(false);
-
-    var engine = projectBindingManager.getEngineIfStarted();
-
-    assertThat(engine).isNull();
-  }
-
-  @Test
   void should_store_project_binding_in_settings() {
     var connection = ServerConnection.newBuilder().setName("name").build();
     getGlobalSettings().setServerConnections(List.of(connection));
 
-    projectBindingManager.bindTo(connection, "projectKey", Collections.emptyMap());
+    projectBindingManager.bindTo(connection, "projectKey", Collections.emptyMap(), AUTOMATIC);
 
     assertThat(getProjectSettings().isBoundTo(connection)).isTrue();
     assertThat(getProjectSettings().getProjectKey()).isEqualTo("projectKey");
@@ -190,7 +89,7 @@ class ProjectBindingManagerTests extends AbstractSonarLintLightTests {
   void should_store_project_and_module_bindings_in_settings() {
     var connection = ServerConnection.newBuilder().setName("name").build();
     getGlobalSettings().setServerConnections(List.of(connection));
-    projectBindingManager.bindTo(connection, "projectKey", Map.of(getModule(), "moduleProjectKey"));
+    projectBindingManager.bindTo(connection, "projectKey", Map.of(getModule(), "moduleProjectKey"), AUTOMATIC);
 
     assertThat(getProjectSettings().isBoundTo(connection)).isTrue();
     assertThat(getProjectSettings().getProjectKey()).isEqualTo("projectKey");
@@ -205,7 +104,9 @@ class ProjectBindingManagerTests extends AbstractSonarLintLightTests {
 
     projectBindingManager.unbind();
 
-    assertThat(getProjectSettings().isBound()).isFalse();
-    assertThat(getModuleSettings().isProjectBindingOverridden()).isFalse();
+    Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+      assertThat(getProjectSettings().isBound()).isFalse();
+      assertThat(getModuleSettings().isProjectBindingOverridden()).isFalse();
+    });
   }
 }

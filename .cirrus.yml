@@ -5,26 +5,48 @@ env:
   ARTIFACTORY_URL: VAULT[development/kv/data/repox data.url]
   ARTIFACTORY_PRIVATE_USERNAME: vault-${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-private-reader
   ARTIFACTORY_PRIVATE_PASSWORD: VAULT[development/artifactory/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-private-reader access_token]
-  BURGR_URL: VAULT[development/kv/data/burgr data.url]
-  BURGR_USERNAME: VAULT[development/kv/data/burgr data.cirrus_username]
-  BURGR_PASSWORD: VAULT[development/kv/data/burgr data.cirrus_password]
-  SONAR_HOST_URL: VAULT[development/kv/data/next data.url]
-  SONAR_TOKEN: VAULT[development/kv/data/next data.token]
-  GRADLE_VERSION: "7.6"
+  SLACK_TOKEN: VAULT[development/kv/data/slack data.token]
+  SLACK_CHANNEL: squad-ide-intellij-family-bots
+  GRADLE_VERSION: "8.9"
+  GRADLE_USER_HOME: ${CIRRUS_WORKING_DIR}/.gradle_cache
+  IDEA_HOME: "/opt/intellij"
+  RIDER_HOME: "/opt/rider"
+  RESHARPER_HOME: "/opt/resharper"
+  CLION_HOME: "/opt/clion"
 
 auto_cancellation: $CIRRUS_BRANCH != $CIRRUS_DEFAULT_BRANCH
+
+only_if_nightly: &ONLY_IF_NIGHTLY
+  only_if: $CIRRUS_USER_COLLABORATOR == 'true' && $CIRRUS_TAG == "" && $CIRRUS_CRON == "nightly"
+
+only_pr_and_maintained_branches_including_nightly: &ONLY_PR_AND_MAINTAINED_BRANCHES_INCLUDING_NIGHTLY
+  skip: "changesIncludeOnly('*.txt', '**/README.md')"
+  only_if: $CIRRUS_USER_COLLABORATOR == 'true' && $CIRRUS_TAG == ""
+    && ($CIRRUS_PR != "" || $CIRRUS_BRANCH == $CIRRUS_DEFAULT_BRANCH || $CIRRUS_BRANCH == "ci-images-verifier" || $CIRRUS_BRANCH =~ "branch-.*" || $CIRRUS_BRANCH =~ "dogfood-on-.*")
 
 only_pr_and_maintained_branches: &ONLY_PR_AND_MAINTAINED_BRANCHES
   skip: "changesIncludeOnly('*.txt', '**/README.md')"
   only_if: $CIRRUS_USER_COLLABORATOR == 'true' && $CIRRUS_TAG == ""
-    && ($CIRRUS_PR != "" || $CIRRUS_BRANCH == $CIRRUS_DEFAULT_BRANCH || $CIRRUS_BRANCH =~ "branch-.*" || $CIRRUS_BRANCH =~ "dogfood-on-.*")
+    && ($CIRRUS_PR != "" || $CIRRUS_BRANCH == $CIRRUS_DEFAULT_BRANCH || $CIRRUS_BRANCH =~ "branch-.*" || $CIRRUS_BRANCH == "ci-images-verifier" || $CIRRUS_BRANCH =~ "dogfood-on-.*") && $CIRRUS_BUILD_SOURCE != "cron"
 
 only_main_branches: &ONLY_MAIN_BRANCHES
   skip: "changesIncludeOnly('*.txt', '**/README.md')"
-  only_if: $CIRRUS_USER_COLLABORATOR == 'true' && $CIRRUS_TAG == "" && ($CIRRUS_BRANCH == $CIRRUS_DEFAULT_BRANCH || $CIRRUS_BRANCH =~ "branch-.*")
+  only_if: $CIRRUS_USER_COLLABORATOR == 'true' && $CIRRUS_TAG == "" && ($CIRRUS_BRANCH == $CIRRUS_DEFAULT_BRANCH || $CIRRUS_BRANCH =~ "branch-.*") && $CIRRUS_BUILD_SOURCE != "cron"
 
-eks_container: &CONTAINER_DEFINITION
-  image: ${CIRRUS_AWS_ACCOUNT}.dkr.ecr.eu-central-1.amazonaws.com/base:j11-g7-latest
+orchestrator_monthly_cache_template: &ORCHESTRATOR_MONTHLY_CACHE_TEMPLATE
+  set_orchestrator_home_script: |
+    export THIS_MONTH=$(date '+%Y-%m')
+    echo "THIS_MONTH=${THIS_MONTH}" >> $CIRRUS_ENV
+    echo "ORCHESTRATOR_HOME=${CIRRUS_WORKING_DIR}/orchestrator/${THIS_MONTH}" >> $CIRRUS_ENV
+  mkdir_orchestrator_home_script: |
+    echo "Create dir ${ORCHESTRATOR_HOME} if needed"
+    mkdir -p ${ORCHESTRATOR_HOME}
+  orchestrator_cache:
+    folder: ${ORCHESTRATOR_HOME}
+    fingerprint_script: echo ${THIS_MONTH}
+
+container_definition: &CONTAINER_DEFINITION
+  image: ${CIRRUS_AWS_ACCOUNT}.dkr.ecr.eu-central-1.amazonaws.com/base:j17-g7-latest
   region: eu-central-1
   cluster_name: ${CIRRUS_CLUSTER_NAME}
   namespace: default
@@ -40,39 +62,40 @@ eks_builder_container: &BUILDER_CONTAINER_DEFINITION
   builder_instance_type: t3.small
   builder_subnet_id: ${CIRRUS_AWS_SUBNET}
 
-ec2_instance: &WINVM_DEFINITION
-  experimental: true
-  image: base-windows-jdk17-v*
-  platform: windows
+ec2_instance_definition: &WINVM_DEFINITION
   region: eu-central-1
-  subnet_id: ${CIRRUS_AWS_SUBNET}
-  type: t3.xlarge
+  type: c5.4xlarge
+  image: sonarlint-intellij-v*
+  platform: windows
 
 setup_gradle_cache_template: &SETUP_GRADLE_CACHE
   gradle_cache:
-    folder: ~/.gradle/caches
+    folder: ${GRADLE_USER_HOME}/caches
     fingerprint_script:
       - echo $CIRRUS_OS
-      - cat **/*.gradle* **/gradle-wrapper.properties || true
+      - cat **/*.gradle* gradle/wrapper/gradle-wrapper.properties || true
     populate_script:
-      - mkdir -p ~/.gradle/caches
+      - mkdir -p ${GRADLE_USER_HOME}/caches
 
 cleanup_gradle_cache_script_template: &CLEANUP_GRADLE_CACHE_SCRIPT
   cleanup_gradle_script: |
-    rm -rf ~/.gradle/caches/$GRADLE_VERSION/
-    rm -rf ~/.gradle/daemon/
-    rm -rf ~/.gradle/caches/transforms-*
-    rm -rf ~/.gradle/caches/journal-*
-    /usr/bin/find ~/.gradle/caches/ -name "*.lock" -type f -delete
+    rm -rf ${GRADLE_USER_HOME}/caches/$GRADLE_VERSION/
+    rm -rf ${GRADLE_USER_HOME}/daemon/
+    rm -rf ${GRADLE_USER_HOME}/caches/transforms-*
+    rm -rf ${GRADLE_USER_HOME}/caches/journal-*
+    /usr/bin/find ${GRADLE_USER_HOME}/caches/ -name "*.lock" -type f -delete
 
 build_task:
   #  name: "Build and stage to repox"
-  <<: *ONLY_PR_AND_MAINTAINED_BRANCHES
+  <<: *ONLY_PR_AND_MAINTAINED_BRANCHES_INCLUDING_NIGHTLY
   eks_container:
-    <<: *CONTAINER_DEFINITION
-    cpu: 4
-    memory: 8G
+    <<: *BUILDER_CONTAINER_DEFINITION
+    cpu: 9
+    memory: 12G
   env:
+    SONAR_HOST_URL: VAULT[development/kv/data/next data.url]
+    SONAR_TOKEN: VAULT[development/kv/data/next data.token]
+    JDK_VERSION: "17"
     ARTIFACTORY_DEPLOY_REPO: sonarsource-public-qa
     ARTIFACTORY_DEPLOY_USERNAME: vault-${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-qa-deployer
     ARTIFACTORY_DEPLOY_PASSWORD: VAULT[development/artifactory/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-qa-deployer access_token]
@@ -83,9 +106,12 @@ build_task:
   build_script: |
     source cirrus-env BUILD-PRIVATE
     source .cirrus/use-gradle-wrapper.sh
-    source .cirrus/set_gradle_build_version
-    regular_gradle_build_deploy_analyze -x build -x sonarqube :buildPlugin :cyclonedxBom
+    source set_gradle_build_version
+    regular_gradle_build_deploy_analyze -x build -x sonar :buildPlugin :cyclonedxBom
   <<: *CLEANUP_GRADLE_CACHE_SCRIPT
+  on_failure:
+    slack_notification_script: |
+      source slack-failure-notification
 
 validate_task:
   #  name: "Run UTs and trigger SonarQube analysis"
@@ -93,16 +119,18 @@ validate_task:
     - build
   <<: *ONLY_PR_AND_MAINTAINED_BRANCHES
   env:
-    JDK_VERSION: "11"
+    SONAR_HOST_URL: VAULT[development/kv/data/next data.url]
+    SONAR_TOKEN: VAULT[development/kv/data/next data.token]
+    JDK_VERSION: "17"
   eks_container:
     <<: *BUILDER_CONTAINER_DEFINITION
-    cpu: 4
-    memory: 8G
+    cpu: 7
+    memory: 12G
   <<: *SETUP_GRADLE_CACHE
   build_script: |
     source cirrus-env QA
     source .cirrus/use-gradle-wrapper.sh
-    PULL_REQUEST_SHA=$GIT_SHA1 regular_gradle_build_deploy_analyze check -x :its:check -x artifactoryPublish :runPluginVerifier sonarqube jacocoTestReport
+    PULL_REQUEST_SHA=$GIT_SHA1 regular_gradle_build_deploy_analyze check -x :its:check -x artifactoryPublish sonar jacocoTestReport
   <<: *CLEANUP_GRADLE_CACHE_SCRIPT
   on_failure:
     reports_artifacts:
@@ -110,20 +138,28 @@ validate_task:
     junit_artifacts:
       path: "**/test-results/**/*.xml"
       format: junit
+    slack_notification_script: |
+      source slack-failure-notification
 
 validate_windows_task:
   #  name: "Run unit tests on Windows"
   depends_on:
     - build
   <<: *ONLY_PR_AND_MAINTAINED_BRANCHES
+  env:
+    JDK_VERSION: "17"
+    IDEA_HOME: "/C/Program Files/intellij"
+    RIDER_HOME: "/C/Program Files/rider"
+    RESHARPER_HOME: "/C/Program Files/resharper"
+    CLION_HOME: "/C/Program Files/clion"
   ec2_instance:
     <<: *WINVM_DEFINITION
   <<: *SETUP_GRADLE_CACHE
+  # skip unit tests from submodules to allow caching (else cache is too big for Cirrus)
   build_script: |
     source cirrus-env QA
     source .cirrus/use-gradle-wrapper.sh
-    source .cirrus/set_gradle_build_version
-    PULL_REQUEST_SHA=$GIT_SHA1 regular_gradle_build_deploy_analyze check -x :its:check -x artifactoryPublish -x sonarqube :runPluginVerifier jacocoTestReport
+    ./gradlew :check
   <<: *CLEANUP_GRADLE_CACHE_SCRIPT
   on_failure:
     reports_artifacts:
@@ -131,48 +167,176 @@ validate_windows_task:
     junit_artifacts:
       path: "**/test-results/**/*.xml"
       format: junit
+    slack_notification_script: |
+      source slack-failure-notification
+
+plugin_verifier_task:
+  #  name: "Run plugin verifier on all IDEs"
+  depends_on:
+    - build
+  <<: *ONLY_IF_NIGHTLY
+  env:
+    JDK_VERSION: "17"
+    ALLOWED_IDE: "AS|CL|DG|GO|IIU|IIC|IIE|PS|PCP|PCC|PCE|RDCPPP|RD|RM|WS"
+  eks_container:
+    <<: *BUILDER_CONTAINER_DEFINITION
+    cpu: 4
+    memory: 10G
+  matrix:
+    - env:
+        IDEA_VERSION: '2022.3.1'
+    - env:
+        IDEA_VERSION: '2024.1.4'
+    - env:
+        # It automatically retrieves the latest version available for the given year (likely to be the EAP)
+        IDEA_VERSION: '2024'
+  <<: *SETUP_GRADLE_CACHE
+  sync_script: |
+    git fetch origin +refs/heads/master:refs/remotes/origin/master
+    git reset --hard refs/remotes/origin/master
+  # The versions are retrieved by querying JB API, we only keep the IDE flavors we handle, then we filter by our specified version.
+  # Since there can be multiple 2021.3 (2021.3.1, 2021.3.2, etc.) we only keep the latest one.
+  build_script: |
+    echo "Run plugin verifier on ${IDEA_VERSION}"
+    source cirrus-env QA
+    source .cirrus/use-gradle-wrapper.sh
+    VERSIONS=$(curl -s -L https://jb.gg/intellij-platform-builds-list | jq '.[] | "\(.code) \(.releases[].version)"' | grep -Ew "${ALLOWED_IDE}" | grep "${IDEA_VERSION}" | tr -d '"' | awk '{k=$1} $2>a[k]{a[k]=$2} END{for (i in a) print i, a[i]}' | sort -u | sed 's/ /-/' | paste -s -d',')
+    echo ${VERSIONS}
+    ./gradlew :runPluginVerifier -PverifierVersions=${VERSIONS}
+  <<: *CLEANUP_GRADLE_CACHE_SCRIPT
+  on_failure:
+    reports_artifacts:
+      path: "**/reports/**/*"
+    slack_notification_script: |
+      source slack-failure-notification
 
 qa_task:
   #  name: "Run ITs"
   depends_on:
     - build
   <<: *ONLY_PR_AND_MAINTAINED_BRANCHES
+  <<: *ORCHESTRATOR_MONTHLY_CACHE_TEMPLATE
   eks_container:
     <<: *BUILDER_CONTAINER_DEFINITION
-    cpu: 4
+    cpu: 6
     memory: 16G
   env:
-    CLION_KEY: VAULT[development/team/sonarlint/kv/data/clion.key data.key]
-    GOLAND_KEY: VAULT[development/team/sonarlint/kv/data/goland.key data.key]
+    CLION_KEY: VAULT[development/team/sonarlint/kv/data/ide.keys data.clion]
+    GOLAND_KEY: VAULT[development/team/sonarlint/kv/data/ide.keys data.goland]
+    DATAGRIP_KEY: VAULT[development/team/sonarlint/kv/data/ide.keys data.datagrip]
+    IDEA_KEY: VAULT[development/team/sonarlint/kv/data/ide.keys data.idea]
+    PHPSTORM_KEY: VAULT[development/team/sonarlint/kv/data/ide.keys data.phpstorm]
+    PYCHARM_KEY: VAULT[development/team/sonarlint/kv/data/ide.keys data.pycharm]
+    RIDER_KEY: VAULT[development/team/sonarlint/kv/data/ide.keys data.rider]
+    RUBYMINE_KEY: VAULT[development/team/sonarlint/kv/data/ide.keys data.rubymine]
+    WEBSTORM_KEY: VAULT[development/team/sonarlint/kv/data/ide.keys data.webstorm]
     ARTIFACTORY_ACCESS_TOKEN: VAULT[development/artifactory/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-private-reader access_token]
     GITHUB_TOKEN: VAULT[development/github/token/licenses-ro token]
     DISPLAY: :10
     JDK_VERSION: "17"
+    SONARCLOUD_IT_PASSWORD: VAULT[development/team/sonarlint/kv/data/sonarcloud-it data.password]
   clionKey_file:
     path: ${CIRRUS_WORKING_DIR}/its/build/idea-sandbox/config-uiTest/clion.key.b64
     variable_name: CLION_KEY
   golandKey_file:
     path: ${CIRRUS_WORKING_DIR}/its/build/idea-sandbox/config-uiTest/goland.key.b64
     variable_name: GOLAND_KEY
+  datagripKey_file:
+    path: ${CIRRUS_WORKING_DIR}/its/build/idea-sandbox/config-uiTest/datagrip.key.b64
+    variable_name: DATAGRIP_KEY
+  ideaKey_file:
+    path: ${CIRRUS_WORKING_DIR}/its/build/idea-sandbox/config-uiTest/idea.key.b64
+    variable_name: IDEA_KEY
+  phpstormKey_file:
+    path: ${CIRRUS_WORKING_DIR}/its/build/idea-sandbox/config-uiTest/phpstorm.key.b64
+    variable_name: PHPSTORM_KEY
+  pycharmKey_file:
+    path: ${CIRRUS_WORKING_DIR}/its/build/idea-sandbox/config-uiTest/pycharm.key.b64
+    variable_name: PYCHARM_KEY
+  riderKey_file:
+    path: ${CIRRUS_WORKING_DIR}/its/build/idea-sandbox/config-uiTest/rider.key.b64
+    variable_name: RIDER_KEY
+  rubymineKey_file:
+    path: ${CIRRUS_WORKING_DIR}/its/build/idea-sandbox/config-uiTest/rubymine.key.b64
+    variable_name: RUBYMINE_KEY
+  webstormKey_file:
+    path: ${CIRRUS_WORKING_DIR}/its/build/idea-sandbox/config-uiTest/webstorm.key.b64
+    variable_name: WEBSTORM_KEY
   matrix:
     - env:
-        IDEA_VERSION: 'IC-2021.3.3'
-        QA_CATEGORY: 'Idea2021'
+        IDEA_VERSION: 'IC-2022.3.1'
+        QA_CATEGORY: 'Idea2022'
+        TEST_SUITE: 'OpenInIdeTests'
     - env:
-        IDEA_VERSION: 'CL-2021.3.3'
-        QA_CATEGORY: 'CLion2021'
+        IDEA_VERSION: 'IC-2022.3.1'
+        QA_CATEGORY: 'Idea2022'
+        TEST_SUITE: 'ConnectedAnalysisTests'
     - env:
-        IDEA_VERSION: 'GO-2021.3.3'
-        QA_CATEGORY: 'GoLand2021'
+        IDEA_VERSION: 'IC-2022.3.1'
+        QA_CATEGORY: 'Idea2022'
+        TEST_SUITE: 'ConfigurationTests'
     - env:
-        IDEA_VERSION: 'IC-2023.2.1'
-        QA_CATEGORY: 'Idea2023'
+        IDEA_VERSION: 'IC-2022.3.1'
+        QA_CATEGORY: 'Idea2022'
+        TEST_SUITE: 'Standalone'
     - env:
-        IDEA_VERSION: 'CL-2023.2'
-        QA_CATEGORY: 'CLion2023'
+        IDEA_VERSION: 'IC-2024.1.4'
+        QA_CATEGORY: 'Idea2024'
+        TEST_SUITE: 'OpenInIdeTests'
     - env:
-        IDEA_VERSION: 'GO-2023.2'
-        QA_CATEGORY: 'GoLand2023'
+        IDEA_VERSION: 'IC-2024.1.4'
+        QA_CATEGORY: 'Idea2024'
+        TEST_SUITE: 'ConnectedAnalysisTests'
+    - env:
+        IDEA_VERSION: 'IC-2024.1.4'
+        QA_CATEGORY: 'Idea2024'
+        TEST_SUITE: 'ConfigurationTests'
+    - env:
+        IDEA_VERSION: 'IC-2024.1.4'
+        QA_CATEGORY: 'Idea2024'
+        TEST_SUITE: 'Standalone'
+    - env:
+        IDEA_VERSION: 'IU-2022.3.1'
+        QA_CATEGORY: 'IdeaUltimate2022'
+    - env:
+        IDEA_VERSION: 'IU-2024.1.4'
+        QA_CATEGORY: 'IdeaUltimate2024'
+    - env:
+        IDEA_VERSION: 'PY-2022.3.1'
+        QA_CATEGORY: 'PyCharmProfessional2022'
+    - env:
+        IDEA_VERSION: 'PY-2024.1.4'
+        QA_CATEGORY: 'PyCharmProfessional2024'
+    - env:
+        IDEA_VERSION: 'PC-2022.3.1'
+        QA_CATEGORY: 'PyCharmCommunity2022'
+    - env:
+        IDEA_VERSION: 'PC-2024.1.4'
+        QA_CATEGORY: 'PyCharmCommunity2024'
+    - env:
+        IDEA_VERSION: 'RD-2022.3.1'
+        QA_CATEGORY: 'Rider2022'
+    - env:
+        IDEA_VERSION: 'RD-2024.1.4'
+        QA_CATEGORY: 'Rider2024'
+    - env:
+        IDEA_VERSION: 'PS-2022.3.1'
+        QA_CATEGORY: 'PhpStorm2022'
+    - env:
+        IDEA_VERSION: 'PS-2024.1.4'
+        QA_CATEGORY: 'PhpStorm2024'
+    - env:
+        IDEA_VERSION: 'GO-2022.3.1'
+        QA_CATEGORY: 'GoLand2022'
+    - env:
+        IDEA_VERSION: 'GO-2024.1.4'
+        QA_CATEGORY: 'GoLand2024'
+    - env:
+        IDEA_VERSION: 'CL-2022.3.1'
+        QA_CATEGORY: 'CLion2022'
+    - env:
+        IDEA_VERSION: 'CL-2024.1.4'
+        QA_CATEGORY: 'CLion2024'
   <<: *SETUP_GRADLE_CACHE
   xvfb_background_script: |
     /etc/init.d/xvfb start
@@ -181,11 +345,18 @@ qa_task:
     echo "Prepare env and start IDE ${IDEA_VERSION}"
     source cirrus-env QA
     source .cirrus/use-gradle-wrapper.sh
-    source .cirrus/set_gradle_build_version
+    source set_gradle_build_version
     mvn org.apache.maven.plugins:maven-dependency-plugin:3.1.1:unpack -B -Dartifact=org.sonarsource.sonarlint.intellij:sonarlint-intellij:${PROJECT_VERSION}:zip "-DoutputDirectory=${CIRRUS_WORKING_DIR}/staged-plugin"
     mkdir -p its/build/idea-sandbox/config-uiTest/
     base64 --decode its/build/idea-sandbox/config-uiTest/clion.key.b64 > its/build/idea-sandbox/config-uiTest/clion.key
     base64 --decode its/build/idea-sandbox/config-uiTest/goland.key.b64 > its/build/idea-sandbox/config-uiTest/goland.key
+    base64 --decode its/build/idea-sandbox/config-uiTest/datagrip.key.b64 > its/build/idea-sandbox/config-uiTest/datagrip.key
+    base64 --decode its/build/idea-sandbox/config-uiTest/idea.key.b64 > its/build/idea-sandbox/config-uiTest/idea.key
+    base64 --decode its/build/idea-sandbox/config-uiTest/phpstorm.key.b64 > its/build/idea-sandbox/config-uiTest/phpstorm.key
+    base64 --decode its/build/idea-sandbox/config-uiTest/pycharm.key.b64 > its/build/idea-sandbox/config-uiTest/pycharm.key
+    base64 --decode its/build/idea-sandbox/config-uiTest/rider.key.b64 > its/build/idea-sandbox/config-uiTest/rider.key
+    base64 --decode its/build/idea-sandbox/config-uiTest/rubymine.key.b64 > its/build/idea-sandbox/config-uiTest/rubymine.key
+    base64 --decode its/build/idea-sandbox/config-uiTest/webstorm.key.b64 > its/build/idea-sandbox/config-uiTest/webstorm.key
     metacity --sm-disable --replace &
     sleep 10 # give metacity some time to start
     gradle :its:runIdeForUiTests --stacktrace -i -PijVersion=${IDEA_VERSION} -PslPluginDirectory=${CIRRUS_WORKING_DIR}/staged-plugin > ${CIRRUS_WORKING_DIR}/runIdeGradle.log &
@@ -219,6 +390,23 @@ qa_task:
     junit_artifacts:
       path: "**/test-results/**/*.xml"
       format: junit
+    slack_notification_script: |
+      source slack-failure-notification
+
+inspect_orchestrator_cache_task:
+  <<: *ONLY_PR_AND_MAINTAINED_BRANCHES
+  depends_on: build
+  eks_container:
+    <<: *CONTAINER_DEFINITION
+    cpu: 1
+    memory: 2G
+  <<: *ORCHESTRATOR_MONTHLY_CACHE_TEMPLATE
+  inspect_cache_script: |
+    echo "Inspecting cache ${ORCHESTRATOR_HOME}..."
+    cd "${ORCHESTRATOR_HOME}"
+    ls -l
+    find .
+    echo "Inspecting cache done."
 
 mend_scan_task:
   depends_on:
@@ -230,17 +418,24 @@ mend_scan_task:
     memory: 4G
   env:
     WS_APIKEY: VAULT[development/kv/data/mend data.apikey]
+    IDEA_HOME: ""
+    RIDER_HOME: ""
+    RESHARPER_HOME: ""
+    CLION_HOME: ""
   <<: *SETUP_GRADLE_CACHE
   mend_script: |
     source cirrus-env QA
     source .cirrus/use-gradle-wrapper.sh
-    source .cirrus/set_gradle_build_version
+    source set_gradle_build_version
     source ws_scan.sh
   <<: *CLEANUP_GRADLE_CACHE_SCRIPT
   allow_failures: "true"
   always:
     ws_scan_artifacts:
       path: "whitesource/**/*"
+  on_failure:
+    slack_notification_script: |
+      source slack-failure-notification
 
 promote_task:
   depends_on:
@@ -253,36 +448,44 @@ promote_task:
   eks_container:
     <<: *CONTAINER_DEFINITION
     cpu: 3
-    memory: 2G
+    memory: 4G
   env:
-    GCF_ACCESS_TOKEN: VAULT[development/kv/data/promote data.token]
-    PROMOTE_URL: VAULT[development/kv/data/promote data.url]
+    ARTIFACTORY_PROMOTE_ACCESS_TOKEN: VAULT[development/artifactory/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-promoter access_token]
     GITHUB_TOKEN: VAULT[development/github/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-promotion token]
-    # artifacts which will have downloadable links in burgr
-    ARTIFACTS: org.sonarsource.sonarlint.intellij:sonarlint-intellij:zip
+    JDK_VERSION: "17"
+    IDEA_HOME: ""
+    RIDER_HOME: ""
+    RESHARPER_HOME: ""
+    CLION_HOME: ""
   <<: *SETUP_GRADLE_CACHE
   promote_script: |
     source .cirrus/use-gradle-wrapper.sh
-    .cirrus/cirrus_promote_gradle
+    cirrus_promote_gradle
   <<: *CLEANUP_GRADLE_CACHE_SCRIPT
+  on_failure:
+    slack_notification_script: |
+      source slack-failure-notification
 
 dogfood_task:
   #  name: "Update internal dogfooding plugin repo"
   #  alias: "update_dogfood_repo"
   depends_on:
     - promote
-  only_if: $CIRRUS_USER_COLLABORATOR == 'true' && $CIRRUS_TAG == "" && $CIRRUS_BRANCH == $CIRRUS_DEFAULT_BRANCH
+  only_if: $CIRRUS_USER_COLLABORATOR == 'true' && $CIRRUS_TAG == "" && $CIRRUS_BRANCH == $CIRRUS_DEFAULT_BRANCH && $CIRRUS_BUILD_SOURCE != "cron"
   eks_container:
     <<: *BUILDER_CONTAINER_DEFINITION
     cpu: 1
-    memory: 1G
+    memory: 2G
   env:
     ARTIFACTORY_API_KEY: VAULT[development/artifactory/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-promoter access_token]
     JDK_VERSION: "17"
   dogfood_script: |
     source cirrus-env QA
     source .cirrus/use-gradle-wrapper.sh
-    source .cirrus/set_gradle_build_version
+    source set_gradle_build_version
     envsubst '$ARTIFACTORY_URL,$PROJECT_VERSION' <.cirrus/updatePlugins-template.xml >updatePlugins.xml
     jfrog rt u updatePlugins.xml sonarsource-public-builds/org/sonarsource/sonarlint/intellij/sonarlint-intellij/ \
       --url "${ARTIFACTORY_URL}" --access-token "${ARTIFACTORY_API_KEY}" --build-name "$CIRRUS_REPO_NAME" --build-number "$BUILD_NUMBER"
+  on_failure:
+    slack_notification_script: |
+      source slack-failure-notification

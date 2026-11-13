@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.tree;
 
@@ -37,8 +37,12 @@ import javax.swing.tree.TreeModel;
 import org.jetbrains.annotations.NonNls;
 import org.sonarlint.intellij.actions.DisableRuleAction;
 import org.sonarlint.intellij.actions.ExcludeFileAction;
+import org.sonarlint.intellij.actions.MarkAsResolvedAction;
+import org.sonarlint.intellij.actions.ReopenIssueAction;
 import org.sonarlint.intellij.finding.issue.LiveIssue;
 import org.sonarlint.intellij.ui.nodes.IssueNode;
+
+import static org.sonarlint.intellij.util.DataKeys.ISSUE_DATA_KEY;
 
 /**
  * Extends {@link Tree} to provide context data for actions and initialize it
@@ -61,7 +65,7 @@ public class IssueTree extends FindingTree implements DataProvider {
       return data;
     } else if (CommonDataKeys.NAVIGATABLE.is(dataId)) {
       return navigate();
-    } else if (DisableRuleAction.ISSUE_DATA_KEY.is(dataId)) {
+    } else if (ISSUE_DATA_KEY.is(dataId)) {
       return getSelectedIssue();
     }
 
@@ -75,6 +79,8 @@ public class IssueTree extends FindingTree implements DataProvider {
 
     var group = new DefaultActionGroup();
     group.add(ActionManager.getInstance().getAction(IdeActions.ACTION_EDIT_SOURCE));
+    group.add(new MarkAsResolvedAction());
+    group.add(new ReopenIssueAction());
     group.addSeparator();
     group.add(ActionManager.getInstance().getAction(IdeActions.GROUP_VERSION_CONTROLS));
     group.addSeparator();
@@ -102,7 +108,7 @@ public class IssueTree extends FindingTree implements DataProvider {
     } else {
       offset = 0;
     }
-    return new OpenFileDescriptor(project, issue.psiFile().getVirtualFile(), offset);
+    return new OpenFileDescriptor(project, issue.file(), offset);
   }
 
   @CheckForNull

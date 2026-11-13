@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui;
 
@@ -34,6 +34,8 @@ public class CurrentFileStatusPanel extends JBPanel<CurrentFileStatusPanel> {
 
   private final Project project;
 
+  public static final String HELP_TEXT = "CodeScan analyzes in real-time the active file only, and reports any issues found in this view. ";
+
   CurrentFileStatusPanel(Project project) {
     super(new BorderLayout());
     this.project = project;
@@ -41,12 +43,15 @@ public class CurrentFileStatusPanel extends JBPanel<CurrentFileStatusPanel> {
   }
 
   private void createPanel() {
-    add(new AutoTriggerStatusPanel(project).getPanel(), BorderLayout.CENTER);
+    add(new AutoTriggerStatusPanel(project).getPanel(), BorderLayout.WEST);
+
+    add(new WhatsInThisViewPanel(project, HELP_TEXT).getPanel(), BorderLayout.CENTER);
+
     add(new CurrentFileConnectedModePanel(project).getPanel(), BorderLayout.EAST);
   }
 
   static void subscribeToEventsThatAffectCurrentFile(Project project, Runnable runnable) {
-    var busConnection = project.getMessageBus().connect(project);
+    var busConnection = project.getMessageBus().connect();
     busConnection.subscribe(GlobalConfigurationListener.TOPIC, new GlobalConfigurationListener.Adapter() {
       @Override
       public void applied(SonarLintGlobalSettings previousSettings, SonarLintGlobalSettings newSettings) {

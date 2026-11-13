@@ -1,14 +1,15 @@
+val intellijBuildVersion: String by project
+val ideaHome: String? = System.getenv("IDEA_HOME")
+
 plugins {
     kotlin("jvm")
 }
 
-val sonarlintCoreVersion: String by project
-val intellijBuildVersion: String by project
-
 intellij {
-    version.set(intellijBuildVersion)
-}
-
-dependencies {
-    implementation("org.sonarsource.sonarlint.core:sonarlint-core:$sonarlintCoreVersion")
+    if (!ideaHome.isNullOrBlank()) {
+        localPath.set(ideaHome)
+        localSourcesPath.set(ideaHome)
+    } else {
+        version.set(intellijBuildVersion)
+    }
 }

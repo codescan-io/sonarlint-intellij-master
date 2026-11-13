@@ -15,139 +15,462 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.core
 
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ApplicationNamesInfo
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.project.ProjectManagerListener
+import com.intellij.openapi.roots.TestSourcesFilter.isTestSources
+import com.intellij.openapi.util.io.FileUtilRt
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.serviceContainer.NonInjectable
-import org.apache.commons.io.FileUtils
-import org.eclipse.lsp4j.jsonrpc.messages.Either
-import org.sonarlint.intellij.SonarLintIntelliJClient
-import org.sonarlint.intellij.SonarLintPlugin
-import org.sonarlint.intellij.common.util.SonarLintUtils.getService
-import org.sonarlint.intellij.common.vcs.VcsService
-import org.sonarlint.intellij.config.Settings.getGlobalSettings
-import org.sonarlint.intellij.config.Settings.getSettingsFor
-import org.sonarlint.intellij.config.global.ServerConnection
-import org.sonarlint.intellij.config.global.SonarLintGlobalSettings
-import org.sonarlint.intellij.messages.GlobalConfigurationListener
-import org.sonarlint.intellij.util.GlobalLogOutput
-import org.sonarsource.sonarlint.core.SonarLintBackendImpl
-import org.sonarsource.sonarlint.core.clientapi.SonarLintBackend
-import org.sonarsource.sonarlint.core.clientapi.backend.branch.DidChangeActiveSonarProjectBranchParams
-import org.sonarsource.sonarlint.core.clientapi.backend.config.binding.BindingConfigurationDto
-import org.sonarsource.sonarlint.core.clientapi.backend.config.binding.DidUpdateBindingParams
-import org.sonarsource.sonarlint.core.clientapi.backend.config.scope.ConfigurationScopeDto
-import org.sonarsource.sonarlint.core.clientapi.backend.config.scope.DidAddConfigurationScopesParams
-import org.sonarsource.sonarlint.core.clientapi.backend.config.scope.DidRemoveConfigurationScopeParams
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.auth.HelpGenerateUserTokenParams
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.auth.HelpGenerateUserTokenResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.check.CheckSmartNotificationsSupportedParams
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.check.CheckSmartNotificationsSupportedResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.common.TransientSonarCloudConnectionDto
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.common.TransientSonarQubeConnectionDto
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.config.DidUpdateConnectionsParams
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.config.SonarCloudConnectionConfigurationDto
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.config.SonarQubeConnectionConfigurationDto
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.GetOrganizationParams
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.GetOrganizationResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.ListUserOrganizationsParams
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.ListUserOrganizationsResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.validate.ValidateConnectionParams
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.validate.ValidateConnectionResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.ChangeHotspotStatusParams
-import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.CheckLocalDetectionSupportedParams
-import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.CheckLocalDetectionSupportedResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.CheckStatusChangePermittedParams
-import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.CheckStatusChangePermittedResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.HotspotStatus
-import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.OpenHotspotInBrowserParams
-import org.sonarsource.sonarlint.core.clientapi.backend.initialize.ClientInfoDto
-import org.sonarsource.sonarlint.core.clientapi.backend.initialize.FeatureFlagsDto
-import org.sonarsource.sonarlint.core.clientapi.backend.initialize.InitializeParams
-import org.sonarsource.sonarlint.core.clientapi.backend.issue.AddIssueCommentParams
-import org.sonarsource.sonarlint.core.clientapi.backend.issue.ChangeIssueStatusParams
-import org.sonarsource.sonarlint.core.clientapi.backend.issue.ResolutionStatus
-import org.sonarsource.sonarlint.core.clientapi.backend.rules.GetEffectiveRuleDetailsParams
-import org.sonarsource.sonarlint.core.clientapi.backend.rules.GetEffectiveRuleDetailsResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.rules.ListAllStandaloneRulesDefinitionsResponse
-import org.sonarsource.sonarlint.core.clientapi.common.TokenDto
-import org.sonarsource.sonarlint.core.clientapi.common.UsernamePasswordDto
-import org.sonarsource.sonarlint.core.http.HttpClient
+import com.intellij.ui.jcef.JBCefApp
 import java.io.IOException
+import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Duration
+import java.time.format.DateTimeParseException
+import java.util.UUID
+import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.logging.Filter
+import java.util.logging.Level
+import java.util.logging.Logger
+import org.apache.commons.io.FileUtils
+import org.sonarlint.intellij.SonarLintIntelliJClient
+import org.sonarlint.intellij.SonarLintPlugin
+import org.sonarlint.intellij.actions.RestartBackendAction.Companion.SONARLINT_ERROR_MSG
+import org.sonarlint.intellij.actions.RestartBackendNotificationAction
+import org.sonarlint.intellij.actions.SonarLintToolWindow
+import org.sonarlint.intellij.analysis.AnalysisSubmitter.collectContributedLanguages
+import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.computeReadActionSafely
+import org.sonarlint.intellij.common.ui.SonarLintConsole
+import org.sonarlint.intellij.common.util.SonarLintUtils
+import org.sonarlint.intellij.common.util.SonarLintUtils.getService
+import org.sonarlint.intellij.common.util.SonarLintUtils.isRider
+import org.sonarlint.intellij.config.Settings.getGlobalSettings
+import org.sonarlint.intellij.config.Settings.getSettingsFor
+import org.sonarlint.intellij.config.global.NodeJsSettings
+import org.sonarlint.intellij.config.global.ServerConnection
+import org.sonarlint.intellij.config.global.SonarLintGlobalSettings
+import org.sonarlint.intellij.finding.issue.vulnerabilities.TaintVulnerabilityMatcher
+import org.sonarlint.intellij.fs.VirtualFileEvent
+import org.sonarlint.intellij.messages.GlobalConfigurationListener
+import org.sonarlint.intellij.notifications.SonarLintProjectNotifications.Companion.projectLessNotification
+import org.sonarlint.intellij.ui.UiUtils.Companion.runOnUiThread
+import org.sonarlint.intellij.util.GlobalLogOutput
+import org.sonarlint.intellij.util.SonarLintAppUtils.getRelativePathForAnalysis
+import org.sonarlint.intellij.util.VirtualFileUtils
+import org.sonarlint.intellij.util.VirtualFileUtils.getFileContent
+import org.sonarlint.intellij.util.runOnPooledThread
+import org.sonarsource.sonarlint.core.client.utils.ClientLogOutput
+import org.sonarsource.sonarlint.core.client.utils.IssueResolutionStatus
+import org.sonarsource.sonarlint.core.rpc.client.Sloop
+import org.sonarsource.sonarlint.core.rpc.client.SloopLauncher
+import org.sonarsource.sonarlint.core.rpc.protocol.SonarLintRpcServer
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.analysis.AnalyzeFilesAndTrackParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.analysis.AnalyzeFilesResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.analysis.DidChangeAutomaticAnalysisSettingParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.analysis.DidChangeClientNodeJsPathParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.binding.GetSharedConnectedModeConfigFileParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.binding.GetSharedConnectedModeConfigFileResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.branch.DidVcsRepositoryChangeParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.config.binding.BindingConfigurationDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.config.binding.DidUpdateBindingParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.config.scope.ConfigurationScopeDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.config.scope.DidAddConfigurationScopesParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.config.scope.DidRemoveConfigurationScopeParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.auth.HelpGenerateUserTokenParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.auth.HelpGenerateUserTokenResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.check.CheckSmartNotificationsSupportedParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.check.CheckSmartNotificationsSupportedResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.common.TransientSonarCloudConnectionDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.common.TransientSonarQubeConnectionDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.config.DidChangeCredentialsParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.config.DidUpdateConnectionsParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.config.SonarCloudConnectionConfigurationDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.config.SonarQubeConnectionConfigurationDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.GetOrganizationParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.GetOrganizationResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.ListUserOrganizationsParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.ListUserOrganizationsResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.projects.GetAllProjectsParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.projects.GetAllProjectsResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.validate.ValidateConnectionParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.validate.ValidateConnectionResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.file.DidUpdateFileSystemParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.file.GetFilesStatusParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.ChangeHotspotStatusParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.CheckLocalDetectionSupportedParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.CheckLocalDetectionSupportedResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.CheckStatusChangePermittedParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.CheckStatusChangePermittedResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.HotspotStatus
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.OpenHotspotInBrowserParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.ClientConstantInfoDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.FeatureFlagsDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.HttpConfigurationDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.InitializeParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.JsTsRequirementsDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.LanguageSpecificRequirements
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.SonarCloudAlternativeEnvironmentDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.SslConfigurationDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.TelemetryClientConstantAttributesDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.AddIssueCommentParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.ChangeIssueStatusParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.GetEffectiveIssueDetailsParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.GetEffectiveIssueDetailsResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.ReopenIssueParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.ReopenIssueResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.ResolutionStatus
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.newcode.GetNewCodeDefinitionParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.GetEffectiveRuleDetailsParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.GetEffectiveRuleDetailsResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.GetStandaloneRuleDescriptionParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.GetStandaloneRuleDescriptionResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.ListAllStandaloneRulesDefinitionsResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.StandaloneRuleConfigDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.UpdateStandaloneRulesConfigurationParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.telemetry.TelemetryRpcService
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.tracking.ListAllParams
+import org.sonarsource.sonarlint.core.rpc.protocol.common.ClientFileDto
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Either
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Language
+import org.sonarsource.sonarlint.core.rpc.protocol.common.TokenDto
+import org.sonarsource.sonarlint.core.rpc.protocol.common.UsernamePasswordDto
+import org.sonarsource.sonarlint.plugin.api.module.file.ModuleFileEvent
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.CheckStatusChangePermittedParams as issueCheckStatusChangePermittedParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.CheckStatusChangePermittedResponse as issueCheckStatusChangePermittedResponse
 
 @Service(Service.Level.APP)
-class BackendService @NonInjectable constructor(private val backend: SonarLintBackend) : Disposable {
-    constructor() : this(SonarLintBackendImpl(SonarLintIntelliJClient))
+class BackendService : Disposable {
+    private var initializationTriedOnce = AtomicBoolean(false)
+    private var backendFuture = CompletableFuture<SonarLintRpcServer>()
+    private var sloop: Sloop? = null
+    private var defaultSloopLauncher: SloopLauncher? = null
 
-    private val initializedBackend: SonarLintBackend by lazy {
-        migrateStoragePath()
+    constructor()
+
+    // for tests only
+    @NonInjectable
+    constructor(sloopLauncher: SloopLauncher) {
+        this.defaultSloopLauncher = sloopLauncher
+    }
+
+    init {
+        registerListeners()
+    }
+
+    private fun registerListeners() {
+        ApplicationManager.getApplication().messageBus.connect()
+            .subscribe(GlobalConfigurationListener.TOPIC, object : GlobalConfigurationListener.Adapter() {
+                override fun applied(previousSettings: SonarLintGlobalSettings, newSettings: SonarLintGlobalSettings) {
+                    runOnPooledThread {
+                        connectionsUpdated(newSettings.serverConnections)
+                        val changedConnections = newSettings.serverConnections.filter { connection ->
+                            val previousConnection = previousSettings.getServerConnectionByName(connection.name)
+                            previousConnection.isPresent && !connection.hasSameCredentials(previousConnection.get())
+                        }
+                        credentialsChanged(changedConnections)
+                    }
+                }
+
+                override fun changed(serverList: List<ServerConnection>) {
+                    runOnPooledThread { connectionsUpdated(serverList) }
+                }
+            })
+        ApplicationManager.getApplication().messageBus.connect()
+            .subscribe(ProjectManager.TOPIC, object : ProjectManagerListener {
+                override fun projectClosing(project: Project) {
+                    runOnPooledThread { this@BackendService.projectClosed(project) }
+                }
+            })
+
+    }
+
+    private fun <T> requestFromBackend(action: (SonarLintRpcServer) -> CompletableFuture<T>): CompletableFuture<T> {
+        return ensureBackendInitialized().thenComposeAsync(action)
+    }
+
+    private fun notifyBackend(action: (SonarLintRpcServer) -> Unit) {
+        ensureBackendInitialized().thenAcceptAsync(action)
+    }
+
+    private fun ensureBackendInitialized(): CompletableFuture<SonarLintRpcServer> {
+        if (!initializationTriedOnce.getAndSet(true)) {
+            if (ApplicationManager.getApplication().isUnitTestMode) {
+                // workaround for tests as tasks are executed on UI thread
+                runOnPooledThread {
+                    ProgressManager.getInstance().run(createServiceStartingTask())
+                }
+            } else {
+                // this will run in a background task
+                ProgressManager.getInstance().run(createServiceStartingTask())
+            }
+        }
+        return backendFuture
+    }
+
+    private fun createServiceStartingTask(): Task.Backgroundable {
+        return object : Task.Backgroundable(null, "Starting CodeScan service\u2026", false, ALWAYS_BACKGROUND) {
+            override fun run(indicator: ProgressIndicator) {
+                try {
+                    val sloop = startSloopProcess()
+                    this@BackendService.sloop = sloop
+                    getService(GlobalLogOutput::class.java).log("Migrating the storage...", ClientLogOutput.Level.INFO)
+                    migrateStoragePath()
+                    getService(GlobalLogOutput::class.java).log(
+                        "Listening for CodeScan service exit...",
+                        ClientLogOutput.Level.INFO
+                    )
+                    listenForProcessExit(sloop)
+                    getService(GlobalLogOutput::class.java).log(
+                        "Initializing the CodeScan service...",
+                        ClientLogOutput.Level.INFO
+                    )
+                    initRpcServer(sloop.rpcServer).get(1, TimeUnit.MINUTES)
+                    getService(GlobalLogOutput::class.java).log("CodeScan service initialized...", ClientLogOutput.Level.INFO)
+                    backendFuture.complete(sloop.rpcServer)
+                } catch (t: TimeoutException) {
+                    GlobalLogOutput.get().log(
+                        "The 'Starting CodeScan service...' task timed out, please capture thread dumps of the 'SonarLintServerCli' process and report the problem to the CodeScan maintainers",
+                        ClientLogOutput.Level.ERROR
+                    )
+                    handleSloopExited()
+                    backendFuture.cancel(true)
+                } catch (t: Throwable) {
+                    GlobalLogOutput.get().logError("Cannot start the CodeScan service", t)
+                    handleSloopExited()
+                    backendFuture.cancel(true)
+                }
+            }
+        }
+    }
+
+    private fun startSloopProcess(): Sloop {
+        // SLI-1330
+        val lsp4jLogger = Logger.getLogger("org.eclipse.lsp4j.jsonrpc.RemoteEndpoint")
+        lsp4jLogger.filter = Filter { logRecord ->
+            return@Filter if (logRecord.level == Level.SEVERE) {
+                logRecord.level = Level.OFF
+                GlobalLogOutput.get().logError(logRecord.message, logRecord.thrown)
+                false
+            } else true
+        }
+        getService(GlobalLogOutput::class.java).log("Starting the CodeScan service process...", ClientLogOutput.Level.INFO)
+        val sloopLauncher = this.defaultSloopLauncher ?: SloopLauncher(SonarLintIntelliJClient)
+        val customJrePath = getPathProperty("sonarlint.jre.path")?.also {
+            getService(GlobalLogOutput::class.java).log("Custom JRE detected: $it", ClientLogOutput.Level.INFO)
+        }
+        val jreHomePath = customJrePath ?: getPathProperty("java.home")
+        val sloopPath = getService(SonarLintPlugin::class.java).path.resolve("sloop")
+        getService(GlobalLogOutput::class.java).log("Listing CodeScan service files:", ClientLogOutput.Level.INFO)
+        sloopPath.toFile().walkTopDown().forEach { file ->
+            getService(GlobalLogOutput::class.java).log(file.absolutePath, ClientLogOutput.Level.INFO)
+        }
+        return sloopLauncher.start(
+            sloopPath,
+            jreHomePath,
+            "-Xms384m -XX:+UseG1GC -XX:MaxHeapFreeRatio=20 -XX:MinHeapFreeRatio=10 -XX:+UseStringDeduplication -XX:MaxGCPauseMillis=50 -XX:ParallelGCThreads=2"
+        )
+    }
+
+    private fun listenForProcessExit(sloopProcess: Sloop) {
+        sloopProcess.onExit().thenAcceptAsync { handleSloopExited() }
+    }
+
+    private fun handleSloopExited() {
+        ProjectManager.getInstance().openProjects.forEach { project ->
+            getService(project, SonarLintToolWindow::class.java).refreshViews()
+        }
+        projectLessNotification(
+            null,
+            SONARLINT_ERROR_MSG,
+            NotificationType.ERROR,
+            RestartBackendNotificationAction()
+        )
+    }
+
+    private fun initRpcServer(rpcServer: SonarLintRpcServer): CompletableFuture<Void> {
         val serverConnections = getGlobalSettings().serverConnections
         val sonarCloudConnections =
-            serverConnections.filter { it.isCodeScanCloud }.map { toSonarCloudBackendConnection(it) }
+            serverConnections.filter { it.isSonarCloud && it.organizationKey != null }.map { toSonarCloudBackendConnection(it) }
         val sonarQubeConnections =
-            serverConnections.filter { !it.isCodeScanCloud }.map { toSonarQubeBackendConnection(it) }
-        backend.initialize(
+            serverConnections.filter { !it.isSonarCloud }.map { toSonarQubeBackendConnection(it) }
+        val nodejsPath = getGlobalSettings().nodejsPath
+        val nonDefaultRpcRulesConfigurationByKey =
+            getGlobalSettings().rulesByKey.mapValues { StandaloneRuleConfigDto(it.value.isActive, it.value.params) }
+        val nodeJsPath = if (nodejsPath.isBlank()) null else Paths.get(nodejsPath)
+        val eslintBridgePath = generateEslintBridgePath()
+        val jsTsRequirements = JsTsRequirementsDto(nodeJsPath, eslintBridgePath)
+        val workDir = Paths.get(PathManager.getTempPath()).resolve("sonarlint")
+        return rpcServer.initialize(
             InitializeParams(
-                ClientInfoDto(
+                ClientConstantInfoDto(
                     ApplicationInfo.getInstance().versionName,
-                    "idea",
                     "CodeScan IntelliJ " + getService(SonarLintPlugin::class.java).version
                 ),
-                FeatureFlagsDto(true, true, true, true, true),
+                getTelemetryConstantAttributes(),
+                getHttpConfiguration(),
+                getSonarCloudAlternativeEnvironment(),
+                // CodeScan: no taint vulnerabilities (the tab is off too, see SonarLintUtils.isTaintVulnerabilitiesEnabled), no
+                // server-sent events, which need SonarCloud's WebSocket service, and no telemetry, which the backend sends to SonarSource
+                generateFeatureFlagsDto(
+                    shouldManageSmartNotifications = true,
+                    taintVulnerabilitiesEnabled = false,
+                    shouldSynchronizeProjects = true,
+                    shouldManageLocalServer = true,
+                    enableSecurityHotspots = true,
+                    shouldManageServerSentEvents = false,
+                    enableDataflowBugDetection = true,
+                    shouldManageFullSynchronization = true,
+                    enableTelemetry = false,
+                    canOpenFixSuggestion = true
+                ),
                 getLocalStoragePath(),
-                SonarLintEngineFactory.getWorkDir(),
-                EmbeddedPlugins.findEmbeddedPlugins(),
-                EmbeddedPlugins.getEmbeddedPluginsForConnectedMode(),
-                EmbeddedPlugins.enabledLanguagesInStandaloneMode,
-                EmbeddedPlugins.enabledLanguagesInConnectedMode,
+                workDir,
+                EnabledLanguages.findEmbeddedPlugins(),
+                EnabledLanguages.getEmbeddedPluginsForConnectedMode(),
+                EnabledLanguages.enabledLanguagesInStandaloneMode,
+                EnabledLanguages.extraEnabledLanguagesInConnectedMode,
+                emptySet(),
                 sonarQubeConnections,
                 sonarCloudConnections,
                 null,
-                mapOf()
+                nonDefaultRpcRulesConfigurationByKey,
+                getGlobalSettings().isFocusOnNewCode,
+
+                // No C# analyzer is shipped (Rider support removed), so no OmniSharp requirements
+                LanguageSpecificRequirements(jsTsRequirements, null),
+                false,
+                null
             )
-        ).thenRun {
-            ApplicationManager.getApplication().messageBus.connect()
-                .subscribe(GlobalConfigurationListener.TOPIC, object : GlobalConfigurationListener.Adapter() {
-                    override fun applied(previousSettings: SonarLintGlobalSettings, newSettings: SonarLintGlobalSettings) {
-                        connectionsUpdated(newSettings.serverConnections)
-                    }
-
-                    override fun changed(serverList: MutableList<ServerConnection>) {
-                        connectionsUpdated(serverList)
-                    }
-                })
-            ApplicationManager.getApplication().messageBus.connect()
-                .subscribe(ProjectManager.TOPIC, object : ProjectManagerListener {
-
-                    override fun projectClosing(project: Project) {
-                        this@BackendService.projectClosed(project)
-                    }
-                })
-        }.get()
-        backend
+        )
     }
 
-    fun getHttpClient(connectionId: String): HttpClient {
-        return initializedBackend.getHttpClient(connectionId)
+    private fun generateEslintBridgePath(): Path {
+        val pluginPath = getService(SonarLintPlugin::class.java).path
+        return pluginPath.resolve("plugins/eslint-bridge")
     }
 
-    fun getHttpClientNoAuth(): HttpClient {
-        return initializedBackend.getHttpClientNoAuth()
+    private fun generateFeatureFlagsDto(
+        shouldManageSmartNotifications: Boolean,
+        taintVulnerabilitiesEnabled: Boolean,
+        shouldSynchronizeProjects: Boolean,
+        shouldManageLocalServer: Boolean,
+        enableSecurityHotspots: Boolean,
+        shouldManageServerSentEvents: Boolean,
+        enableDataflowBugDetection: Boolean,
+        shouldManageFullSynchronization: Boolean,
+        enableTelemetry: Boolean,
+        canOpenFixSuggestion: Boolean,
+    ) =
+        FeatureFlagsDto(
+            shouldManageSmartNotifications,
+            taintVulnerabilitiesEnabled,
+            shouldSynchronizeProjects,
+            shouldManageLocalServer,
+            enableSecurityHotspots,
+            shouldManageServerSentEvents,
+            enableDataflowBugDetection,
+            shouldManageFullSynchronization,
+            enableTelemetry,
+            canOpenFixSuggestion
+        )
+
+    private fun getHttpConfiguration(): HttpConfigurationDto {
+        return HttpConfigurationDto(
+            SslConfigurationDto(getPathProperty("sonarlint.ssl.trustStorePath"), System.getProperty("sonarlint.ssl.trustStorePassword"),
+                System.getProperty("sonarlint.ssl.trustStoreType"), getPathProperty("sonarlint.ssl.keyStorePath"), System.getProperty("sonarlint.ssl.keyStorePassword"),
+                System.getProperty("sonarlint.ssl.keyStoreType")),
+            getTimeoutProperty("sonarlint.http.connectTimeout"), getTimeoutProperty("sonarlint.http.socketTimeout"), getTimeoutProperty("sonarlint.http.connectionRequestTimeout"),
+            getTimeoutProperty("sonarlint.http.responseTimeout"))
+    }
+
+    // CodeScan: always hand the backend a cloud environment, so cloud connections go to CodeScan (https://app.codescan.io unless
+    // the property says otherwise) and never to sonarcloud.io. CodeScan has no WebSocket address; without one the backend keeps
+    // WebSockets off.
+    private fun getSonarCloudAlternativeEnvironment(): SonarCloudAlternativeEnvironmentDto {
+        val sonarCloudUrl = System.getProperty("sonarlint.internal.sonarcloud.url") ?: SonarLintUtils.DEFAULT_CODESCANCLOUD_URL
+        return SonarCloudAlternativeEnvironmentDto(URI.create(sonarCloudUrl), getSonarCloudWebSocketUri())
+    }
+
+    private fun getSonarCloudWebSocketUri(): URI? {
+        val sonarCloudWebSocketUrl = System.getProperty("sonarlint.internal.sonarcloud.websocket.url") ?: return null
+        return URI.create(sonarCloudWebSocketUrl)
+    }
+
+    private fun getPathProperty(propertyName: String): Path? {
+        val property = System.getProperty(propertyName)
+        return property?.let { Paths.get(it) }
+    }
+
+    private fun getTimeoutProperty(propertyName: String): Duration? {
+        return System.getProperty(propertyName)?.let {
+            try {
+                Duration.ofMinutes(it.toLong())
+            } catch (_: NumberFormatException) {
+                try {
+                    Duration.parse(it)
+                } catch (d: DateTimeParseException) {
+                    GlobalLogOutput.get().logError("Timeout property format is not valid", d)
+                    null
+                }
+            }
+        }
+    }
+
+    private fun getTelemetryConstantAttributes() =
+        TelemetryClientConstantAttributesDto("idea", "CodeScan IntelliJ", getService(SonarLintPlugin::class.java).version, getIdeVersionForTelemetry(), mapOf("intellij" to mapOf("jcefSupported" to JBCefApp.isSupported())))
+
+    private fun getIdeVersionForTelemetry(): String {
+        var ideVersion: String
+        val appInfo = ApplicationInfo.getInstance()
+        ideVersion = appInfo.versionName + " " + appInfo.fullVersion
+        val edition = ApplicationNamesInfo.getInstance().editionName
+        if (edition != null) {
+            ideVersion += " ($edition)"
+        }
+        return ideVersion
+    }
+
+    fun notifyTelemetry(action: (TelemetryRpcService) -> Unit) {
+        return notifyBackend { action(it.telemetryService) }
+    }
+
+    fun isTelemetryEnabled(): CompletableFuture<Boolean> {
+        return requestFromBackend { it.telemetryService.status }.thenApplyAsync { status -> status.isEnabled }
+    }
+
+    fun getAllProjects(server: ServerConnection): CompletableFuture<GetAllProjectsResponse> {
+        val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token!!)) }
+            ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
+        val params: GetAllProjectsParams = if (server.isSonarCloud) {
+            GetAllProjectsParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials, server.hostUrl))
+        } else {
+            GetAllProjectsParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))
+        }
+
+        return requestFromBackend { it.connectionService.getAllProjects(params) }
     }
 
     /**
@@ -170,9 +493,15 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     private fun getLocalStoragePath(): Path = Paths.get(PathManager.getSystemPath()).resolve("sonarlint/storage")
 
     fun connectionsUpdated(serverConnections: List<ServerConnection>) {
-        val scConnections = serverConnections.filter { it.isCodeScanCloud }.map { toSonarCloudBackendConnection(it) }
-        val sqConnections = serverConnections.filter { !it.isCodeScanCloud }.map { toSonarQubeBackendConnection(it) }
-        backend.connectionService.didUpdateConnections(DidUpdateConnectionsParams(sqConnections, scConnections))
+        // CodeScan: skip a cloud connection without an organization, as at start-up. A self-hosted CodeScan server can turn
+        // a connection saved without one into a cloud connection, and it must not stop the update of every other connection.
+        val scConnections = serverConnections.filter { it.isSonarCloud && it.organizationKey != null }.map { toSonarCloudBackendConnection(it) }
+        val sqConnections = serverConnections.filter { !it.isSonarCloud }.map { toSonarQubeBackendConnection(it) }
+        notifyBackend { it.connectionService.didUpdateConnections(DidUpdateConnectionsParams(sqConnections, scConnections)) }
+    }
+
+    private fun credentialsChanged(connections: List<ServerConnection>) {
+        connections.forEach { connection -> notifyBackend { it.connectionService.didChangeCredentials(DidChangeCredentialsParams(connection.name)) } }
     }
 
     private fun toSonarQubeBackendConnection(createdConnection: ServerConnection): SonarQubeConnectionConfigurationDto {
@@ -186,97 +515,118 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     private fun toSonarCloudBackendConnection(createdConnection: ServerConnection): SonarCloudConnectionConfigurationDto {
         return SonarCloudConnectionConfigurationDto(
             createdConnection.name,
-            createdConnection.hostUrl,
-            createdConnection.organizationKey,
-            createdConnection.isDisableNotifications
+            createdConnection.organizationKey!!,
+            createdConnection.isDisableNotifications,
+            // CodeScan: each cloud connection has its own address, for self-hosted CodeScan servers (core row C2)
+            createdConnection.hostUrl
         )
     }
 
     fun projectOpened(project: Project) {
         val binding = getService(project, ProjectBindingManager::class.java).binding
-        initializedBackend.configurationService.didAddConfigurationScopes(
-            DidAddConfigurationScopesParams(
-                listOf(
-                    toBackendConfigurationScope(
-                        project,
-                        binding
-                    )
-                )
-            )
-        )
-    }
-
-    internal fun projectClosed(project: Project) {
-        ModuleManager.getInstance(project).modules.forEach { moduleRemoved(it) }
-        initializedBackend.configurationService.didRemoveConfigurationScope(DidRemoveConfigurationScopeParams(projectId(project)))
-    }
-
-    private fun toBackendConfigurationScope(project: Project, binding: ProjectBinding?) = ConfigurationScopeDto(
-        projectId(project), null, true, project.name, BindingConfigurationDto(
-            binding?.connectionName, binding?.projectKey, areBindingSuggestionsDisabledFor(project)
-        )
-    )
-
-
-    fun projectBound(project: Project, newBinding: ProjectBinding) {
-        initializedBackend.configurationService.didUpdateBinding(
-            DidUpdateBindingParams(
-                projectId(project), BindingConfigurationDto(
-                    newBinding.connectionName, newBinding.projectKey, areBindingSuggestionsDisabledFor(project)
-                )
-            )
-        )
-        newBinding.moduleBindingsOverrides.forEach { (module, projectKey) ->
-            initializedBackend.configurationService.didUpdateBinding(
-                DidUpdateBindingParams(
-                    moduleId(module), BindingConfigurationDto(
-                        // we don't want binding suggestions for modules
-                        newBinding.connectionName, projectKey, true
-                    )
-                )
-            )
-        }
-
-    }
-
-    fun projectUnbound(project: Project) {
-        initializedBackend.configurationService.didUpdateBinding(
-            DidUpdateBindingParams(
-                projectId(project), BindingConfigurationDto(null, null, areBindingSuggestionsDisabledFor(project))
-            )
-        )
-
-    }
-
-    fun moduleAdded(module: Module) {
-        val moduleProjectKey = getService(module, ModuleBindingManager::class.java).configuredProjectKey
-        val projectBinding = getService(module.project, ProjectBindingManager::class.java).binding
-        initializedBackend.configurationService.didAddConfigurationScopes(
-            DidAddConfigurationScopesParams(
-                listOf(
-                    ConfigurationScopeDto(
-                        moduleId(module), projectId(module.project), true, module.name, BindingConfigurationDto(
-                            projectBinding?.connectionName, projectBinding?.let { moduleProjectKey }, true
+        notifyBackend {
+            it.configurationService.didAddConfigurationScopes(
+                DidAddConfigurationScopesParams(
+                    listOf(
+                        toBackendConfigurationScope(
+                            project,
+                            binding
                         )
                     )
                 )
             )
-        )
+        }
+        runOnPooledThread {
+            refreshTaintVulnerabilities(project)
+        }
+    }
+
+    internal fun projectClosed(project: Project) {
+        ModuleManager.getInstance(project).modules.forEach { moduleRemoved(it) }
+        val projectId = projectId(project)
+        notifyBackend { it.configurationService.didRemoveConfigurationScope(DidRemoveConfigurationScopeParams(projectId)) }
+    }
+
+    private fun toBackendConfigurationScope(project: Project, binding: ProjectBinding?) =
+        ConfigurationScopeDto(projectId(project), null, true, project.name,
+            BindingConfigurationDto(binding?.connectionName, binding?.projectKey, areBindingSuggestionsDisabledFor(project)))
+
+    fun projectBound(project: Project, newBinding: ProjectBinding) {
+        runOnPooledThread(project) {
+            notifyBackend {
+                it.configurationService.didUpdateBinding(
+                    DidUpdateBindingParams(
+                        projectId(project), BindingConfigurationDto(
+                            newBinding.connectionName, newBinding.projectKey, areBindingSuggestionsDisabledFor(project)
+                        )
+                    )
+                )
+            }
+            newBinding.moduleBindingsOverrides.forEach { (module, projectKey) ->
+                val moduleId = moduleId(module)
+                notifyBackend {
+                    it.configurationService.didUpdateBinding(
+                        DidUpdateBindingParams(
+                            moduleId, BindingConfigurationDto(
+                                // we don't want binding suggestions for modules
+                                newBinding.connectionName, projectKey, true
+                            )
+                        )
+                    )
+                }
+            }
+            refreshTaintVulnerabilities(project)
+        }
+    }
+
+    fun projectUnbound(project: Project) {
+        notifyBackend {
+            it.configurationService.didUpdateBinding(
+                DidUpdateBindingParams(
+                    projectId(project), BindingConfigurationDto(null, null, areBindingSuggestionsDisabledFor(project))
+                )
+            )
+        }
+        runOnPooledThread {
+            refreshTaintVulnerabilities(project)
+        }
+    }
+
+    fun modulesAdded(project: Project, modules: List<Module>) {
+        val projectBinding = getService(project, ProjectBindingManager::class.java).binding
+        notifyBackend {
+            it.configurationService.didAddConfigurationScopes(
+                DidAddConfigurationScopesParams(
+                    modules.map { module -> toConfigurationScope(module, projectBinding) }
+                )
+            )
+        }
+    }
+
+    private fun toConfigurationScope(module: Module, projectBinding: ProjectBinding?): ConfigurationScopeDto {
+        val moduleProjectKey = getService(module, ModuleBindingManager::class.java).configuredProjectKey
+        return ConfigurationScopeDto(
+            moduleId(module), projectId(module.project), true, moduleId(module),
+            BindingConfigurationDto(projectBinding?.connectionName, projectBinding?.let { moduleProjectKey }, true))
     }
 
     fun moduleRemoved(module: Module) {
-        initializedBackend.configurationService.didRemoveConfigurationScope(DidRemoveConfigurationScopeParams(moduleId(module)))
+        val moduleId = moduleId(module)
+        notifyBackend { it.configurationService.didRemoveConfigurationScope(DidRemoveConfigurationScopeParams(moduleId)) }
     }
 
     fun moduleUnbound(module: Module) {
-        initializedBackend.configurationService.didUpdateBinding(
-            DidUpdateBindingParams(
-                moduleId(module), BindingConfigurationDto(
-                    // we don't want binding suggestions for modules
-                    null, null, true
+        val moduleId = moduleId(module)
+        notifyBackend {
+            it.configurationService.didUpdateBinding(
+                DidUpdateBindingParams(
+                    moduleId, BindingConfigurationDto(
+                        // we don't want binding suggestions for modules
+                        null, null, true
+                    )
                 )
             )
-        )
+        }
     }
 
     private fun areBindingSuggestionsDisabledFor(project: Project) =
@@ -284,40 +634,62 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
 
     fun bindingSuggestionsDisabled(project: Project) {
         val binding = getService(project, ProjectBindingManager::class.java).binding
-        initializedBackend.configurationService.didUpdateBinding(
-            DidUpdateBindingParams(
-                projectId(project),
-                BindingConfigurationDto(binding?.connectionName, binding?.projectKey, true)
+        notifyBackend {
+            it.configurationService.didUpdateBinding(
+                DidUpdateBindingParams(
+                    projectId(project),
+                    BindingConfigurationDto(binding?.connectionName, binding?.projectKey, true)
+                )
             )
-        )
+        }
     }
 
-    fun getActiveRuleDetails(module: Module, ruleKey: String, contextKey: String?): CompletableFuture<GetEffectiveRuleDetailsResponse> {
-        return initializedBackend.rulesService.getEffectiveRuleDetails(
-            GetEffectiveRuleDetailsParams(
-                moduleId(module),
-                ruleKey,
-                contextKey
-            )
-        )
+    fun getEffectiveRuleDetails(module: Module, ruleKey: String, contextKey: String?): CompletableFuture<GetEffectiveRuleDetailsResponse> {
+        val moduleId = moduleId(module)
+        return requestFromBackend {
+            it.rulesService.getEffectiveRuleDetails(GetEffectiveRuleDetailsParams(moduleId, ruleKey, contextKey))
+        }
+    }
+
+    fun getEffectiveIssueDetails(module: Module, issueId: UUID): CompletableFuture<GetEffectiveIssueDetailsResponse> {
+        val moduleId = moduleId(module)
+        return requestFromBackend {
+            it.issueService.getEffectiveIssueDetails(GetEffectiveIssueDetailsParams(moduleId, issueId))
+        }
     }
 
     fun getListAllStandaloneRulesDefinitions(): CompletableFuture<ListAllStandaloneRulesDefinitionsResponse> {
-        return initializedBackend.rulesService.listAllStandaloneRulesDefinitions()
+        return requestFromBackend { it.rulesService.listAllStandaloneRulesDefinitions() }
+    }
+
+    fun getSharedConnectedModeConfigFileContents(project: Project): CompletableFuture<GetSharedConnectedModeConfigFileResponse> {
+        val projectId = projectId(project)
+        return requestFromBackend {
+            it.bindingService.getSharedConnectedModeConfigFileContents(
+                GetSharedConnectedModeConfigFileParams(projectId)
+            )
+        }
+    }
+
+    fun getStandaloneRuleDetails(params: GetStandaloneRuleDescriptionParams): CompletableFuture<GetStandaloneRuleDescriptionResponse> {
+        return requestFromBackend { it.rulesService.getStandaloneRuleDetails(params) }
+    }
+
+    fun updateStandaloneRulesConfiguration(nonDefaultRulesConfigurationByKey: Map<String, SonarLintGlobalSettings.Rule>) {
+        val nonDefaultRpcRulesConfigurationByKey = nonDefaultRulesConfigurationByKey.mapValues { StandaloneRuleConfigDto(it.value.isActive, it.value.params) }
+        notifyBackend { it.rulesService.updateStandaloneRulesConfiguration(UpdateStandaloneRulesConfigurationParams(nonDefaultRpcRulesConfigurationByKey)) }
     }
 
     fun helpGenerateUserToken(serverUrl: String, isSonarCloud: Boolean): CompletableFuture<HelpGenerateUserTokenResponse> {
-        return initializedBackend.connectionService.helpGenerateUserToken(HelpGenerateUserTokenParams(serverUrl, isSonarCloud))
+        return requestFromBackend { it.connectionService.helpGenerateUserToken(HelpGenerateUserTokenParams(serverUrl, isSonarCloud)) }
     }
 
     fun openHotspotInBrowser(module: Module, hotspotKey: String) {
-        val branchName: String? = getService(module.project, VcsService::class.java).getServerBranchName(module)
-        branchName?.let {
-            val configScopeId = moduleId(module)
-            initializedBackend.hotspotService.openHotspotInBrowser(
+        val configScopeId = moduleId(module)
+        notifyBackend {
+            it.hotspotService.openHotspotInBrowser(
                 OpenHotspotInBrowserParams(
                     configScopeId,
-                    branchName,
                     hotspotKey
                 )
             )
@@ -325,109 +697,172 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     }
 
     fun checkLocalSecurityHotspotDetectionSupported(project: Project): CompletableFuture<CheckLocalDetectionSupportedResponse> {
-        return initializedBackend.hotspotService.checkLocalDetectionSupported(
-            CheckLocalDetectionSupportedParams(
-                projectId(
-                    project
+        return requestFromBackend {
+            it.hotspotService.checkLocalDetectionSupported(
+                CheckLocalDetectionSupportedParams(
+                    projectId(project)
                 )
             )
-        )
+        }
     }
 
     fun changeStatusForHotspot(module: Module, hotspotKey: String, newStatus: HotspotStatus): CompletableFuture<Void> {
-        return initializedBackend.hotspotService.changeStatus(
-            ChangeHotspotStatusParams(
-                moduleId(module),
-                hotspotKey,
-                newStatus
+        val moduleId = moduleId(module)
+        return requestFromBackend {
+            it.hotspotService.changeStatus(
+                ChangeHotspotStatusParams(
+                    moduleId,
+                    hotspotKey,
+                    newStatus
+                )
             )
-        )
+        }
     }
 
-    fun markAsResolved(module: Module, issueKey: String, newStatus: ResolutionStatus, isTaintVulnerability: Boolean): CompletableFuture<Void> {
-        return initializedBackend.issueService.changeStatus(
-            ChangeIssueStatusParams(
-                moduleId(module),
-                issueKey,
-                newStatus,
-                isTaintVulnerability
+    fun markAsResolved(module: Module, issueKey: String, newStatus: IssueResolutionStatus, isTaintVulnerability: Boolean): CompletableFuture<Void> {
+        val moduleId = moduleId(module)
+        return requestFromBackend {
+            it.issueService.changeStatus(
+                ChangeIssueStatusParams(
+                    moduleId,
+                    issueKey,
+                    ResolutionStatus.valueOf(newStatus.name),
+                    isTaintVulnerability
+                )
             )
-        )
+        }
+    }
+
+    fun reopenIssue(module: Module, issueId: String, isTaintIssue: Boolean): CompletableFuture<ReopenIssueResponse> {
+        val moduleId = moduleId(module)
+        return requestFromBackend { it.issueService.reopenIssue(ReopenIssueParams(moduleId, issueId, isTaintIssue)) }
     }
 
     fun addCommentOnIssue(module: Module, issueKey: String, comment: String): CompletableFuture<Void> {
-        return initializedBackend.issueService.addComment(AddIssueCommentParams(moduleId(module), issueKey, comment))
+        val moduleId = moduleId(module)
+        return requestFromBackend { it.issueService.addComment(AddIssueCommentParams(moduleId, issueKey, comment)) }
     }
 
     fun checkStatusChangePermitted(connectionId: String, hotspotKey: String): CompletableFuture<CheckStatusChangePermittedResponse> {
-        return initializedBackend.hotspotService.checkStatusChangePermitted(CheckStatusChangePermittedParams(connectionId, hotspotKey))
+        return requestFromBackend { it.hotspotService.checkStatusChangePermitted(CheckStatusChangePermittedParams(connectionId, hotspotKey)) }
     }
 
-//    fun checkIssueStatusChangePermitted(
-//        connectionId: String,
-//        issueKey: String,
-//    ): CompletableFuture<CheckIssueStatusChangePermittedResponse> {
-//        return initializedBackend.issueService.checkStatusChangePermitted(
-//            org.sonarsource.sonarlint.core.clientapi.backend.issue.CheckStatusChangePermittedParams(connectionId, issueKey)
-//        )
-//    }
-
-    fun branchChanged(module: Module, newActiveBranchName: String) {
-        initializedBackend.sonarProjectBranchService.didChangeActiveSonarProjectBranch(
-            DidChangeActiveSonarProjectBranchParams(
-                moduleId(module),
-                newActiveBranchName
+    fun checkIssueStatusChangePermitted(
+        connectionId: String,
+        issueKey: String,
+    ): CompletableFuture<issueCheckStatusChangePermittedResponse> {
+        return requestFromBackend {
+            it.issueService.checkStatusChangePermitted(
+                issueCheckStatusChangePermittedParams(connectionId, issueKey)
             )
-        )
+        }
+    }
+
+    fun didVcsRepoChange(project: Project) {
+        notifyBackend { it.sonarProjectBranchService.didVcsRepositoryChange(DidVcsRepositoryChangeParams(projectId(project))) }
     }
 
     fun checkSmartNotificationsSupported(server: ServerConnection): CompletableFuture<CheckSmartNotificationsSupportedResponse> {
-        val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
+        val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token!!)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
-        val params: CheckSmartNotificationsSupportedParams = if (server.isCodeScanCloud) {
-            CheckSmartNotificationsSupportedParams(TransientSonarCloudConnectionDto(server.hostUrl, server.organizationKey, credentials))
+        val params: CheckSmartNotificationsSupportedParams = if (server.isSonarCloud) {
+            CheckSmartNotificationsSupportedParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials, server.hostUrl))
         } else {
             CheckSmartNotificationsSupportedParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))
         }
-        return initializedBackend.connectionService.checkSmartNotificationsSupported(params)
+        return requestFromBackend { it.connectionService.checkSmartNotificationsSupported(params) }
     }
 
     fun validateConnection(server: ServerConnection): CompletableFuture<ValidateConnectionResponse> {
-        val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
+        val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token!!)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
-        val params: ValidateConnectionParams = if (server.isCodeScanCloud) {
-            ValidateConnectionParams(TransientSonarCloudConnectionDto(server.hostUrl, server.organizationKey, credentials))
+        val params: ValidateConnectionParams = if (server.isSonarCloud) {
+            ValidateConnectionParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials, server.hostUrl))
         } else {
             ValidateConnectionParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))
         }
-        return initializedBackend.connectionService.validateConnection(params)
+        return requestFromBackend { it.connectionService.validateConnection(params) }
     }
 
     fun listUserOrganizations(server: ServerConnection): CompletableFuture<ListUserOrganizationsResponse> {
-        val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
+        val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token!!)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
-        val params = ListUserOrganizationsParams(credentials)
-        return initializedBackend.connectionService.listUserOrganizations(params, server.hostUrl)
+        val params = ListUserOrganizationsParams(credentials, server.hostUrl)
+        return requestFromBackend { it.connectionService.listUserOrganizations(params) }
     }
 
     fun getOrganization(server: ServerConnection, organizationKey: String): CompletableFuture<GetOrganizationResponse> {
-        val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token)) }
+        val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token!!)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
-        val params = GetOrganizationParams(credentials, organizationKey)
-        return initializedBackend.connectionService.getOrganization(params, server.hostUrl)
+        val params = GetOrganizationParams(credentials, organizationKey, server.hostUrl)
+        return requestFromBackend { it.connectionService.getOrganization(params) }
+    }
+
+    fun getNewCodePeriodText(project: Project): CompletableFuture<String> {
+        // simplification as we ignore module bindings
+        return requestFromBackend { it.newCodeService.getNewCodeDefinition(GetNewCodeDefinitionParams(projectId(project))) }
+            .thenApplyAsync { response -> if (response.isSupported) response.description else "(unsupported new code definition)" }
+            .exceptionally { "(unknown code period)" }
+    }
+
+    fun triggerTelemetryForFocusOnNewCode() {
+        notifyBackend { it.newCodeService.didToggleFocus() }
+    }
+
+    fun restartBackendService() {
+        runOnPooledThread {
+            if (isAlive()) {
+                return@runOnPooledThread
+            }
+            initializationTriedOnce.set(false)
+            backendFuture = CompletableFuture()
+            sloop = null
+            ensureBackendInitialized().thenAcceptAsync { catchUpWithBackend(it) }
+        }
+    }
+
+    private fun catchUpWithBackend(rpcServer: SonarLintRpcServer) {
+        ProjectManager.getInstance().openProjects.forEach { project ->
+            getService(project, SonarLintToolWindow::class.java).refreshViews()
+
+            val binding = getService(project, ProjectBindingManager::class.java).binding
+            rpcServer.configurationService.didAddConfigurationScopes(
+                DidAddConfigurationScopesParams(
+                    listOf(
+                        toBackendConfigurationScope(
+                            project,
+                            binding
+                        )
+                    )
+                )
+            )
+            refreshTaintVulnerabilities(project)
+
+            rpcServer.configurationService.didAddConfigurationScopes(
+                DidAddConfigurationScopesParams(
+                    ModuleManager.getInstance(project).modules.map { toConfigurationScope(it, binding) }
+                )
+            )
+        }
     }
 
     companion object {
         fun projectId(project: Project) = project.projectFilePath ?: "DEFAULT_PROJECT"
 
         fun moduleId(module: Module): String {
-            // there is no reliable unique identifier for modules, we store one in settings
-            return getSettingsFor(module).uniqueId
+            return if (isRider()) {
+                getSettingsFor(module.project).moduleMapping[module.name]?.let { "${it}_${module.project.name}" }
+                    ?: "${module.name}_${module.project.name}"
+            } else {
+                getSettingsFor(module.project).moduleMapping[module.name] ?: module.name
+            }
         }
 
         fun findModule(configScopeId: String): Module? {
             return ProjectManager.getInstance().openProjects.firstNotNullOfOrNull { project ->
-                ModuleManager.getInstance(project).modules.firstOrNull { module -> getSettingsFor(module).uniqueId == configScopeId }
+                val mapping = getSettingsFor(project).moduleMapping.filterValues { scopeId -> scopeId == configScopeId }.keys
+                val currentModuleName = if (mapping.isNotEmpty()) mapping.first() else configScopeId
+                return@firstNotNullOfOrNull ModuleManager.getInstance(project).modules.firstOrNull { module -> moduleId(module) == currentModuleName }
             }
         }
 
@@ -437,6 +872,144 @@ class BackendService @NonInjectable constructor(private val backend: SonarLintBa
     }
 
     override fun dispose() {
-        initializedBackend.shutdown()
+        backendFuture.thenAccept { it.shutdown() }
     }
+
+    fun refreshTaintVulnerabilities(project: Project) {
+        requestFromBackend { it.taintVulnerabilityTrackingService.listAll(ListAllParams(projectId(project), true)) }
+            .thenApplyAsync { response ->
+                val localTaintVulnerabilities = computeReadActionSafely(project) {
+                    val taintVulnerabilityMatcher = TaintVulnerabilityMatcher(project)
+                    response.taintVulnerabilities.map { taintVulnerabilityMatcher.match(it) }
+                } ?: return@thenApplyAsync
+                runOnUiThread(project) {
+                    getService(project, SonarLintToolWindow::class.java).populateTaintVulnerabilitiesTab(localTaintVulnerabilities)
+                }
+            }
+    }
+
+    fun getExcludedFiles(module: Module, files: Collection<VirtualFile>): List<VirtualFile> {
+        val filesByUri = files.associateBy { VirtualFileUtils.toURI(it) }
+        return try {
+            val moduleId = moduleId(module)
+            requestFromBackend {
+                it.fileService.getFilesStatus(
+                    GetFilesStatusParams(
+                        mapOf(
+                            moduleId to filesByUri.keys.filterNotNull().toList()
+                        )
+                    )
+                )
+            }
+                .thenApplyAsync { response -> response.fileStatuses.filterValues { it.isExcluded }.keys.mapNotNull { filesByUri[it] } }
+                .join()
+        } catch (_: CancellationException) {
+            SonarLintConsole.get(module.project).debug("The request to retrieve file exclusions has been canceled")
+            emptyList()
+        } catch (e: Exception) {
+            if (!module.isDisposed) {
+                SonarLintConsole.get(module.project).error("Error when retrieving excluded files", e)
+            }
+            emptyList()
+        }
+    }
+
+    fun getAutoDetectedNodeJs(): CompletableFuture<NodeJsSettings?> {
+        return requestFromBackend { it.analysisService.autoDetectedNodeJs }.thenApplyAsync { response ->
+            response.details?.let { NodeJsSettings(it.path, it.version) }
+        }
+    }
+
+    fun changeClientNodeJsPath(nodeJsPath: Path?): CompletableFuture<NodeJsSettings?> {
+        return requestFromBackend { it.analysisService.didChangeClientNodeJsPath(DidChangeClientNodeJsPathParams(nodeJsPath)) }
+            .thenApplyAsync { response ->
+                response.details?.let { NodeJsSettings(it.path, it.version) }
+            }
+    }
+
+    // Only include file content when modifying or opening a file
+    fun updateFileSystem(filesByModule: Map<Module, List<VirtualFileEvent>>, includeFileContent: Boolean) {
+        val deletedFileUris = filesByModule.values
+            .flatMap { it.filter { event -> event.type == ModuleFileEvent.Type.DELETED } }
+            .mapNotNull { VirtualFileUtils.toURI(it.virtualFile) }
+
+        val addedFiles = filesByModule.entries.flatMap { (module, events) ->
+            gatherClientFiles(module, ModuleFileEvent.Type.CREATED, events, includeFileContent)
+        }
+
+        val changedFiles = filesByModule.entries.flatMap { (module, events) ->
+            gatherClientFiles(module, ModuleFileEvent.Type.MODIFIED, events, includeFileContent)
+        }
+
+        if (addedFiles.isNotEmpty() || changedFiles.isNotEmpty() || deletedFileUris.isNotEmpty()) {
+            notifyBackend { it.fileService.didUpdateFileSystem(DidUpdateFileSystemParams(addedFiles, changedFiles, deletedFileUris)) }
+        }
+    }
+
+    private fun gatherClientFiles(
+        module: Module,
+        type: ModuleFileEvent.Type,
+        events: List<VirtualFileEvent>,
+        shouldIncludeContent: Boolean
+    ): List<ClientFileDto> {
+        val virtualFiles = events.filter { it.type == type }.map { it.virtualFile }.toList()
+        val contributedLanguages = collectContributedLanguages(module, virtualFiles)
+        return events.filter { it.type == type }.mapNotNull {
+            val relativePath = getRelativePathForAnalysis(module, it.virtualFile) ?: return@mapNotNull null
+            val moduleId = moduleId(module)
+            val forcedLanguage = contributedLanguages[it.virtualFile]?.let { fl -> Language.valueOf(fl.name) }
+            VirtualFileUtils.toURI(it.virtualFile)?.let { uri ->
+                computeReadActionSafely(it.virtualFile, module.project) {
+                    ClientFileDto(
+                        uri,
+                        Paths.get(relativePath),
+                        moduleId,
+                        isTestSources(it.virtualFile, module.project),
+                        VirtualFileUtils.getEncoding(it.virtualFile, module.project),
+                        Paths.get(it.virtualFile.path),
+                        // Notebooks require special parsing, we should always send the content
+                        if ((shouldIncludeContent || "ipynb" == it.virtualFile.extension)
+                            && !FileUtilRt.isTooLarge(it.virtualFile.length)
+                        ) getFileContent(it.virtualFile) else {
+                            null
+                        },
+                        forcedLanguage,
+                        true
+                    )
+                }
+            }
+        }
+    }
+
+    fun analyzeFilesAndTrack(
+        module: Module,
+        analysisId: UUID,
+        filesToAnalyze: List<URI>,
+        extraProperties: Map<String, String>,
+        shouldFetchServerIssues: Boolean,
+        startTime: Long,
+    ): CompletableFuture<AnalyzeFilesResponse> {
+        val moduleId = moduleId(module)
+        return requestFromBackend {
+            it.analysisService.analyzeFilesAndTrack(
+                AnalyzeFilesAndTrackParams(
+                    moduleId,
+                    analysisId,
+                    filesToAnalyze,
+                    extraProperties,
+                    shouldFetchServerIssues,
+                    startTime
+                )
+            )
+        }
+    }
+
+    fun changeAutomaticAnalysisSetting(analysisEnabled: Boolean) {
+        return notifyBackend { it.analysisService.didChangeAutomaticAnalysisSetting(DidChangeAutomaticAnalysisSettingParams(analysisEnabled)) }
+    }
+
+    fun isAlive(): Boolean {
+        return sloop?.isAlive == true
+    }
+
 }

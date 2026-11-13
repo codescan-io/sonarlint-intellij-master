@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global.rules;
 
@@ -50,11 +50,10 @@ public class RulesTreeTableRenderer extends DefaultTreeRenderer {
     String text = null;
     var style = SimpleTextAttributes.STYLE_PLAIN;
 
-    if (value instanceof RulesTreeNode.Language) {
+    if (value instanceof RulesTreeNode.LanguageNode) {
       style = SimpleTextAttributes.STYLE_BOLD;
       text = node.toString();
-    } else if (value instanceof RulesTreeNode.Rule) {
-      var rule = (RulesTreeNode.Rule) value;
+    } else if (value instanceof RulesTreeNode.Rule rule) {
       text = rule.getName();
     }
 

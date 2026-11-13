@@ -16,17 +16,18 @@
 
     You should have received a copy of the GNU Lesser General Public
     License along with this program; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 -->
 <idea-plugin>
     <extensions defaultExtensionNs="com.code-scan.intellij">
         <analysisConfiguration implementation="org.sonarlint.intellij.java.JavaAnalysisConfigurator"/>
-        <languageActivator implementation="org.sonarlint.intellij.java.JavaLanguageActivator"/>
     </extensions>
 
-    <extensions defaultExtensionNs="com.intellij">
-        <postStartupActivity implementation="org.sonarlint.intellij.trigger.MakeTrigger"/>
-    </extensions>
+    <applicationListeners>
+        <listener class="org.sonarlint.intellij.trigger.BuildFinishedAnalysisTrigger" topic="com.intellij.compiler.server.BuildManagerListener"/>
+        <listener class="org.sonarlint.intellij.trigger.CompilationFinishedAnalysisTrigger" topic="com.intellij.openapi.compiler.CompilationStatusListener"/>
+    </applicationListeners>
+
 
 </idea-plugin>

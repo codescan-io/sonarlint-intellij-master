@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.errorsubmitter;
 
@@ -28,43 +28,32 @@ import com.intellij.util.Consumer;
 import java.awt.Component;
 import java.io.BufferedReader;
 import java.io.StringReader;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.SonarLintPlugin;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarsource.sonarlint.core.serverapi.UrlUtils;
+import org.sonarlint.intellij.common.util.UrlUtils;
 
 // Inspired from https://github.com/openclover/clover/blob/master/clover-idea/src/com/atlassian/clover/idea/util/BlameClover.java
 public class BlameSonarSource extends ErrorReportSubmitter {
-  static final int MAX_URI_LENGTH = 2000;
+
+  static final int MAX_URI_LENGTH = 4048;
   private static final int BUG_FAULT_CATEGORY_ID = 6;
   private static final String INTELLIJ_TAG = "intellij";
   private static final String COMMUNITY_ROOT_URL = "https://community.sonarsource.com/";
   private static final String COMMUNITY_FAULT_CATEGORY_URL = COMMUNITY_ROOT_URL + "tags/c/" + BUG_FAULT_CATEGORY_ID + "/" + INTELLIJ_TAG;
   private static final String COMMUNITY_NEW_TOPIC_URL = COMMUNITY_ROOT_URL + "new-topic"
-    + "?title=Error+in+SonarLint+for+IntelliJ"
+    + "?title=Error+in+SonarQube+for+IntelliJ"
     + "&category_id=" + BUG_FAULT_CATEGORY_ID
     + "&tags=sonarlint," + INTELLIJ_TAG;
 
-  private static final Map<String, String> packageAbbreviation;
-  static {
-    Map<String, String> aMap = new LinkedHashMap<>();
-    aMap.put("com.intellij.openapi.", "c.ij.oa.");
-    aMap.put("com.intellij.", "c.ij.");
-    aMap.put("org.sonarlint.intellij.", "o.sl.ij.");
-    aMap.put("org.sonarsource.sonarlint.", "o.ss.sl.");
-    aMap.put("org.sonar.plugins.", "o.s.pl.");
-    packageAbbreviation = Collections.unmodifiableMap(aMap);
-  }
-
   @Override
-  public String getReportActionText() {
-    return "Report to SonarSource";
+  public @NotNull String getReportActionText() {
+    return "Report to Sonar";
   }
 
   @Override
@@ -78,8 +67,23 @@ public class BlameSonarSource extends ErrorReportSubmitter {
     return true;
   }
 
+  static @NotNull Map<String, String> getAbbreviations() {
+    Map<String, String> aMap = new LinkedHashMap<>();
+    aMap.put("com.intellij.openapi.diagnostic.", "c.ij.oa.dg.");
+    aMap.put("com.intellij.openapi.application.", "c.ij.oa.ap.");
+    aMap.put("com.intellij.openapi.", "c.ij.oa.");
+    aMap.put("com.intellij.database.", "c.ij.db.");
+    aMap.put("com.intellij.", "c.ij.");
+    aMap.put("org.sonarlint.intellij.", "o.sl.ij.");
+    aMap.put("org.sonarsource.sonarlint.", "o.ss.sl.");
+    aMap.put("org.sonar.plugins.", "o.s.pl.");
+    aMap.put("org.jetbrains.", "o.jb.");
+    return aMap;
+  }
+
   @NotNull
-  static String buildBody(@NotNull IdeaLoggingEvent[] events, @Nullable String additionalInfo) {
+  String buildBody(@NotNull IdeaLoggingEvent[] events, @Nullable String additionalInfo) {
+    var abbreviations = getAbbreviations();
     var body = new StringBuilder();
     body.append("Environment:\n");
     body.append("* Java: ").append(System.getProperty("java.vendor")).append(" ").append(System.getProperty("java.version")).append("\n");
@@ -99,14 +103,14 @@ public class BlameSonarSource extends ErrorReportSubmitter {
       final var throwableText = ideaLoggingEvent.getThrowableText();
       if (StringUtils.isNotBlank(throwableText)) {
         body.append("\n```\n");
-        body.append(abbreviate(throwableText));
+        body.append(abbreviate(abbreviations, throwableText));
         body.append("\n```\n\n");
       }
     }
     return body.toString();
   }
 
-  static String abbreviate(String throwableText) {
+  static String abbreviate(Map<String, String> packageAbbreviation, String throwableText) {
     return new BufferedReader(new StringReader(throwableText)).lines()
       .map(line -> {
         var abbreviated = line;
@@ -115,7 +119,6 @@ public class BlameSonarSource extends ErrorReportSubmitter {
         }
         return abbreviated;
       }).collect(Collectors.joining("\n"));
-
   }
 
   String getReportWithBodyUrl(String description) {
@@ -137,6 +140,6 @@ public class BlameSonarSource extends ErrorReportSubmitter {
     }
 
     return encoded;
-
   }
+
 }

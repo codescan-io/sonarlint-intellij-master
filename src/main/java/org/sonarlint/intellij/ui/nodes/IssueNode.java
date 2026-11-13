@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.nodes;
 
@@ -25,67 +25,119 @@ import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.UIUtil;
 import java.util.Locale;
+import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.swing.Icon;
 import org.sonarlint.intellij.SonarLintIcons;
+import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.core.ProjectBindingManager;
 import org.sonarlint.intellij.finding.issue.LiveIssue;
-import org.sonarlint.intellij.finding.tracking.Trackable;
 import org.sonarlint.intellij.ui.tree.TreeCellRenderer;
 import org.sonarlint.intellij.util.CompoundIcon;
-import org.sonarsource.sonarlint.core.client.api.util.DateUtils;
+import org.sonarlint.intellij.util.DateUtils;
 
 import static com.intellij.ui.SimpleTextAttributes.STYLE_SMALLER;
+import static org.sonarlint.intellij.common.ui.ReadActionUtils.runReadActionSafely;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 
 public class IssueNode extends FindingNode {
-  // not available in IJ15
-  private static final SimpleTextAttributes GRAYED_SMALL_ATTRIBUTES = new SimpleTextAttributes(STYLE_SMALLER, UIUtil.getInactiveTextColor());
+  private static final SimpleTextAttributes GRAYED_SMALL_ATTRIBUTES = new SimpleTextAttributes(STYLE_SMALLER,
+    UIUtil.getInactiveTextColor());
 
   private final LiveIssue issue;
 
-  public IssueNode(Trackable issue) {
-    super((LiveIssue) issue);
-    this.issue = ((LiveIssue) issue);
+  public IssueNode(LiveIssue issue) {
+    super(issue);
+    this.issue = issue;
+  }
+
+  private Optional<ServerConnection> retrieveServerConnection() {
+    var project = issue.project();
+    if (!project.isDisposed()) {
+      return getService(project, ProjectBindingManager.class).tryGetServerConnection();
+    } else {
+      return Optional.empty();
+    }
   }
 
   @Override
   public void render(TreeCellRenderer renderer) {
-    var severity = issue.getUserSeverity();
-    var severityText = StringUtil.capitalize(severity.toString().toLowerCase(Locale.ENGLISH));
-    var type = issue.getType();
+    runReadActionSafely(issue.project(), () -> doRender(renderer));
+  }
 
-    var severityIcon = SonarLintIcons.severity(severity);
+  private void doRender(TreeCellRenderer renderer) {
+    var serverConnection = retrieveServerConnection();
     var gap = JBUIScale.isUsrHiDPI() ? 8 : 4;
-    var serverConnection = getService(issue.psiFile().getProject(), ProjectBindingManager.class).tryGetServerConnection();
-    var typeIcon = SonarLintIcons.type(type);
-    var typeStr = type.toString().replace('_', ' ').toLowerCase(Locale.ENGLISH);
-    if (issue.getServerFindingKey() != null && serverConnection.isPresent()) {
-      var connection = serverConnection.get();
-      renderer.setIconToolTip(severityText + " " + typeStr + " already detected by " + connection.getProductName() + " analysis");
-      setIcon(renderer, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, connection.getProductIcon(), typeIcon, severityIcon));
+    var highestQuality = issue.getHighestQuality();
+    var highestImpact = issue.getHighestImpact();
+
+    if (issue.getCleanCodeAttribute() != null && highestQuality != null && highestImpact != null) {
+      var impactText = StringUtil.capitalize(highestImpact.toString().toLowerCase(Locale.ENGLISH));
+      var qualityText = StringUtil.capitalize(highestQuality.toString().toLowerCase(Locale.ENGLISH));
+      var impactIcon = SonarLintIcons.impact(highestImpact);
+
+      if (issue.getServerKey() != null && serverConnection.isPresent()) {
+        var connection = serverConnection.get();
+        renderer.setIconToolTip(impactText + " impact on " + qualityText + " already detected by " + connection.getProductName() + " " +
+          "analysis");
+        setIcon(renderer, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, connection.getProductIcon(), impactIcon));
+      } else {
+        renderer.setIconToolTip(impactText + " impact on " + qualityText);
+        var serverIconEmptySpace = SonarLintIcons.ICON_SONARQUBE_SERVER_16.getIconWidth() + gap;
+        setIcon(renderer, new OffsetIcon(serverIconEmptySpace, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, impactIcon)));
+      }
     } else {
-      renderer.setIconToolTip(severityText + " " + typeStr);
-      var serverIconEmptySpace = SonarLintIcons.ICON_SONARQUBE_16.getIconWidth() + gap;
-      setIcon(renderer, new OffsetIcon(serverIconEmptySpace, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, typeIcon, severityIcon)));
+      var severity = issue.getUserSeverity();
+      var type = issue.getType();
+      Icon typeIcon = null;
+      var typeStr = "";
+      var severityText = "";
+      if (severity != null && type != null) {
+        typeIcon = SonarLintIcons.getIconForTypeAndSeverity(type, severity);
+        typeStr = type.toString().replace('_', ' ').toLowerCase(Locale.ENGLISH);
+        severityText = StringUtil.capitalize(severity.toString().toLowerCase(Locale.ENGLISH));
+      }
+
+      if (issue.getServerKey() != null && serverConnection.isPresent()) {
+        var connection = serverConnection.get();
+        renderer.setIconToolTip(severityText + " " + typeStr + " already detected by " + connection.getProductName() + " analysis");
+        setIcon(renderer, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, connection.getProductIcon(), typeIcon));
+      } else {
+        renderer.setIconToolTip(severityText + " " + typeStr);
+        var serverIconEmptySpace = SonarLintIcons.ICON_SONARQUBE_SERVER_16.getIconWidth() + gap;
+        setIcon(renderer, new OffsetIcon(serverIconEmptySpace, new CompoundIcon(CompoundIcon.Axis.X_AXIS, gap, typeIcon)));
+      }
     }
 
     renderer.append(issueCoordinates(issue), SimpleTextAttributes.GRAY_ATTRIBUTES);
+    renderMessage(renderer);
+    issue.context().ifPresent(context -> renderer.append(context.getSummaryDescription(), GRAYED_SMALL_ATTRIBUTES));
+    renderIntroductionDate(renderer);
+  }
 
+  private void renderMessage(TreeCellRenderer renderer) {
     if (issue.isValid()) {
       renderer.setToolTipText("Double click to open location");
-      renderer.append(issue.getMessage());
+      if (issue.isResolved()) {
+        renderer.append(issue.getMessage(), new SimpleTextAttributes(SimpleTextAttributes.STYLE_STRIKEOUT, null));
+      } else {
+        renderer.append(issue.getMessage());
+      }
     } else {
       renderer.setToolTipText("Issue is no longer valid");
-      renderer.append(issue.getMessage(), SimpleTextAttributes.GRAY_ATTRIBUTES);
+      if (issue.isResolved()) {
+        renderer.append(issue.getMessage(), new SimpleTextAttributes(SimpleTextAttributes.STYLE_STRIKEOUT, UIUtil.getInactiveTextColor()));
+      } else {
+        renderer.append(issue.getMessage(), SimpleTextAttributes.GRAY_ATTRIBUTES);
+      }
     }
+  }
 
-    issue.context().ifPresent(context -> renderer.append(context.getSummaryDescription(), GRAYED_SMALL_ATTRIBUTES));
-
+  private void renderIntroductionDate(TreeCellRenderer renderer) {
     var introductionDate = issue.getIntroductionDate();
     if (introductionDate != null) {
       renderer.append(" ");
-      var age = DateUtils.toAge(introductionDate);
+      var age = DateUtils.toAge(introductionDate.toEpochMilli());
       renderer.append(age, SimpleTextAttributes.GRAY_ATTRIBUTES);
     }
   }
@@ -108,8 +160,7 @@ public class IssueNode extends FindingNode {
   }
 
   private String issueCoordinates(@Nonnull LiveIssue issue) {
-    var range = issue.getRange();
-    return formatRangeMarker(range);
+    return formatRangeMarker(issue.file(), issue.getRange());
   }
 
   @Override

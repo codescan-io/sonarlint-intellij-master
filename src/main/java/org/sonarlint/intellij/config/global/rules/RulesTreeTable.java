@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global.rules;
 
@@ -52,13 +52,19 @@ public class RulesTreeTable extends TreeTable {
     this.treeTableModel = treeTableModel;
 
     setUpColumns();
-    setListeners();
+    installListeners();
 
     getTableHeader().setReorderingAllowed(false);
     getEmptyText().setText("No rules available");
   }
 
-  private void setListeners() {
+  private void installListeners() {
+    installDoubleClickListener();
+    installKeyboardListener();
+    installMouseListener();
+  }
+
+  private void installDoubleClickListener() {
     new DoubleClickListener() {
       @Override
       protected boolean onDoubleClick(MouseEvent event) {
@@ -72,7 +78,9 @@ public class RulesTreeTable extends TreeTable {
         return true;
       }
     }.installOn(this);
+  }
 
+  private void installKeyboardListener() {
     registerKeyboardAction(e -> {
       final var path = getTree().getPathForRow(getTree().getLeadSelectionRow());
       if (path != null) {
@@ -80,7 +88,9 @@ public class RulesTreeTable extends TreeTable {
       }
       updateUI();
     }, KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), JComponent.WHEN_FOCUSED);
+  }
 
+  private void installMouseListener() {
     addMouseMotionListener(new MouseAdapter() {
       @Override
       public void mouseMoved(final MouseEvent e) {
@@ -97,12 +107,13 @@ public class RulesTreeTable extends TreeTable {
 
         var obj = path.getLastPathComponent();
 
-        if (obj instanceof RulesTreeNode.Rule) {
-          var rule = (RulesTreeNode.Rule) obj;
-          var label = new JLabel();
-          var severityAndType = rule.severity() + " " + rule.type();
-          label.setText(StringUtil.capitalize(severityAndType.replace('_', ' ').toLowerCase(Locale.US)));
-          IdeTooltipManager.getInstance().show(new IdeTooltip(RulesTreeTable.this, point, label), false);
+        if (obj instanceof RulesTreeNode.Rule rule && (rule.getHighestQuality() != null && rule.getHighestImpact() != null)) {
+            var label = new JLabel();
+            var qualityText = StringUtil.capitalize(rule.getHighestQuality().toString().toLowerCase(Locale.ENGLISH));
+            var impactText = StringUtil.capitalize(rule.getHighestImpact().getLabel().toLowerCase(Locale.ENGLISH));
+            var text = impactText + " impact on " + qualityText;
+            label.setText(StringUtil.capitalize(text.replace('_', ' ').toLowerCase(Locale.ENGLISH)));
+            IdeTooltipManager.getInstance().show(new IdeTooltip(RulesTreeTable.this, point, label), false);
         }
       }
     });
@@ -132,7 +143,8 @@ public class RulesTreeTable extends TreeTable {
         return value;
       }
     });
-    iconsColumn.setMaxWidth(JBUI.scale(40));
+
+    iconsColumn.setMaxWidth(JBUI.scale(20));
   }
 
   private static int getAdditionalPadding() {

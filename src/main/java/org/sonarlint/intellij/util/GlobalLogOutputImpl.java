@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.util;
 
@@ -31,17 +31,9 @@ public class GlobalLogOutputImpl implements GlobalLogOutput {
   @Override
   public void log(String msg, Level level) {
     switch (level) {
-      case TRACE:
-      case DEBUG:
-        getConsolesOfOpenedProjects().forEach(console -> console.debug(msg));
-        break;
-      case ERROR:
-        getConsolesOfOpenedProjects().forEach(console -> console.error(msg));
-        break;
-      case INFO:
-      case WARN:
-      default:
-        getConsolesOfOpenedProjects().forEach(console -> console.info(msg));
+      case TRACE, DEBUG -> getConsolesOfOpenedProjects().forEach(console -> console.debug(msg));
+      case ERROR -> getConsolesOfOpenedProjects().forEach(console -> console.error(msg));
+      default -> getConsolesOfOpenedProjects().forEach(console -> console.info(msg));
     }
   }
 

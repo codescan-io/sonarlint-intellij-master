@@ -15,27 +15,28 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.tree;
 
 import com.intellij.openapi.editor.RangeMarker;
+import com.intellij.openapi.vfs.VirtualFile;
 import java.util.List;
 import javax.annotation.Nullable;
 import javax.swing.tree.DefaultTreeModel;
 import org.sonarlint.intellij.finding.Flow;
 import org.sonarlint.intellij.finding.LiveFinding;
+import org.sonarlint.intellij.ui.nodes.AbstractNode;
 import org.sonarlint.intellij.ui.nodes.FlowNode;
 import org.sonarlint.intellij.ui.nodes.FlowSecondaryLocationNode;
 import org.sonarlint.intellij.ui.nodes.PrimaryLocationNode;
-import org.sonarlint.intellij.ui.nodes.SummaryNode;
 
 public class FlowsTreeModelBuilder {
-  private SummaryNode summary;
+  private FlowSummaryNode summary;
   private DefaultTreeModel model;
 
   public DefaultTreeModel createModel() {
-    summary = new SummaryNode();
+    summary = new FlowSummaryNode();
     model = new DefaultTreeModel(summary);
     model.setRoot(summary);
     return model;
@@ -47,24 +48,30 @@ public class FlowsTreeModelBuilder {
   }
 
   public void populateForFinding(LiveFinding finding) {
-    var rangeMarker = finding.getRange();
     var context = finding.context();
-    if (rangeMarker == null || context.isEmpty()) {
+    if (context.isEmpty()) {
       clearFlows();
       return;
     }
     var findingContext = context.get();
-    var message = finding.getMessage();
-    if (findingContext.hasUniqueFlow()) {
-      setSingleFlow(findingContext.flows().get(0), rangeMarker, message);
+    populateForFinding(finding.file(), finding.getRange(), finding.getMessage(), findingContext.flows());
+  }
+
+  public void populateForFinding(VirtualFile file, @Nullable RangeMarker rangeMarker, String summaryDescription, List<Flow> flows) {
+    if (rangeMarker == null || flows.isEmpty()) {
+      clearFlows();
+      return;
+    }
+    if (flows.size() == 1) {
+      setSingleFlow(file, flows.get(0), rangeMarker, summaryDescription);
     } else {
-      setMultipleFlows(findingContext.flows(), rangeMarker, message);
+      setMultipleFlows(file, flows, rangeMarker, summaryDescription);
     }
   }
 
-  private void setMultipleFlows(List<Flow> flows, RangeMarker rangeMarker, @Nullable String message) {
-    summary = new SummaryNode();
-    var primaryLocationNode = new PrimaryLocationNode(rangeMarker, message, flows.get(0));
+  private void setMultipleFlows(VirtualFile file, List<Flow> flows, RangeMarker rangeMarker, @Nullable String message) {
+    summary = new FlowSummaryNode();
+    var primaryLocationNode = new PrimaryLocationNode(file, rangeMarker, message, flows.get(0));
     summary.add(primaryLocationNode);
 
     var flowIndex = 1;
@@ -83,9 +90,9 @@ public class FlowsTreeModelBuilder {
     model.setRoot(summary);
   }
 
-  private void setSingleFlow(Flow flow, RangeMarker rangeMarker, @Nullable String message) {
-    summary = new SummaryNode();
-    var primaryLocation = new PrimaryLocationNode(rangeMarker, message, flow);
+  private void setSingleFlow(VirtualFile file, Flow flow, RangeMarker rangeMarker, @Nullable String message) {
+    summary = new FlowSummaryNode();
+    var primaryLocation = new PrimaryLocationNode(file, rangeMarker, message, flow);
     primaryLocation.setBold(true);
     summary.add(primaryLocation);
 
@@ -97,5 +104,12 @@ public class FlowsTreeModelBuilder {
     }
 
     model.setRoot(summary);
+  }
+
+  private static class FlowSummaryNode extends AbstractNode {
+    @Override
+    public void render(TreeCellRenderer renderer) {
+      // nothing to show for the root
+    }
   }
 }

@@ -15,17 +15,32 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.finding
 
-import org.sonarsource.sonarlint.core.commons.RuleType
+import com.intellij.openapi.vfs.VirtualFile
+import java.util.UUID
+import org.sonarsource.sonarlint.core.client.utils.CleanCodeAttribute
+import org.sonarsource.sonarlint.core.client.utils.ImpactSeverity
+import org.sonarsource.sonarlint.core.client.utils.SoftwareQuality
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.ImpactDto
+import org.sonarsource.sonarlint.core.rpc.protocol.common.RuleType
 
 interface Finding {
 
+    fun getId(): UUID
+    fun getCleanCodeAttribute(): CleanCodeAttribute?
+    fun getImpacts(): List<ImpactDto>
+    fun getHighestQuality(): SoftwareQuality?
+    fun getHighestImpact(): ImpactSeverity?
+    fun getServerKey(): String?
     fun getRuleKey(): String
-
-    fun getType(): RuleType
-
+    fun getType(): RuleType?
     fun getRuleDescriptionContextKey(): String?
+    fun file(): VirtualFile?
+    fun isValid(): Boolean
+    fun isOnNewCode(): Boolean
+    fun isResolved(): Boolean
+
 }

@@ -4,7 +4,7 @@
 #
 # It unpacks two real source trees from git (with `git archive`, so no
 # worktree is left behind):
-#   - the last CodeScan release (PRE_REF, default pre-catchup-7.2.3): every check must PASS;
+#   - the last CodeScan release (PRE_REF, default pre-catchup-7.2.3) with the row P33 fix applied: every check must PASS;
 #   - plain upstream SonarLint (UP_REF, default 10.14.1.80220): the checks must FAIL and name the rows.
 # Then it changes single files in the CodeScan tree to prove each check can fail,
 # and builds tiny plugin zips by hand to test --zip.
@@ -83,6 +83,16 @@ PRE="$WORK/pre tree"      # the space is on purpose: paths with spaces must work
 UP="$WORK/upstream"
 extract "$PRE_REF" "$PRE" || { echo "cannot unpack $PRE_REF"; exit 2; }
 extract "$UP_REF" "$UP"   || { echo "cannot unpack $UP_REF"; exit 2; }
+
+# 7.2.3 registered the git branch provider under the old name, so it was never found (row P33). The baseline is
+# 7.2.3 plus that fix; the p32-git-ns cases below put the old name back and must fail.
+PRE_GIT_XML="$PRE/src/main/resources/META-INF/plugin-git.xml"
+if ! grep -q 'defaultExtensionNs="org.sonarlint.idea"' "$PRE_GIT_XML"; then
+  echo "plugin-git.xml in $PRE_REF no longer has the old name: update the row P33 fix in this script"
+  exit 2
+fi
+sed 's:defaultExtensionNs="org.sonarlint.idea":defaultExtensionNs="com.code-scan.intellij":' "$PRE_GIT_XML" > "$PRE_GIT_XML.new" &&
+  mv "$PRE_GIT_XML.new" "$PRE_GIT_XML"
 
 before=$FAILS
 run_check pre "$PRE"
@@ -203,17 +213,20 @@ else
   not_ok "zip command not found; cannot test --zip"
 fi
 
-# The real built zip: every check must pass on the 7.2.3 tree. Skipped when the zip has not been built here.
+# The real built 7.2.3 zip. It still has the row P33 bug (plugin-git.xml under the old name), so that must be its
+# only failure and every other check must pass. Skipped when the zip has not been built here.
 MAIN_REPO=$(cd "$REPO" && cd "$(git rev-parse --git-common-dir)/.." 2> /dev/null && pwd)
 REAL_ZIP=${REAL_ZIP:-$MAIN_REPO/build/distributions/CodeScan-7.3.0.zip}
 if [ -f "$REAL_ZIP" ]; then
   before=$FAILS
   run_check realzip --zip "$REAL_ZIP" "$PRE"
-  expect_rc realzip 0
+  expect_rc realzip nonzero
   for id in $ROWS; do expect_line realzip "^PASS $id "; done
   expect_line realzip "^PASS P4 .*zip"
   expect_line realzip "^PASS P1 .*zip"
-  expect_no_line realzip "^FAIL "
+  expect_line realzip "^FAIL P32 zip: .*plugin-git.xml registers extensions under the SonarLint namespace"
+  expect_line realzip "^Failed rows: P32$"
+  if [ "$(grep -c '^FAIL ' "$WORK/realzip.out")" -eq 1 ]; then ok "realzip: plugin-git.xml is the only failure"; else not_ok "realzip: expected exactly one FAIL line"; fi
   show_output "$before" realzip
 else
   echo "skip   - real zip test: $REAL_ZIP not found (build it with ./gradlew buildPlugin, or set REAL_ZIP)"
@@ -425,10 +438,11 @@ expect_rows p32-java-ns P32
 new_case p32-other-loaded
 case_sed $META/plugin.xml 's:<depends optional="true" config-file="plugin-git.xml">Git4Idea</depends>:&<depends optional="true" config-file="plugin-plsql.xml">com.intellij.modules.plsql</depends>:'
 expect_rows p32-other-loaded P32
-# plugin-git.xml has the old name in 7.2.3 on purpose (row P33, Task 5 fixes it): it must not fail P32, and the output must say so.
-run_check p32-git-note "$PRE"
-expect_line p32-git-note "^WARN P32 plugin-git.xml is not checked: .*P33"
-expect_line p32-git-note "^PASS P32 "
+# plugin-git.xml with the old name (as in 7.2.3, row P33): the git branch provider would never be found.
+new_case p32-git-ns
+case_sed $META/plugin-git.xml 's:defaultExtensionNs="com.code-scan.intellij":defaultExtensionNs="org.sonarlint.idea":'
+expect_rows p32-git-ns P32
+expect_line p32-git-ns "^FAIL P32 .*plugin-git.xml registers extensions under the SonarLint namespace"
 
 # 8. P9: an empty source file has no header.
 new_case p9-empty
@@ -819,12 +833,12 @@ form=$(cd "$CASE" && find src/main/java -name '*.form' | head -1)
 sed '/^<!--$/,/^-->$/d' "$CASE/$form" > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$form"
 expect_rows p9-form P9
 
-# The plugin-git.xml skip prints a WARN line each time it is used (source and zip), so Task 5 removes it after P33.
-run_check p32-git-warn "$PRE"
-expect_line p32-git-warn "^WARN P32 .*plugin-git.xml.*P33"
+# plugin-git.xml is no longer skipped (row P33 is fixed), so there is no WARN line, and the zip copy is checked too.
+run_check p32-git-nowarn "$PRE"
+expect_no_line p32-git-nowarn "^WARN "
 if command -v zip > /dev/null 2>&1; then
-  run_check p32-git-warn-zip --zip "$WORK/good.zip" "$PRE"
-  expect_line p32-git-warn-zip "^WARN P32 zip: .*plugin-git.xml.*P33"
+  zip_case zip-git-ns P32 zsed 's:defaultExtensionNs="com.code-scan.intellij":defaultExtensionNs="org.sonarlint.idea":' META-INF/plugin-git.xml
+  expect_line zip-git-ns "^FAIL P32 zip: .*plugin-git.xml registers extensions under the SonarLint namespace"
   # Zip entry names with [ ] * ? are read as plain names, not patterns.
   JARNAME='codescan-intellij-[7].jar' zip_case zip-bracket-name - true
   # unescaped, this name is a pattern that also matches the decoy jar next to it

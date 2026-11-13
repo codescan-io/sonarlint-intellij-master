@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.actions;
 
@@ -25,9 +25,13 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vcs.changes.ChangeListManager;
 import javax.swing.Icon;
 import org.jetbrains.annotations.Nullable;
-import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
+import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.core.BackendService;
+
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class SonarAnalyzeChangedFilesAction extends AbstractSonarAction {
   public SonarAnalyzeChangedFilesAction() {
@@ -43,7 +47,8 @@ public class SonarAnalyzeChangedFilesAction extends AbstractSonarAction {
       return false;
     }
     var changeListManager = ChangeListManager.getInstance(project);
-    return !changeListManager.getAffectedFiles().isEmpty();
+    var backendIsAlive = getService(BackendService.class).isAlive();
+    return !changeListManager.getAffectedFiles().isEmpty() && backendIsAlive;
   }
 
   @Override
@@ -58,6 +63,6 @@ public class SonarAnalyzeChangedFilesAction extends AbstractSonarAction {
       return;
     }
 
-    SonarLintUtils.getService(project, AnalysisSubmitter.class).analyzeVcsChangedFiles();
+    runOnPooledThread(project, () -> SonarLintUtils.getService(project, AnalysisSubmitter.class).analyzeVcsChangedFiles());
   }
 }

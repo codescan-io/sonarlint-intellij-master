@@ -16,7 +16,7 @@
 
     You should have received a copy of the GNU Lesser General Public
     License along with this program; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 -->
 <idea-plugin>
@@ -24,9 +24,9 @@
   <name>SonarLint-ITs</name>
   <version>1.0</version>
   <vendor url="https://sonarsource.com">SonarSource</vendor>
-  <description>Fake Plugin To Run SonarLint UI tests with multiple flavors</description>
+  <description>Fake Plugin To Run SonarQube for IntelliJ UI tests with multiple flavors</description>
 
-  <idea-version since-build="213.5744.223"/>
+  <idea-version since-build="223.8214.6"/>
 
   <depends>com.intellij.modules.lang</depends>
 </idea-plugin>

@@ -15,26 +15,32 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global;
 
+import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.ui.InputValidator;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.ui.HyperlinkAdapter;
 import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.components.JBLabel;
+import com.intellij.util.ui.SwingHelper;
+import com.intellij.util.ui.UIUtil;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import javax.swing.JComponent;
+import javax.swing.JEditorPane;
 import javax.swing.JPanel;
 import javax.swing.border.Border;
-import org.apache.commons.lang.StringUtils;
+import javax.swing.event.HyperlinkEvent;
+import org.apache.commons.lang3.StringUtils;
 import org.sonarlint.intellij.config.ConfigurationPanel;
 import org.sonarlint.intellij.config.component.EditableList;
+import org.sonarlint.intellij.documentation.SonarLintDocumentation;
 
 public class GlobalExclusionsPanel implements ConfigurationPanel<SonarLintGlobalSettings> {
   private static final String EMPTY_LABEL = "No exclusions configured";
@@ -44,10 +50,26 @@ public class GlobalExclusionsPanel implements ConfigurationPanel<SonarLintGlobal
   private JPanel patternList;
   private EditableList<String> list;
   private JBLabel helpLabel;
+  private JEditorPane editorPane1;
+  private JEditorPane editorPane2;
 
   public GlobalExclusionsPanel() {
     Border b = IdeBorderFactory.createTitledBorder(BORDER_TITLE);
     panel.setBorder(b);
+
+    initHtmlPane(editorPane1);
+    SwingHelper.setHtml(editorPane1, "When a project is connected to CodeScan, exclusions defined in its " +
+      "General Settings <a href=\"" + SonarLintDocumentation.Intellij.FILE_EXCLUSION_LINK + "\">override</a> your locally " +
+      "defined exclusions.", UIUtil.getLabelForeground());
+    editorPane1.addHyperlinkListener(new HyperlinkAdapter() {
+      @Override
+      protected void hyperlinkActivated(HyperlinkEvent e) {
+        BrowserUtil.browse(SonarLintDocumentation.Intellij.FILE_EXCLUSION_LINK);
+      }
+    });
+
+    initHtmlPane(editorPane2);
+    SwingHelper.setHtml(editorPane2, "The exclusions will not apply to manually triggered analysis.", UIUtil.getLabelForeground());
   }
 
   @Override

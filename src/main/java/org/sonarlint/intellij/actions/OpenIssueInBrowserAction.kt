@@ -15,32 +15,28 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.actions
 
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.DataKey
-import com.intellij.openapi.module.ModuleUtil
 import com.intellij.openapi.project.Project
 import org.sonarlint.intellij.analysis.AnalysisStatus
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
+import org.sonarlint.intellij.common.util.UrlUtils
 import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.core.ModuleBindingManager
 import org.sonarlint.intellij.core.ProjectBindingManager
-import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability
 import org.sonarlint.intellij.telemetry.SonarLintTelemetry
-import org.sonarsource.sonarlint.core.serverapi.UrlUtils
+import org.sonarlint.intellij.util.DataKeys.Companion.TAINT_VULNERABILITY_DATA_KEY
+import org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile
 
 class OpenIssueInBrowserAction : AbstractSonarAction(
   "Open In Browser",
-  "Open issue in browser interface of CodeScan or CodeScanCloud",
+  "Open issue in browser interface of CodeScan",
   null
 ) {
-  companion object {
-    val TAINT_VULNERABILITY_DATA_KEY = DataKey.create<LocalTaintVulnerability>("sonarlint_taint_vulnerability")
-  }
 
   override fun isEnabled(e: AnActionEvent, project: Project, status: AnalysisStatus): Boolean {
     return e.getData(TAINT_VULNERABILITY_DATA_KEY) != null
@@ -57,7 +53,7 @@ class OpenIssueInBrowserAction : AbstractSonarAction(
     val issue = e.getData(TAINT_VULNERABILITY_DATA_KEY)
     val key = issue?.key() ?: return
     val localFile = issue.file() ?: return
-    val localFileModule = ModuleUtil.findModuleForFile(localFile, project) ?: return
+    val localFileModule = findModuleForFile(localFile, project) ?: return
     val serverUrl = serverConnection(project)?.hostUrl ?: return
     val projectKey = getService(localFileModule, ModuleBindingManager::class.java).resolveProjectKey() ?: return
     BrowserUtil.browse(buildLink(serverUrl, projectKey, key))

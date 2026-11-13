@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.project
 
@@ -32,7 +32,6 @@ import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.COLUMNS_MEDIUM
 import com.intellij.ui.dsl.builder.columns
-import org.sonarsource.sonarlint.core.serverapi.component.ServerProject
 import java.awt.Component
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -44,21 +43,22 @@ import javax.swing.ListSelectionModel
 import javax.swing.event.DocumentEvent
 import javax.swing.event.ListSelectionEvent
 import javax.swing.event.ListSelectionListener
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.projects.SonarProjectDto
 
 class SearchProjectKeyDialog(
     parent: Component,
     private val lastSelectedProjectKey: String?,
-    private val projectsByKey: Map<String, ServerProject>,
+    private val projectsByKey: Map<String, SonarProjectDto>,
     isSonarCloud: Boolean,
 ) : DialogWrapper(
     parent, false
 ) {
     private lateinit var mainPanel: JBPanel<JBPanel<*>>
-    private lateinit var projectList: JBList<ServerProject>
+    private lateinit var projectList: JBList<SonarProjectDto>
     private lateinit var searchTextField: SearchTextField
 
     init {
-        title = "Select " + (if (isSonarCloud) "CodeScanCloud" else "CodeScan") + " Project To Bind"
+        title = "Select CodeScan Project To Bind"
         init()
     }
 
@@ -95,8 +95,8 @@ class SearchProjectKeyDialog(
             return project?.key
         }
 
-    private fun createProjectList(): JBList<ServerProject> {
-        val projectList = JBList<ServerProject>(DefaultListModel())
+    private fun createProjectList(): JBList<SonarProjectDto> {
+        val projectList = JBList<SonarProjectDto>(DefaultListModel())
         val emptyText = StringBuilder("No projects found")
         if (projectsByKey.isEmpty()) {
             emptyText.append(" for the selected connection")
@@ -114,7 +114,7 @@ class SearchProjectKeyDialog(
 
     private fun updateProjectsInList() {
         val filterText = searchTextField.text
-        val selection: ServerProject? = projectList.selectedValue
+        val selection: SonarProjectDto? = projectList.selectedValue
         val model = (projectList.model as? DefaultListModel)
         model!!.clear()
         val sortedProjects = projectsByKey.values
@@ -149,10 +149,10 @@ class SearchProjectKeyDialog(
         updateOk()
     }
 
-    private class ProjectListRenderer : ColoredListCellRenderer<ServerProject>() {
+    private class ProjectListRenderer : ColoredListCellRenderer<SonarProjectDto>() {
         override fun customizeCellRenderer(
-            list: JList<out ServerProject>,
-            value: ServerProject,
+            list: JList<out SonarProjectDto>,
+            value: SonarProjectDto,
             index: Int,
             selected: Boolean,
             hasFocus: Boolean,

@@ -15,11 +15,12 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.common.ui
 
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.ThrowableComputable
 import com.intellij.openapi.vfs.VirtualFile
@@ -54,19 +55,26 @@ class ReadActionUtils {
         }
 
         @JvmStatic
-        fun <T> computeReadActionSafely(psiFile: PsiFile, action: ThrowableComputable<T, out Exception>): T? {
-            if (psiFile.isValid) {
+        fun <T> computeReadActionSafely(module: Module, action: ThrowableComputable<T, out Exception>): T? {
+            if (!module.isDisposed) {
                 return ReadAction.compute<T?, Exception> {
-                    if (!psiFile.isValid) null else action.compute()
+                    if (module.isDisposed) null else action.compute()
                 }
             }
             return null
         }
 
         @JvmStatic
+        fun <T> computeReadActionSafely(psiFile: PsiFile, action: ThrowableComputable<T, out Exception>): T? {
+            return ReadAction.compute<T?, Exception> {
+                if (!psiFile.isValid) null else action.compute()
+            }
+        }
+
+        @JvmStatic
         fun <T> computeReadActionSafely(virtualFile: VirtualFile, project: Project, action: ThrowableComputable<T, out Exception>): T? {
-            if (!project.isDisposed && virtualFile.isValid) {
-                return ReadAction.compute<T?, Exception> {
+            if (!project.isDisposed) {
+                return ReadAction.compute<T, Exception> {
                     if (project.isDisposed || !virtualFile.isValid) null else action.compute()
                 }
             }
@@ -75,12 +83,9 @@ class ReadActionUtils {
 
         @JvmStatic
         fun <T> computeReadActionSafely(virtualFile: VirtualFile, action: ThrowableComputable<T, out Exception>): T? {
-            if (virtualFile.isValid) {
-                return ReadAction.compute<T?, Exception> {
-                    if (!virtualFile.isValid) null else action.compute()
-                }
+            return ReadAction.compute<T?, Exception> {
+                if (!virtualFile.isValid) null else action.compute()
             }
-            return null
         }
     }
 }

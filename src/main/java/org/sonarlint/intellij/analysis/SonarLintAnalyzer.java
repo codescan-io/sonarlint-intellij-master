@@ -15,41 +15,38 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.analysis;
 
 import com.intellij.openapi.components.Service;
-import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.module.Module;
+import com.intellij.openapi.progress.ProcessCanceledException;
+import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.TestSourcesFilter;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.vfs.encoding.EncodingProjectManager;
-import java.nio.charset.Charset;
+import java.net.URI;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
-import javax.annotation.Nullable;
 import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.common.analysis.AnalysisConfigurator;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
-import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarlint.intellij.core.ProjectBindingManager;
-import org.sonarlint.intellij.exception.InvalidBindingException;
-import org.sonarlint.intellij.telemetry.SonarLintTelemetry;
-import org.sonarlint.intellij.util.SonarLintAppUtils;
-import org.sonarsource.sonarlint.core.analysis.api.ClientInputFile;
-import org.sonarsource.sonarlint.core.client.api.common.analysis.IssueListener;
-import org.sonarsource.sonarlint.core.commons.Language;
-import org.sonarsource.sonarlint.core.commons.progress.ClientProgressMonitor;
+import org.sonarlint.intellij.config.Settings;
+import org.sonarlint.intellij.core.BackendService;
+import org.sonarlint.intellij.util.VirtualFileUtils;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.analysis.AnalyzeFilesResponse;
 
 import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static org.sonarlint.intellij.util.ProgressUtils.waitForFuture;
+import static org.sonarlint.intellij.util.SonarLintAppUtils.getRelativePathForAnalysis;
 
 @Service(Service.Level.PROJECT)
 public final class SonarLintAnalyzer {
@@ -59,76 +56,81 @@ public final class SonarLintAnalyzer {
     myProject = project;
   }
 
-  public ModuleAnalysisResult analyzeModule(Module module, Collection<VirtualFile> filesToAnalyze, IssueListener listener, ClientProgressMonitor progressMonitor) {
+  public ModuleAnalysisResult analyzeModule(Module module, Collection<VirtualFile> filesToAnalyze, AnalysisState analysisState, ProgressIndicator indicator,
+    boolean shouldFetchServerIssues) {
     // Configure plugin properties. Nothing might be done if there is no configurator available for the extensions loaded in runtime.
     var start = System.currentTimeMillis();
-    var console = SonarLintUtils.getService(myProject, SonarLintConsole.class);
+    var console = getService(myProject, SonarLintConsole.class);
+
     var contributedConfigurations = getConfigurationFromConfiguratorEP(module, filesToAnalyze, console);
-
-    var contributedProperties = collectContributedExtraProperties(console, contributedConfigurations);
-
-    var contributedLanguages = collectContributedLanguages(console, contributedConfigurations);
+    var contributedProperties = collectContributedExtraProperties(module, console, contributedConfigurations);
 
     // configure files
-    var inputFiles = getInputFiles(module, filesToAnalyze, contributedLanguages);
-    if (inputFiles == null) {
+    var inputFiles = getInputFiles(module, filesToAnalyze);
+    if (inputFiles == null || inputFiles.isEmpty()) {
       return new ModuleAnalysisResult(Collections.emptyList());
     }
+
     // Analyze
-
     try {
-      var projectBindingManager = SonarLintUtils.getService(myProject, ProjectBindingManager.class);
-      var facade = projectBindingManager.getFacade(module, true);
+      getService(myProject, RunningAnalysesTracker.class).cancelSimilarAnalysis(analysisState, console);
+      getService(myProject, RunningAnalysesTracker.class).track(analysisState);
 
-      var what = filesToAnalyze.size() == 1 ?
-        String.format("'%s'", filesToAnalyze.iterator().next().getName()) :
-        String.format("%d files", filesToAnalyze.size());
+      var what = filesToAnalyze.size() == 1 ? String.format("'%s'", filesToAnalyze.iterator().next().getName()) : String.format("%d files", filesToAnalyze.size());
+      console.info("Analysing " + what + " (ID " + analysisState.getId() + ")...");
 
-      console.info("Analysing " + what + "...");
-      var result = facade.startAnalysis(module, inputFiles, listener, contributedProperties, progressMonitor);
-      console.debug("Done in " + (System.currentTimeMillis() - start) + "ms\n");
-      var telemetry = SonarLintUtils.getService(SonarLintTelemetry.class);
-      if (result.languagePerFile().size() == 1 && result.failedAnalysisFiles().isEmpty()) {
-        telemetry.analysisDoneOnSingleLanguage(result.languagePerFile().values().iterator().next(), (int) (System.currentTimeMillis() - start));
-      } else {
-        telemetry.analysisDoneOnMultipleFiles();
+      var analysisTask = getService(BackendService.class).analyzeFilesAndTrack(module, analysisState.getId(), inputFiles, contributedProperties, shouldFetchServerIssues, start);
+
+      AnalyzeFilesResponse result = null;
+      try {
+        result = waitForFuture(indicator, analysisTask);
+      } catch (ProcessCanceledException e) {
+        getService(myProject, RunningAnalysesTracker.class).finish(analysisState);
+        console.debug("Analysis " + analysisState.getId() + " canceled");
+      } catch (Exception e) {
+        getService(myProject, RunningAnalysesTracker.class).finish(analysisState);
+        console.error("Error during analysis ID " + analysisState.getId(), e);
       }
 
-      return new ModuleAnalysisResult(result.failedAnalysisFiles());
-    } catch (InvalidBindingException e) {
-      // should not happen, as analysis should not have been submitted in this case.
-      throw new IllegalStateException(e);
+      Set<VirtualFile> failedAnalysisFiles = Collections.emptySet();
+      if (result != null) {
+        failedAnalysisFiles = result.getFailedAnalysisFiles().stream()
+          .map(VirtualFileUtils.INSTANCE::uriToVirtualFile).filter(Objects::nonNull).collect(Collectors.toSet());
+      }
+
+      return new ModuleAnalysisResult(failedAnalysisFiles);
+    } finally {
+      console.debug("Analysis " + analysisState.getId() + " finished");
     }
   }
 
   @NotNull
-  private static Map<String, String> collectContributedExtraProperties(SonarLintConsole console, List<AnalysisConfigurator.AnalysisConfiguration> contributedConfigurations) {
+  private static Map<String, String> collectContributedExtraProperties(Module module, SonarLintConsole console,
+    List<AnalysisConfigurator.AnalysisConfiguration> contributedConfigurations) {
     var contributedProperties = new HashMap<String, String>();
     for (var config : contributedConfigurations) {
       for (var entry : config.extraProperties.entrySet()) {
         if (contributedProperties.containsKey(entry.getKey()) && !Objects.equals(contributedProperties.get(entry.getKey()), entry.getValue())) {
           console.error("The same property " + entry.getKey() + " was contributed by multiple configurators with different values: " +
-            contributedProperties.get(entry.getKey()) + " / " + entry.getValue());
+            conflictingValues(entry.getKey(), contributedProperties.get(entry.getKey()), entry.getValue()));
         }
         contributedProperties.put(entry.getKey(), entry.getValue());
       }
     }
+    var extraProperties = Settings.getSettingsFor(module.getProject()).getAdditionalProperties();
+    for (var entry : extraProperties.entrySet()) {
+      if (contributedProperties.containsKey(entry.getKey()) && !Objects.equals(contributedProperties.get(entry.getKey()), entry.getValue())) {
+        console.error("The same property " + entry.getKey() + " was contributed by multiple configurators with different values: " +
+          conflictingValues(entry.getKey(), contributedProperties.get(entry.getKey()), entry.getValue()));
+      }
+      contributedProperties.put(entry.getKey(), entry.getValue());
+    }
     return contributedProperties;
   }
 
-  @NotNull
-  private static Map<VirtualFile, Language> collectContributedLanguages(SonarLintConsole console, List<AnalysisConfigurator.AnalysisConfiguration> contributedConfigurations) {
-    var contributedLanguages = new HashMap<VirtualFile, Language>();
-    for (var config : contributedConfigurations) {
-      for (var entry : config.forcedLanguages.entrySet()) {
-        if (contributedLanguages.containsKey(entry.getKey()) && !Objects.equals(contributedLanguages.get(entry.getKey()), entry.getValue())) {
-          console.error("The same file " + entry.getKey() + " has its language forced by multiple configurators with different values: " +
-            contributedLanguages.get(entry.getKey()) + " / " + entry.getValue());
-        }
-        contributedLanguages.put(entry.getKey(), entry.getValue());
-      }
-    }
-    return contributedLanguages;
+  private static String conflictingValues(String key, String first, String second) {
+    // CodeScan: never print a token, for example when the project settings override the one of the connection
+    return CodeScanAnalysisConfigurator.isSecret(key) ? "(values hidden)" : (first + " / " + second);
   }
 
   @NotNull
@@ -139,59 +141,31 @@ public final class SonarLintAnalyzer {
         console.debug("Configuring analysis with " + config.getClass().getName());
         return config.configure(module, filesToAnalyze);
       })
-      .collect(Collectors.toList());
+      .toList();
   }
 
-  private List<ClientInputFile> getInputFiles(Module module, Collection<VirtualFile> filesToAnalyze, Map<VirtualFile, Language> contributedLanguages) {
+  private static List<URI> getInputFiles(Module module, Collection<VirtualFile> filesToAnalyze) {
     return computeReadActionSafely(module.getProject(), () -> filesToAnalyze.stream()
-      .map(f -> createClientInputFile(module, f, contributedLanguages.get(f)))
+      .map(f -> createClientInputFile(module, f))
       .filter(Objects::nonNull)
-      .collect(Collectors.toList()));
+      .toList());
   }
 
   @CheckForNull
-  public ClientInputFile createClientInputFile(Module module, VirtualFile virtualFile, @Nullable Language language) {
-    var test = TestSourcesFilter.isTestSources(virtualFile, module.getProject());
-    var charset = getEncoding(virtualFile);
-    var relativePath = SonarLintAppUtils.getRelativePathForAnalysis(module, virtualFile);
+  private static URI createClientInputFile(Module module, VirtualFile virtualFile) {
+    var relativePath = getRelativePathForAnalysis(module, virtualFile);
     if (relativePath != null) {
-      var fileDocumentManager = FileDocumentManager.getInstance();
-      if (fileDocumentManager.isFileModified(virtualFile)) {
-        return createInputFileFromDocument(myProject, virtualFile, language, test, charset, relativePath);
-      } else {
-        var documentModificationStamp = readDocumentModificationStamp(myProject, virtualFile);
-        if (documentModificationStamp == null) {
-          return null;
-        }
-        return new DefaultClientInputFile(virtualFile, relativePath, test, charset, null, documentModificationStamp, language);
-      }
+      return createURI(virtualFile);
     }
     return null;
   }
 
-  private static DefaultClientInputFile createInputFileFromDocument(Project project, VirtualFile virtualFile, @org.jetbrains.annotations.Nullable Language language, boolean test,
-    Charset charset, String relativePath) {
-    return computeReadActionSafely(virtualFile, project, () -> {
-      var document = FileDocumentManager.getInstance().getDocument(virtualFile);
-      var textInDocument = document != null ? document.getText() : null;
-      var documentModificationStamp = document != null ? document.getModificationStamp() : 0;
-      return new DefaultClientInputFile(virtualFile, relativePath, test, charset, textInDocument, documentModificationStamp, language);
-    });
-  }
-
-  private static Long readDocumentModificationStamp(Project project, VirtualFile virtualFile) {
-    return computeReadActionSafely(virtualFile, project, () -> {
-      var document = FileDocumentManager.getInstance().getDocument(virtualFile);
-      return document != null ? document.getModificationStamp() : 0;
-    });
-  }
-
-  private Charset getEncoding(VirtualFile f) {
-    var encodingProjectManager = EncodingProjectManager.getInstance(myProject);
-    var encoding = encodingProjectManager.getEncoding(f, true);
-    if (encoding != null) {
-      return encoding;
+  private static URI createURI(VirtualFile file) {
+    var uri = VirtualFileUtils.INSTANCE.toURI(file);
+    if (uri == null) {
+      throw new IllegalStateException("Not a local file");
     }
-    return Charset.defaultCharset();
+    return uri;
   }
+
 }

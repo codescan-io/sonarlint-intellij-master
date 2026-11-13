@@ -15,19 +15,19 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.review
 
 import com.intellij.openapi.ui.VerticalFlowLayout
-import org.sonarlint.intellij.ui.options.OptionPanel
-import org.sonarlint.intellij.ui.options.addComponents
-import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.HotspotStatus
 import java.awt.event.ActionEvent
 import java.awt.event.ActionListener
 import javax.swing.ButtonGroup
 import javax.swing.JPanel
 import kotlin.properties.Delegates
+import org.sonarlint.intellij.ui.options.OptionPanel
+import org.sonarlint.intellij.ui.options.addComponents
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.HotspotStatus
 
 class ReviewSecurityHotspotPanel(
     allowedStatuses: List<HotspotStatus>,
@@ -46,7 +46,8 @@ class ReviewSecurityHotspotPanel(
     fun display(allowedStatuses: List<HotspotStatus>) {
         val buttonGroup = ButtonGroup()
         allowedStatuses.forEach { status ->
-            val reviewOptionPanel = OptionPanel(status.name, status.title, status.description)
+            val richStatus = org.sonarsource.sonarlint.core.client.utils.HotspotStatus.fromDto(status)
+            val reviewOptionPanel = OptionPanel(richStatus.name, richStatus.title, richStatus.description)
             reviewOptionPanel.setSelected(defaultStatus == status)
             addComponents(buttonGroup, reviewOptionPanel)
             reviewOptionPanel.statusRadioButton.addActionListener(this)

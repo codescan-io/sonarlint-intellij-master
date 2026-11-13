@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.actions;
 
@@ -30,6 +30,7 @@ import org.sonarlint.intellij.AbstractSonarLintLightTests;
 
 import static com.intellij.openapi.actionSystem.ActionPlaces.EDITOR_POPUP;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -52,7 +53,7 @@ class ExcludeFileActionLightTests extends AbstractSonarLintLightTests {
   void add_exclusion() {
     action.actionPerformed(e);
 
-    assertThat(getProjectSettings().getFileExclusions()).containsOnly("FILE:foo.php");
+    await().untilAsserted(() -> assertThat(getProjectSettings().getFileExclusions()).containsOnly("FILE:foo.php"));
   }
 
   @Test

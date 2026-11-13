@@ -15,19 +15,18 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij;
 
 import com.intellij.ide.plugins.IdeaPluginDescriptor;
 import com.intellij.ide.plugins.PluginManagerCore;
-import com.intellij.openapi.Disposable;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.extensions.PluginId;
 import java.nio.file.Path;
 
 @Service(Service.Level.APP)
-public final class SonarLintPlugin implements Disposable {
+public final class SonarLintPlugin {
   private IdeaPluginDescriptor plugin;
 
   public String getVersion() {
@@ -43,10 +42,5 @@ public final class SonarLintPlugin implements Disposable {
       plugin = PluginManagerCore.getPlugin(PluginId.getId("com.code-scan.intellij"));
     }
     return plugin;
-  }
-
-  @Override
-  public void dispose() {
-    // Nothing to do
   }
 }

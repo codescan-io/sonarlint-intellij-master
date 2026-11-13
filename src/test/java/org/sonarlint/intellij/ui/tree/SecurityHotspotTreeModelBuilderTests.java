@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.tree;
 
@@ -23,6 +23,7 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,7 +32,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import javax.annotation.Nullable;
 import javax.swing.tree.DefaultTreeModel;
 import org.junit.jupiter.api.Assertions;
@@ -43,11 +43,14 @@ import org.sonarlint.intellij.editor.CodeAnalyzerRestarter;
 import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot;
 import org.sonarlint.intellij.ui.nodes.AbstractNode;
 import org.sonarlint.intellij.ui.nodes.LiveSecurityHotspotNode;
-import org.sonarsource.sonarlint.core.client.api.common.analysis.Issue;
-import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.HotspotStatus;
 import org.sonarsource.sonarlint.core.commons.HotspotReviewStatus;
-import org.sonarsource.sonarlint.core.commons.RuleType;
-import org.sonarsource.sonarlint.core.commons.VulnerabilityProbability;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.HotspotStatus;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.VulnerabilityProbability;
+import org.sonarsource.sonarlint.core.rpc.protocol.client.hotspot.RaisedHotspotDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Either;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.IssueSeverity;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.RuleType;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.StandardModeDetails;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -63,7 +66,7 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
   @BeforeEach
   void init() {
     treeBuilder = new SecurityHotspotTreeModelBuilder();
-    model = treeBuilder.createModel();
+    model = treeBuilder.createModel(getProject(), true);
     treeBuilder.currentFilter = SecurityHotspotFilters.DEFAULT_FILTER;
     treeBuilder.shouldIncludeResolvedHotspots = false;
     replaceProjectService(CodeAnalyzerRestarter.class, codeAnalyzerRestarter);
@@ -71,7 +74,7 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
 
   @Test
   void createModel() {
-    var model = treeBuilder.createModel();
+    var model = treeBuilder.createModel(getProject(), true);
     assertThat(model.getRoot()).isNotNull();
   }
 
@@ -85,7 +88,7 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
     addFile(data, "file2", 2);
     addFile(data, "file3", 2);
 
-    treeBuilder.updateModel(data, "empty");
+    treeBuilder.updateModel(data);
     var first = treeBuilder.getNextHotspot((AbstractNode) model.getRoot());
     assertThat(first).isNotNull();
 
@@ -105,8 +108,8 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
     List<LiveSecurityHotspot> list = new ArrayList<>();
 
     list.add(mockSecurityHotspot("f1", 100, "rule1", VulnerabilityProbability.HIGH, null));
-    list.add(mockSecurityHotspot("f1", 75, "rule2", VulnerabilityProbability.HIGH, 1000L));
-    list.add(mockSecurityHotspot("f1", 100, "rule3", VulnerabilityProbability.LOW, 2000L));
+    list.add(mockSecurityHotspot("f1", 75, "rule2", VulnerabilityProbability.HIGH, Instant.now().minusSeconds(50)));
+    list.add(mockSecurityHotspot("f1", 100, "rule3", VulnerabilityProbability.LOW, Instant.now().minusSeconds(20)));
     list.add(mockSecurityHotspot("f1", 50, "rule4", VulnerabilityProbability.LOW, null));
     list.add(mockSecurityHotspot("f1", 100, "rule5", VulnerabilityProbability.HIGH, null));
 
@@ -143,7 +146,7 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
     addFileWithStatusAndFindingKeyForHotspot(data, "file4", 1, HotspotReviewStatus.FIXED, "keyC");
     addFileWithStatusAndFindingKeyForHotspot(data, "file5", 1, HotspotReviewStatus.SAFE, "keyD");
 
-    treeBuilder.updateModelWithoutFileNode(data, "empty");
+    treeBuilder.updateModelWithoutFileNode(data);
 
     assertThat(treeBuilder.filterSecurityHotspots(getProject(), SecurityHotspotFilters.SHOW_ALL)).isEqualTo(3);
     assertThat(treeBuilder.getFilteredNodes()).hasSize(3);
@@ -164,7 +167,7 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
     addFileWithStatusAndFindingKeyForHotspot(data, "file3", 1, HotspotReviewStatus.FIXED, "keyC");
     addFileWithStatusAndFindingKeyForHotspot(data, "file4", 1, HotspotReviewStatus.SAFE, "keyD");
 
-    treeBuilder.updateModelWithoutFileNode(data, "empty");
+    treeBuilder.updateModelWithoutFileNode(data);
 
     assertThat(treeBuilder.filterSecurityHotspots(getProject(), false)).isEqualTo(2);
     assertThat(treeBuilder.getFilteredNodes()).hasSize(2);
@@ -182,9 +185,9 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
       Assertions.fail();
     }
 
-    treeBuilder.updateModelWithoutFileNode(data, "empty");
+    treeBuilder.updateModelWithoutFileNode(data);
 
-    var result = treeBuilder.updateStatusAndApplyCurrentFiltering(getProject(), Objects.requireNonNull(hotspot.get().getServerFindingKey()), HotspotStatus.FIXED);
+    var result = treeBuilder.updateStatusAndApplyCurrentFiltering(getProject(), Objects.requireNonNull(hotspot.get().getServerKey()), HotspotStatus.FIXED);
     assertThat(result).isZero();
     assertThat(treeBuilder.getFilteredNodes()).isEmpty();
   }
@@ -199,13 +202,13 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
       Assertions.fail();
     }
 
-    treeBuilder.updateModelWithoutFileNode(data, "empty");
+    treeBuilder.updateModelWithoutFileNode(data);
 
-    var filteredResultBeforeFiltering = treeBuilder.findFilteredHotspotByKey(Objects.requireNonNull(hotspot.get().getServerFindingKey()));
-    var resultBeforeFiltering = treeBuilder.findHotspotByKey(Objects.requireNonNull(hotspot.get().getServerFindingKey()));
+    var filteredResultBeforeFiltering = treeBuilder.findFilteredHotspotByKey(Objects.requireNonNull(hotspot.get().getServerKey()));
+    var resultBeforeFiltering = treeBuilder.findHotspotByKey(Objects.requireNonNull(hotspot.get().getServerKey()));
     treeBuilder.applyCurrentFiltering(getProject());
-    var filteredResultAfterFiltering = treeBuilder.findFilteredHotspotByKey(Objects.requireNonNull(hotspot.get().getServerFindingKey()));
-    var resultAfterFiltering = treeBuilder.findHotspotByKey(Objects.requireNonNull(hotspot.get().getServerFindingKey()));
+    var filteredResultAfterFiltering = treeBuilder.findFilteredHotspotByKey(Objects.requireNonNull(hotspot.get().getServerKey()));
+    var resultAfterFiltering = treeBuilder.findHotspotByKey(Objects.requireNonNull(hotspot.get().getServerKey()));
 
     assertThat(filteredResultBeforeFiltering).isEqualTo(hotspot.get());
     assertThat(resultBeforeFiltering).isPresent().contains(hotspot.get());
@@ -231,9 +234,9 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
 
     for (var i = 0; i < numSecurityHotspots; i++) {
       if (serverFindingKey != null) {
-        securityHotspotList.add(mockSecurityHotspot(fileName, i, "rule" + i, VulnerabilityProbability.HIGH, (long) i, status, serverFindingKey + "" + (i + 1)));
+        securityHotspotList.add(mockSecurityHotspot(fileName, i, "rule" + i, VulnerabilityProbability.HIGH, Instant.now(), status, serverFindingKey + "" + (i + 1)));
       } else {
-        securityHotspotList.add(mockSecurityHotspot(fileName, i, "rule" + i, VulnerabilityProbability.HIGH, (long) i, status, null));
+        securityHotspotList.add(mockSecurityHotspot(fileName, i, "rule" + i, VulnerabilityProbability.HIGH, Instant.now(), status, null));
       }
     }
 
@@ -241,20 +244,17 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
     return file;
   }
 
-  private static LiveSecurityHotspot mockSecurityHotspot(String path, int startOffset, String rule,
-    VulnerabilityProbability vulnerability, @Nullable Long introductionDate, HotspotReviewStatus status, @Nullable String serverFindingKey) {
+  private LiveSecurityHotspot mockSecurityHotspot(String path, int startOffset, String rule,
+    VulnerabilityProbability vulnerability, @Nullable Instant introductionDate, HotspotReviewStatus status, @Nullable String serverFindingKey) {
 
     var virtualFile = mock(VirtualFile.class);
     when(virtualFile.getPath()).thenReturn(path);
     when(virtualFile.isValid()).thenReturn(true);
-    var psiFile = mock(PsiFile.class);
-    when(psiFile.isValid()).thenReturn(true);
-    when(psiFile.getVirtualFile()).thenReturn(virtualFile);
 
-    var issue = mock(Issue.class);
+    var issue = mock(RaisedHotspotDto.class);
+    when(issue.getSeverityMode()).thenReturn(Either.forLeft(new StandardModeDetails(IssueSeverity.BLOCKER, RuleType.SECURITY_HOTSPOT)));
     when(issue.getRuleKey()).thenReturn(rule);
-    when(issue.getVulnerabilityProbability()).thenReturn(Optional.of(vulnerability));
-    when(issue.getType()).thenReturn(RuleType.SECURITY_HOTSPOT);
+    when(issue.getVulnerabilityProbability()).thenReturn(vulnerability);
 
     var document = mock(Document.class);
     when(document.getText(any())).thenReturn("");
@@ -264,7 +264,7 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
     when(marker.getDocument()).thenReturn(document);
     when(marker.isValid()).thenReturn(true);
 
-    var securityHotspot = new LiveSecurityHotspot(issue, psiFile, marker, null, Collections.emptyList());
+    var securityHotspot = new LiveSecurityHotspot(getModule(), issue, virtualFile, marker, null, Collections.emptyList());
     securityHotspot.setIntroductionDate(introductionDate);
     securityHotspot.setStatus(status);
     securityHotspot.setServerFindingKey(serverFindingKey);
@@ -272,12 +272,12 @@ class SecurityHotspotTreeModelBuilderTests extends AbstractSonarLintLightTests {
     return securityHotspot;
   }
 
-  private static LiveSecurityHotspot mockSecurityHotspot(String path, int startOffset, String rule,
-    VulnerabilityProbability vulnerability, @Nullable Long introductionDate) {
+  private LiveSecurityHotspot mockSecurityHotspot(String path, int startOffset, String rule,
+    VulnerabilityProbability vulnerability, @Nullable Instant introductionDate) {
     return mockSecurityHotspot(path, startOffset, rule, vulnerability, introductionDate, HotspotReviewStatus.TO_REVIEW, null);
   }
 
-  private static LiveSecurityHotspotNode mockSecurityHotspotNode(String path, int startOffset, String rule,
+  private LiveSecurityHotspotNode mockSecurityHotspotNode(String path, int startOffset, String rule,
     VulnerabilityProbability vulnerability) {
     var securityHotspot = mockSecurityHotspot(path, startOffset, rule, vulnerability, null, HotspotReviewStatus.TO_REVIEW, null);
     return new LiveSecurityHotspotNode(securityHotspot, false);

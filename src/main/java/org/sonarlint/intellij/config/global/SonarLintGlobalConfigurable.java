@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global;
 
@@ -33,7 +33,6 @@ import javax.swing.JPanel;
 import org.jetbrains.annotations.Nls;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.config.global.rules.RuleConfigurationPanel;
-import org.sonarlint.intellij.core.EngineManager;
 import org.sonarlint.intellij.messages.GlobalConfigurationListener;
 import org.sonarlint.intellij.telemetry.SonarLintTelemetry;
 import org.sonarlint.intellij.trigger.TriggerType;
@@ -41,6 +40,7 @@ import org.sonarlint.intellij.trigger.TriggerType;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class SonarLintGlobalConfigurable implements Configurable, Configurable.NoScroll {
   private static final int SETTINGS_TAB_INDEX = 0;
@@ -58,7 +58,7 @@ public class SonarLintGlobalConfigurable implements Configurable, Configurable.N
   @Nls
   @Override
   public String getDisplayName() {
-    return "Codescan";
+    return "CodeScan";
   }
 
   @Nullable
@@ -91,19 +91,21 @@ public class SonarLintGlobalConfigurable implements Configurable, Configurable.N
     exclusions.save(newSettings);
     getService(SonarLintGlobalSettingsStore.class).save(newSettings);
 
+    newSettings.setSecretsNeverBeenAnalysed(currentSettings.isSecretsNeverBeenAnalysed());
+
     ApplicationManager.getApplication().getMessageBus().syncPublisher(GlobalConfigurationListener.TOPIC)
       .applied(currentSettings, newSettings);
-
-    getService(EngineManager.class).stopAllDeletedConnectedEnginesAsync();
 
     // Force reload of the node version and rules in case the nodejs path has been changed
     reset();
 
-    if (exclusionsModified || globalSettingsModified) {
-      analyzeOpenFiles(false);
-    } else if (rulesModified) {
-      analyzeOpenFiles(true);
-    }
+    runOnPooledThread(() -> {
+      if (exclusionsModified || globalSettingsModified) {
+        analyzeOpenFiles(false);
+      } else if (rulesModified) {
+        analyzeOpenFiles(true);
+      }
+    });
   }
 
   public static void analyzeOpenFiles(boolean unboundOnly) {
@@ -149,7 +151,6 @@ public class SonarLintGlobalConfigurable implements Configurable, Configurable.N
       Disposer.dispose(rules);
       rules = null;
     }
-    getService(EngineManager.class).stopAllDeletedConnectedEnginesAsync();
   }
 
   private JPanel getPanel() {
@@ -168,7 +169,7 @@ public class SonarLintGlobalConfigurable implements Configurable, Configurable.N
       tabs = new JBTabbedPane();
       tabs.insertTab("Settings", null, settingsPanel, "Configure CodeScan for all projects", SETTINGS_TAB_INDEX);
       tabs.insertTab("File Exclusions", null, exclusions.getComponent(), "Configure which files should be excluded from analysis", FILE_EXCLUSIONS_TAB_INDEX);
-      tabs.insertTab("Rules", null, rules.getComponent(), "Choose which rules are enabled when not bound to Codescan or CodescanCloud", RULES_TAB_INDEX);
+      tabs.insertTab("Rules", null, rules.getComponent(), "Choose which rules are enabled when not bound to CodeScan", RULES_TAB_INDEX);
       tabs.insertTab("About", null, about.getComponent(), "About CodeScan", ABOUT_TAB_INDEX);
       rootPanel.add(tabs, BorderLayout.CENTER);
     }

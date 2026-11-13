@@ -15,20 +15,26 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.project;
 
+import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.project.Project;
+import com.intellij.ui.HyperlinkAdapter;
+import com.intellij.util.ui.SwingHelper;
+import com.intellij.util.ui.UIUtil;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 import javax.swing.JComponent;
+import javax.swing.JEditorPane;
 import javax.swing.JPanel;
+import javax.swing.event.HyperlinkEvent;
 import org.sonarlint.intellij.config.ConfigurationPanel;
+import org.sonarlint.intellij.config.Settings;
+import org.sonarlint.intellij.documentation.SonarLintDocumentation;
 
 public class ProjectExclusionsPanel implements ConfigurationPanel<SonarLintProjectSettings> {
   private static final String EMPTY_LABEL = "No exclusions configured";
@@ -37,9 +43,35 @@ public class ProjectExclusionsPanel implements ConfigurationPanel<SonarLintProje
   private ExclusionTable table;
   private JPanel tablePanel;
   private JPanel panel;
+  private JEditorPane editorPane1;
+  private JEditorPane editorPane2;
 
   public ProjectExclusionsPanel(Project project) {
     this.project = project;
+
+    var projectSettings = Settings.getSettingsFor(project);
+    String message;
+    if (projectSettings.isBound()) {
+      message = "<b>Your project is currently bound</b>, exclusions defined in the server's General Settings <a href=\"" + SonarLintDocumentation.Intellij.FILE_EXCLUSION_LINK
+        + "\">override</a> your locally defined exclusions.";
+      editorPane2.setVisible(false);
+    } else {
+      message = "When a project is connected to CodeScan, exclusions defined in its General Settings " +
+        "<a href=\"" + SonarLintDocumentation.Intellij.FILE_EXCLUSION_LINK + "\">override</a> your locally defined exclusions.";
+      editorPane2.setVisible(true);
+    }
+
+    initHtmlPane(editorPane1);
+    SwingHelper.setHtml(editorPane1, message, UIUtil.getLabelForeground());
+    editorPane1.addHyperlinkListener(new HyperlinkAdapter() {
+      @Override
+      protected void hyperlinkActivated(HyperlinkEvent e) {
+        BrowserUtil.browse(SonarLintDocumentation.Intellij.FILE_EXCLUSION_LINK);
+      }
+    });
+
+    initHtmlPane(editorPane2);
+    SwingHelper.setHtml(editorPane2, "The exclusions will not apply to manually triggered analysis.", UIUtil.getLabelForeground());
   }
 
   private void createUIComponents() {
@@ -77,14 +109,14 @@ public class ProjectExclusionsPanel implements ConfigurationPanel<SonarLintProje
     List<ExclusionItem> list = settings.getFileExclusions().stream()
       .map(ExclusionItem::parse)
       .filter(Objects::nonNull)
-      .collect(Collectors.toList());
+      .toList();
     table.set(list);
   }
 
   private List<String> tableToString() {
     return table.get().stream()
       .map(ExclusionItem::toStringWithType)
-      .collect(Collectors.toList());
+      .toList();
   }
 
   @Override

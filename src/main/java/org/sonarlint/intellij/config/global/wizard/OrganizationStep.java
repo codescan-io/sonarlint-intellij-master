@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global.wizard;
 
@@ -24,8 +24,8 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.ColoredListCellRenderer;
-import com.intellij.ui.ListSpeedSearch;
 import com.intellij.ui.SimpleTextAttributes;
+import com.intellij.ui.TreeUIHelper;
 import com.intellij.ui.components.JBList;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -38,7 +38,7 @@ import javax.swing.ListSelectionModel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.tasks.GetOrganizationTask;
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.OrganizationDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.OrganizationDto;
 
 import static javax.swing.JList.VERTICAL;
 
@@ -144,9 +144,7 @@ public class OrganizationStep extends AbstractWizardStepEx {
   }
 
   @Override public boolean isComplete() {
-    // if this step is skipped because there is only one organization, we still need to return true so that the wizard
-    // can finish
-    return model.getOrganizationList().size() <= 1 || orgList.getSelectedValue() != null;
+    return model.isOrganizationStepComplete(orgList.getSelectedValue());
   }
 
   @Override public void commit(CommitType commitType) {
@@ -170,7 +168,7 @@ public class OrganizationStep extends AbstractWizardStepEx {
     list.setEnabled(true);
     list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
     list.setCellRenderer(new ListRenderer());
-    new ListSpeedSearch<>(list, o -> o.getName() + " " + o.getKey());
+    TreeUIHelper.getInstance().installListSpeedSearch(list, o -> o.getName() + " " + o.getKey());
     orgList = list;
   }
 

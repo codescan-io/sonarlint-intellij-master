@@ -15,28 +15,28 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.actions;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.actionSystem.DataKey;
 import com.intellij.openapi.project.Project;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
-import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarlint.intellij.finding.issue.LiveIssue;
+import org.sonarlint.intellij.core.BackendService;
 import org.sonarlint.intellij.trigger.TriggerType;
 
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
+import static org.sonarlint.intellij.util.DataKeys.ISSUE_DATA_KEY;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class DisableRuleAction extends AbstractSonarAction {
-  public static final DataKey<LiveIssue> ISSUE_DATA_KEY = DataKey.create("sonarlint_issue");
 
   public DisableRuleAction() {
-    super("Disable Rule", "Disable the SonarLint rule that activated this rule", AllIcons.Actions.Cancel);
+    super("Disable Rule", "Disable the CodeScan rule that activated this rule", AllIcons.Actions.Cancel);
   }
 
   @Override
@@ -62,12 +62,14 @@ public class DisableRuleAction extends AbstractSonarAction {
     var issue = e.getData(ISSUE_DATA_KEY);
     if (issue != null) {
       disableRule(issue.getRuleKey());
-      SonarLintUtils.getService(project, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.BINDING_UPDATE);
+      runOnPooledThread(project, () -> getService(project, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.BINDING_UPDATE));
     }
   }
 
   private static void disableRule(String ruleKey) {
     getGlobalSettings().disableRule(ruleKey);
+    var rulesByKey = getGlobalSettings().getRulesByKey();
+    getService(BackendService.class).updateStandaloneRulesConfiguration(rulesByKey);
   }
 
 }

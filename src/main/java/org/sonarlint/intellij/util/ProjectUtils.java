@@ -15,60 +15,33 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.util;
 
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectCoreUtil;
+import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
+import javax.annotation.CheckForNull;
 import org.sonarlint.intellij.finding.TextRangeMatcher;
 
 import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
+import static org.sonarlint.intellij.util.SonarLintAppUtils.getRelativePathForAnalysis;
 
 public class ProjectUtils {
 
-  public static Collection<VirtualFile> getAllFiles(Project project) {
-    var fileSet = new LinkedHashSet<VirtualFile>();
-    iterateFilesToAnalyze(project, vFile -> {
-      fileSet.add(vFile);
-      // Continue collecting other files
-      return true;
-    });
-    return fileSet;
-  }
-
-  public static boolean hasFiles(Project project) {
-    var result = new AtomicBoolean(false);
-    iterateFilesToAnalyze(project, vFile -> {
-      result.set(true);
-      // No need to iterate other files/folders
-      return false;
-    });
-    return result.get();
-  }
-
-  private static void iterateFilesToAnalyze(Project project, Predicate<VirtualFile> fileProcessor) {
-    var fileIndex = ProjectRootManager.getInstance(project).getFileIndex();
-    fileIndex.iterateContent(vFile -> {
-      if (!vFile.isDirectory() && !ProjectCoreUtil.isProjectOrWorkspaceFile(vFile)) {
-        return fileProcessor.test(vFile);
-      }
-      // Continue iteration
-      return true;
-    });
-  }
-
   public static PsiFile toPsiFile(Project project, VirtualFile file) throws TextRangeMatcher.NoMatchException {
+    ApplicationManager.getApplication().assertReadAccessAllowed();
     var psiManager = PsiManager.getInstance(project);
     var psiFile = psiManager.findFile(file);
     if (psiFile != null) {
@@ -77,18 +50,50 @@ public class ProjectUtils {
     throw new TextRangeMatcher.NoMatchException("Couldn't find PSI file in module: " + file.getPath());
   }
 
-  public static Map<VirtualFile, String> getRelativePaths(Project project, Collection<VirtualFile> files) {
+  public static Map<VirtualFile, Path> getRelativePaths(Project project, Collection<VirtualFile> files) {
     return computeReadActionSafely(project, () -> {
-      Map<VirtualFile, String> relativePathPerFile = new HashMap<>();
+      Map<VirtualFile, Path> relativePathPerFile = new HashMap<>();
 
       for (var file : files) {
-        var relativePath = SonarLintAppUtils.getRelativePathForAnalysis(project, file);
+        var relativePath = getRelativePathForAnalysis(project, file);
         if (relativePath != null) {
-          relativePathPerFile.put(file, relativePath);
+          relativePathPerFile.put(file, Paths.get(relativePath));
         }
       }
       return relativePathPerFile;
     });
+  }
+
+  @CheckForNull
+  public static VirtualFile tryFindFile(Project project, Path filePath) {
+    for (var contentRoot : ProjectRootManager.getInstance(project).getContentRoots()) {
+      if (contentRoot.isDirectory()) {
+        var matchedFile = findByRelativePath(contentRoot, filePath);
+        if (matchedFile != null) {
+          return matchedFile;
+        }
+      } else {
+        // On some version of Rider, all source files are returned as individual content roots, so simply check for equality
+        if (contentRoot.getPath().endsWith(getSystemIndependentPath(filePath))) {
+          return contentRoot;
+        }
+      }
+    }
+
+    // getContentRoots function does not have consistent behaviour across different version of IDEs,
+    // so find the file using root path if it does not work
+    var root = ProjectUtil.guessProjectDir(project);
+    if (root == null) return null;
+    return findByRelativePath(root, filePath);
+  }
+
+  @CheckForNull
+  private static VirtualFile findByRelativePath(VirtualFile file, Path path) {
+    return file.findFileByRelativePath(getSystemIndependentPath(path));
+  }
+
+  public static String getSystemIndependentPath(Path filePath) {
+    return filePath.toString().replace(File.separatorChar, '/');
   }
 
   private ProjectUtils() {

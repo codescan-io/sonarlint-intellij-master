@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.tasks
 
@@ -46,11 +46,11 @@ open class FutureAwaitingTask<T>(
             }
             return try {
                 future.get(100, TimeUnit.MILLISECONDS)
-            } catch (t: TimeoutException) {
+            } catch (_: TimeoutException) {
                 continue
-            } catch (e: InterruptedException) {
+            } catch (_: InterruptedException) {
                 throw InterruptedException("Interrupted")
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 throw InterruptedException("Operation cancelled")
             } catch (e: ExecutionException) {
                 throw e.cause ?: e

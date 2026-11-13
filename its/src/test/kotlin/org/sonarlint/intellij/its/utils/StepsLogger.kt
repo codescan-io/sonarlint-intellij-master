@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.its.utils
 
@@ -23,13 +23,13 @@ import com.intellij.remoterobot.stepsProcessing.StepLogger
 import com.intellij.remoterobot.stepsProcessing.StepWorker
 
 object StepsLogger {
-  private var initializaed = false
+    private var initialized = false
 
-  @JvmStatic
-  fun init() = synchronized(initializaed) {
-    if (initializaed.not()) {
-      StepWorker.registerProcessor(StepLogger())
-      initializaed = true
+    @JvmStatic
+    fun init() = synchronized(initialized) {
+        if (initialized.not()) {
+            StepWorker.registerProcessor(StepLogger())
+            initialized = true
+        }
     }
-  }
 }

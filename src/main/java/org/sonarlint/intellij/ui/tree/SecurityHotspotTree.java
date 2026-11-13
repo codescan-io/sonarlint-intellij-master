@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.tree;
 
@@ -55,7 +55,6 @@ public class SecurityHotspotTree extends FindingTree implements DataProvider {
   private void init() {
     this.setShowsRootHandles(false);
     this.setCellRenderer(new TreeCellRenderer());
-    this.expandRow(0);
 
     var group = new DefaultActionGroup();
     group.add(ActionManager.getInstance().getAction(IdeActions.ACTION_EDIT_SOURCE));
@@ -100,16 +99,16 @@ public class SecurityHotspotTree extends FindingTree implements DataProvider {
     } else {
       offset = 0;
     }
-    return new OpenFileDescriptor(project, securityHotspot.psiFile().getVirtualFile(), offset);
+    return new OpenFileDescriptor(project, securityHotspot.file(), offset);
   }
 
   @CheckForNull
   private LiveSecurityHotspot getSelectedSecurityHotspot() {
     var node = getSelectedNode();
-    if (!(node instanceof LiveSecurityHotspotNode)) {
-      return null;
+    if (node instanceof LiveSecurityHotspotNode hotspotNode) {
+      return hotspotNode.getHotspot();
     }
-    return ((LiveSecurityHotspotNode) node).getHotspot();
+    return null;
   }
 
 }

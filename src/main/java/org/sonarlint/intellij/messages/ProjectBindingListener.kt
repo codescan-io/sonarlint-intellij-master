@@ -15,12 +15,11 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.messages
 
 import com.intellij.util.messages.Topic
-import org.sonarlint.intellij.core.ProjectBinding
 
 val PROJECT_BINDING_TOPIC = Topic.create(
     "Project binding events",
@@ -28,5 +27,7 @@ val PROJECT_BINDING_TOPIC = Topic.create(
 )
 
 interface ProjectBindingListener {
-    fun bindingChanged(previousBinding: ProjectBinding?, newBinding: ProjectBinding?)
+
+    fun bindingChanged()
+
 }

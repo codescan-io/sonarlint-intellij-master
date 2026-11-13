@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.nodes;
 
@@ -57,8 +57,8 @@ public class LiveSecurityHotspotNode extends FindingNode {
 
     var typeIcon = SonarLintIcons.hotspotTypeWithProbability(vulnerability);
     var gap = JBUIScale.isUsrHiDPI() ? 8 : 4;
-    var serverConnection = getService(securityHotspot.psiFile().getProject(), ProjectBindingManager.class).tryGetServerConnection();
-    if (securityHotspot.getServerFindingKey() != null && serverConnection.isPresent()) {
+    var serverConnection = getService(securityHotspot.project(), ProjectBindingManager.class).tryGetServerConnection();
+    if (securityHotspot.getServerKey() != null && serverConnection.isPresent()) {
       var productIcon = serverConnection.get().getProductIcon();
       var tooltip = vulnerabilityText + " " + typeStr + " existing on " + serverConnection.get().getProductName();
       renderer.setIconToolTip(tooltip);
@@ -69,9 +69,14 @@ public class LiveSecurityHotspotNode extends FindingNode {
     }
 
     renderer.setToolTipText("Double click to open location");
-    renderer.append(securityHotspot.getMessage());
+    if (securityHotspot.isResolved()) {
+      renderer.append(securityHotspot.getMessage(), new SimpleTextAttributes(SimpleTextAttributes.STYLE_STRIKEOUT, null));
+    } else {
+      renderer.append(securityHotspot.getMessage());
+    }
+
     if (appendFileName) {
-      renderer.append(" " + securityHotspot.getFile().getName(), SimpleTextAttributes.GRAY_ATTRIBUTES);
+      renderer.append(" " + securityHotspot.file().getName(), SimpleTextAttributes.GRAY_ATTRIBUTES);
     }
   }
 

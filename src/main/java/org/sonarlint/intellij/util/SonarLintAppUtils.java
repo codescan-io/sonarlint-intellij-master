@@ -15,29 +15,31 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.util;
 
 
-import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectLocator;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.ProjectFileIndex;
+import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileVisitor;
 import com.intellij.util.PathUtil;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
 import org.jetbrains.annotations.Nullable;
+import org.sonarlint.intellij.common.util.FileUtils;
 
+import static com.intellij.openapi.vfs.VirtualFileVisitor.NO_FOLLOW_SYMLINKS;
 import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
 
 public class SonarLintAppUtils {
@@ -59,16 +61,6 @@ public class SonarLintAppUtils {
   @CheckForNull
   public static Project guessProjectForFile(VirtualFile file) {
     return ProjectLocator.getInstance().guessProjectForFile(file);
-  }
-
-  public static List<VirtualFile> retainOpenFiles(Project project, List<VirtualFile> files) {
-    var openFiles = computeReadActionSafely(project, () -> {
-      if (!project.isOpen()) {
-        return Collections.<VirtualFile>emptyList();
-      }
-      return files.stream().filter(f -> FileEditorManager.getInstance(project).isFileOpen(f)).collect(Collectors.toList());
-    });
-    return openFiles != null ? openFiles : Collections.emptyList();
   }
 
   /**
@@ -142,7 +134,7 @@ public class SonarLintAppUtils {
   static String getPathRelativeToModuleBaseDir(Module module, VirtualFile file) {
     var filePath = Paths.get(file.getPath());
     var moduleContentRoots = Arrays.stream(ModuleRootManager.getInstance(module).getContentRoots())
-            .filter(contentRoot -> contentRoot.getPath().trim().length() > 0)
+            .filter(contentRoot -> !contentRoot.getPath().trim().isEmpty())
             .toArray(VirtualFile[]::new);
 
     // There can be multiple content roots (based on the IntelliJ SDK), e.g. for a Gradle project the project directory
@@ -155,6 +147,61 @@ public class SonarLintAppUtils {
     }
 
     return null;
+  }
+
+  public static List<VirtualFile> visitAndAddAllFilesForModule(Module module) {
+    var filesToAdd = new ArrayList<VirtualFile>();
+    var moduleFileIndex = ModuleRootManager.getInstance(module).getFileIndex();
+    moduleFileIndex.iterateContent(vFile -> {
+      if (module.isDisposed()) {
+        return false;
+      }
+
+      if (!vFile.isDirectory() && FileUtils.Companion.isFileValidForSonarLint(vFile, module.getProject())) {
+        filesToAdd.add(vFile);
+        return true;
+      }
+
+      return true;
+    });
+    return filesToAdd;
+  }
+
+  public static List<VirtualFile> visitAndAddAllFilesForProject(Project project) {
+    var filesToAdd = new ArrayList<VirtualFile>();
+    var projectFileIndex = ProjectRootManager.getInstance(project).getFileIndex();
+    projectFileIndex.iterateContent(vFile -> {
+      if (project.isDisposed()) {
+        return false;
+      }
+
+      if (!vFile.isDirectory() && FileUtils.Companion.isFileValidForSonarLint(vFile, project)) {
+        filesToAdd.add(vFile);
+        return true;
+      }
+
+      return true;
+    });
+    return filesToAdd;
+  }
+
+  public static List<VirtualFile> visitAndAddAllChildren(VirtualFile file, Project project) {
+    var filesToAdd = new ArrayList<VirtualFile>();
+    VfsUtilCore.visitChildrenRecursively(file, new VirtualFileVisitor<>(NO_FOLLOW_SYMLINKS) {
+      @Override
+      public boolean visitFile(VirtualFile file) {
+        if (!FileUtils.Companion.isFileValidForSonarLintWithExtensiveChecks(file, project)) {
+          return false;
+        }
+
+        if (!file.isDirectory()) {
+          filesToAdd.add(file);
+        }
+
+        return !".git".equals(file.getName());
+      }
+    });
+    return filesToAdd;
   }
 
   @CheckForNull

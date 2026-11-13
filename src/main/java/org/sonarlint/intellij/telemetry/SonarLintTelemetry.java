@@ -15,29 +15,18 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.telemetry;
 
-import java.util.Set;
-import javax.annotation.Nullable;
-
-import org.sonarsource.sonarlint.core.commons.Language;
+import java.util.concurrent.CompletableFuture;
+import org.jetbrains.annotations.Nullable;
+import org.sonarsource.sonarlint.core.rpc.protocol.client.telemetry.FixSuggestionStatus;
 
 public interface SonarLintTelemetry {
   void optOut(boolean optOut);
 
-  boolean enabled();
-
-  boolean canBeEnabled();
-
-  void analysisDoneOnMultipleFiles();
-
-  void analysisDoneOnSingleLanguage(@Nullable Language language, int time);
-
-  void init();
-
-  void devNotificationsReceived(String eventType);
+  CompletableFuture<Boolean> enabled();
 
   void devNotificationsClicked(String eventType);
 
@@ -45,7 +34,15 @@ public interface SonarLintTelemetry {
 
   void taintVulnerabilitiesInvestigatedLocally();
 
-  void addReportedRules(Set<String> reportedRules);
-
   void addQuickFixAppliedForRule(String ruleKey);
+
+  void helpAndFeedbackLinkClicked(String itemId);
+
+  void addedAutomaticBindings();
+
+  void addedImportedBindings();
+
+  void addedManualBindings();
+
+  void fixSuggestionResolved(String suggestionId, FixSuggestionStatus status, @Nullable Integer snippetIndex);
 }

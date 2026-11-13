@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.util;
 
@@ -30,14 +30,19 @@ import org.sonarlint.intellij.SonarLintIcons;
 import org.sonarlint.intellij.actions.ClearCurrentFileIssuesAction;
 import org.sonarlint.intellij.actions.ClearReportAction;
 import org.sonarlint.intellij.actions.FilterSecurityHotspotActionGroup;
+import org.sonarlint.intellij.actions.RestartBackendAction;
 import org.sonarlint.intellij.actions.SonarAnalyzeAllFilesAction;
 import org.sonarlint.intellij.actions.SonarAnalyzeChangedFilesAction;
+import org.sonarlint.intellij.actions.SonarAnalyzeFilesAction;
 import org.sonarlint.intellij.actions.SonarCleanConsoleAction;
-import org.sonarlint.intellij.actions.filters.IncludeResolvedHotspotsAction;
+import org.sonarlint.intellij.actions.filters.IncludeResolvedFindingsAction;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot;
+import org.sonarlint.intellij.finding.issue.LiveIssue;
+import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability;
 
 /**
- * Creates and keeps a single instance of actions used by CodeScan.
+ * Creates and keeps a single instance of actions used by SonarLint.
  * Some actions are created programmatically instead of being declared in plugin.xml so that they are not registered in
  * ActionManager, becoming accessible from the action search.
  */
@@ -52,7 +57,11 @@ public final class SonarLintActions {
   private final AnAction analyzeChangedFilesAction;
   private final AnAction analyzeAllFilesAction;
   private final FilterSecurityHotspotActionGroup filterAction;
-  private final IncludeResolvedHotspotsAction includeResolvedHotspotAction;
+  private final IncludeResolvedFindingsAction<LiveSecurityHotspot> includeResolvedHotspotsAction;
+  private final IncludeResolvedFindingsAction<LiveIssue> includeResolvedIssuesAction;
+  private final IncludeResolvedFindingsAction<LocalTaintVulnerability> includeResolvedTaintVulnerabilitiesAction;
+  private final AnAction analyzeCurrentFileAction;
+  private final AnAction restartSonarLintAction;
 
   public SonarLintActions() {
     this(ActionManager.getInstance());
@@ -62,9 +71,8 @@ public final class SonarLintActions {
   SonarLintActions(ActionManager actionManager) {
     var analyzeMenu = actionManager.getAction(IdeActions.GROUP_ANALYZE);
     // some flavors of IDEA don't have the Analyze menu, register at runtime to avoid error if declared in plugin.xml
-    if (analyzeMenu instanceof DefaultActionGroup) {
+    if (analyzeMenu instanceof DefaultActionGroup analyzeMenuGroup) {
       var sonarLintAnalyzeMenu = actionManager.getAction("CodeScan.AnalyzeMenu");
-      var analyzeMenuGroup = (DefaultActionGroup) analyzeMenu;
       analyzeMenuGroup.add(sonarLintAnalyzeMenu);
     }
 
@@ -89,9 +97,22 @@ public final class SonarLintActions {
     filterAction = new FilterSecurityHotspotActionGroup("Filter Security Hotspots",
       "Filter Security Hotspots",
       AllIcons.General.Filter);
-    includeResolvedHotspotAction = new IncludeResolvedHotspotsAction("Include Resolved Security Hotspots",
+    includeResolvedHotspotsAction = new IncludeResolvedFindingsAction<>("Include Resolved Security Hotspots",
       "Include resolved Security Hotspots",
-      SonarLintIcons.HOTSPOT_CHECKED);
+      SonarLintIcons.RESOLVED,
+      LiveSecurityHotspot.class);
+    includeResolvedIssuesAction = new IncludeResolvedFindingsAction<>("Include Resolved Issues",
+      "Include resolved issues",
+      SonarLintIcons.RESOLVED,
+      LiveIssue.class);
+    includeResolvedTaintVulnerabilitiesAction = new IncludeResolvedFindingsAction<>("Include Resolved Taint Vulnerabilities",
+      "Include resolved taint vulnerabilities",
+      SonarLintIcons.RESOLVED,
+      LocalTaintVulnerability.class);
+    analyzeCurrentFileAction = new SonarAnalyzeFilesAction("Analyze Current File",
+      "Run CodeScan analysis on the current file",
+      SonarLintIcons.PLAY);
+    restartSonarLintAction = new RestartBackendAction();
   }
 
   public static SonarLintActions getInstance() {
@@ -130,7 +151,24 @@ public final class SonarLintActions {
     return filterAction;
   }
 
-  public IncludeResolvedHotspotsAction includeResolvedHotspotAction() {
-    return includeResolvedHotspotAction;
+  public IncludeResolvedFindingsAction<LiveSecurityHotspot> includeResolvedHotspotAction() {
+    return includeResolvedHotspotsAction;
   }
+
+  public IncludeResolvedFindingsAction<LiveIssue> includeResolvedIssuesAction() {
+    return includeResolvedIssuesAction;
+  }
+
+  public IncludeResolvedFindingsAction<LocalTaintVulnerability> includeResolvedTaintVulnerabilitiesAction() {
+    return includeResolvedTaintVulnerabilitiesAction;
+  }
+
+  public AnAction analyzeCurrentFileAction() {
+    return analyzeCurrentFileAction;
+  }
+
+  public AnAction restartSonarLintAction() {
+    return restartSonarLintAction;
+  }
+
 }

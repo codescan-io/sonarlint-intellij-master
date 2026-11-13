@@ -15,55 +15,64 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui;
 
-import com.intellij.ide.OccurenceNavigator;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionToolbar;
 import com.intellij.openapi.actionSystem.AnAction;
-import com.intellij.openapi.fileEditor.OpenFileDescriptor;
+import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.SimpleToolWindowPanel;
-import com.intellij.tools.SimpleActionGroup;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.ui.tree.TreeUtil;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.Collection;
-import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import javax.swing.Box;
+import javax.swing.event.TreeSelectionEvent;
 import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
-import org.jetbrains.annotations.NotNull;
+import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.editor.EditorDecorator;
+import org.sonarlint.intellij.finding.Finding;
+import org.sonarlint.intellij.finding.LiveFinding;
+import org.sonarlint.intellij.finding.ShowFinding;
+import org.sonarlint.intellij.finding.TextRangeMatcher;
 import org.sonarlint.intellij.finding.issue.LiveIssue;
-import org.sonarlint.intellij.ui.nodes.AbstractNode;
+import org.sonarlint.intellij.notifications.SonarLintProjectNotifications;
 import org.sonarlint.intellij.ui.nodes.IssueNode;
 import org.sonarlint.intellij.ui.tree.IssueTree;
 import org.sonarlint.intellij.ui.tree.IssueTreeModelBuilder;
 
-public abstract class AbstractIssuesPanel extends SimpleToolWindowPanel implements Disposable, OccurenceNavigator {
+import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
+import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
+
+public abstract class AbstractIssuesPanel extends SimpleToolWindowPanel implements Disposable {
   private static final String ID = "CodeScan";
   protected final Project project;
   protected Tree tree;
+  protected Tree oldTree;
   protected IssueTreeModelBuilder treeBuilder;
+  protected IssueTreeModelBuilder oldTreeBuilder;
   private ActionToolbar mainToolbar;
   protected FindingDetailsPanel findingDetailsPanel;
 
   protected AbstractIssuesPanel(Project project) {
-    super(false, true);
+    super(false, false);
     this.project = project;
 
     createIssuesTree();
+    createOldIssuesTree();
     createFindingDetailsPanel();
+    handleListener();
   }
 
   public void refreshToolbar() {
@@ -72,18 +81,6 @@ public abstract class AbstractIssuesPanel extends SimpleToolWindowPanel implemen
 
   private void createFindingDetailsPanel() {
     findingDetailsPanel = new FindingDetailsPanel(project, this, FindingKind.ISSUE);
-  }
-
-  private void issueTreeSelectionChanged() {
-    var selectedNodes = tree.getSelectedNodes(IssueNode.class, null);
-    if (selectedNodes.length > 0) {
-      var issue = selectedNodes[0].issue();
-      findingDetailsPanel.show(issue);
-    } else {
-      findingDetailsPanel.clear();
-      var highlighting = SonarLintUtils.getService(project, EditorDecorator.class);
-      highlighting.removeHighlights();
-    }
   }
 
   protected void setToolbar(Collection<AnAction> actions) {
@@ -101,16 +98,15 @@ public abstract class AbstractIssuesPanel extends SimpleToolWindowPanel implemen
   }
 
   private static ActionGroup createActionGroup(Collection<AnAction> actions) {
-    var actionGroup = new SimpleActionGroup();
+    var actionGroup = new DefaultActionGroup();
     actions.forEach(actionGroup::add);
     return actionGroup;
   }
 
   private void createIssuesTree() {
-    treeBuilder = new IssueTreeModelBuilder();
-    var model = treeBuilder.createModel();
+    treeBuilder = new IssueTreeModelBuilder(project);
+    var model = treeBuilder.createModel(false);
     tree = new IssueTree(project, model);
-    tree.addTreeSelectionListener(e -> issueTreeSelectionChanged());
     tree.addKeyListener(new KeyAdapter() {
       @Override
       public void keyPressed(KeyEvent e) {
@@ -123,94 +119,36 @@ public abstract class AbstractIssuesPanel extends SimpleToolWindowPanel implemen
     tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
   }
 
-  @CheckForNull
-  private OccurenceNavigator.OccurenceInfo occurrence(@Nullable IssueNode node) {
-    if (node == null) {
-      return null;
-    }
-
-    var path = new TreePath(node.getPath());
-    tree.getSelectionModel().setSelectionPath(path);
-    tree.scrollPathToVisible(path);
-
-    var range = node.issue().getRange();
-    var startOffset = (range != null) ? range.getStartOffset() : 0;
-    return new OccurenceNavigator.OccurenceInfo(
-      new OpenFileDescriptor(project, node.issue().psiFile().getVirtualFile(), startOffset),
-      -1,
-      -1);
-  }
-
-  @Override
-  public boolean hasNextOccurence() {
-    // relies on the assumption that a TreeNodes will always be the last row in the table view of the tree
-    var path = tree.getSelectionPath();
-    if (path == null) {
-      return false;
-    }
-    var node = (DefaultMutableTreeNode) path.getLastPathComponent();
-    if (node instanceof IssueNode) {
-      return tree.getRowCount() != tree.getRowForPath(path) + 1;
-    } else {
-      return node.getChildCount() > 0;
-    }
-  }
-
-  @Override
-  public boolean hasPreviousOccurence() {
-    var path = tree.getSelectionPath();
-    if (path == null) {
-      return false;
-    }
-    var node = (DefaultMutableTreeNode) path.getLastPathComponent();
-    return (node instanceof IssueNode) && !isFirst(node);
-  }
-
-  private static boolean isFirst(final TreeNode node) {
-    final var parent = node.getParent();
-    return parent == null || (parent.getIndex(node) == 0 && isFirst(parent));
-  }
-
-  @CheckForNull
-  @Override
-  public OccurenceNavigator.OccurenceInfo goNextOccurence() {
-    var path = tree.getSelectionPath();
-    if (path == null) {
-      return null;
-    }
-    return occurrence(treeBuilder.getNextIssue((AbstractNode) path.getLastPathComponent()));
-  }
-
-  @CheckForNull
-  @Override
-  public OccurenceNavigator.OccurenceInfo goPreviousOccurence() {
-    var path = tree.getSelectionPath();
-    if (path == null) {
-      return null;
-    }
-    return occurrence(treeBuilder.getPreviousIssue((AbstractNode) path.getLastPathComponent()));
-  }
-
-  @Override
-  @NotNull
-  public String getNextOccurenceActionName() {
-    return "Next Issue";
-  }
-
-  @Override
-  @NotNull
-  public String getPreviousOccurenceActionName() {
-    return "Previous Issue";
+  private void createOldIssuesTree() {
+    oldTreeBuilder = new IssueTreeModelBuilder(project);
+    var model = oldTreeBuilder.createModel(true);
+    oldTree = new IssueTree(project, model);
+    oldTree.addKeyListener(new KeyAdapter() {
+      @Override
+      public void keyPressed(KeyEvent e) {
+        if (KeyEvent.VK_ESCAPE == e.getKeyCode()) {
+          var highlighting = SonarLintUtils.getService(project, EditorDecorator.class);
+          highlighting.removeHighlights();
+        }
+      }
+    });
+    oldTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
   }
 
   public void setSelectedIssue(LiveIssue issue) {
-    var issueNode = TreeUtil.findNode(((DefaultMutableTreeNode) tree.getModel().getRoot()),
-      node -> node instanceof IssueNode && ((IssueNode) node).issue().equals(issue));
+    var issueNode = TreeUtil.findNode(((DefaultMutableTreeNode) tree.getModel().getRoot()), node -> node instanceof IssueNode iNode && iNode.issue().equals(issue));
     if (issueNode == null) {
-      return;
+      issueNode = TreeUtil.findNode(((DefaultMutableTreeNode) oldTree.getModel().getRoot()), node -> node instanceof IssueNode iNode && iNode.issue().equals(issue));
+      if (issueNode == null) {
+        SonarLintConsole.get(project).error("Cannot select issue in the tree");
+      } else {
+        oldTree.setSelectionPath(null);
+        oldTree.addSelectionPath(new TreePath(issueNode.getPath()));
+      }
+    } else {
+      tree.setSelectionPath(null);
+      tree.addSelectionPath(new TreePath(issueNode.getPath()));
     }
-    tree.setSelectionPath(null);
-    tree.addSelectionPath(new TreePath(issueNode.getPath()));
   }
 
   public void selectLocationsTab() {
@@ -219,6 +157,70 @@ public abstract class AbstractIssuesPanel extends SimpleToolWindowPanel implemen
 
   public void selectRulesTab() {
     findingDetailsPanel.selectRulesTab();
+  }
+
+  private void clearSelection() {
+    findingDetailsPanel.clear();
+    var highlighting = SonarLintUtils.getService(project, EditorDecorator.class);
+    highlighting.removeHighlights();
+  }
+
+  private void issueTreeSelectionChanged(TreeSelectionEvent e) {
+    if (!tree.isSelectionEmpty()) {
+      oldTree.clearSelection();
+    }
+    var selectedIssueNodes = tree.getSelectedNodes(IssueNode.class, null);
+    if (selectedIssueNodes.length > 0) {
+      updateOnSelect(selectedIssueNodes[0].issue());
+    } else {
+      clearSelection();
+    }
+  }
+
+  private void oldIssueTreeSelectionChanged(TreeSelectionEvent e) {
+    if (!oldTree.isSelectionEmpty()) {
+      tree.clearSelection();
+    }
+    var selectedIssueNodes = oldTree.getSelectedNodes(IssueNode.class, null);
+    if (selectedIssueNodes.length > 0) {
+      updateOnSelect(selectedIssueNodes[0].issue());
+    } else {
+      clearSelection();
+    }
+  }
+
+  private void handleListener() {
+    tree.addTreeSelectionListener(this::issueTreeSelectionChanged);
+    oldTree.addTreeSelectionListener(this::oldIssueTreeSelectionChanged);
+  }
+
+  private void updateOnSelect(LiveFinding liveFinding) {
+    findingDetailsPanel.show(liveFinding);
+  }
+
+  public <T extends Finding> void updateOnSelect(@Nullable LiveFinding issue, ShowFinding<T> showFinding) {
+    if (issue != null) {
+      updateOnSelect(issue);
+    } else {
+      if (showFinding.getCodeSnippet() == null) {
+        SonarLintProjectNotifications.Companion.get(project)
+          .notifyUnableToOpenFinding("The issue could not be detected by CodeScan in the current code");
+        return;
+      }
+      runOnPooledThread(project, () -> {
+        var matcher = new TextRangeMatcher(project);
+        var rangeMarker = computeReadActionSafely(project, () -> matcher.matchWithCode(showFinding.getFile(), showFinding.getTextRange(), showFinding.getCodeSnippet()));
+        if (rangeMarker == null) {
+          SonarLintProjectNotifications.Companion.get(project)
+            .notifyUnableToOpenFinding("The issue could not be detected by CodeScan in the current code");
+          return;
+        }
+
+        runOnUiThread(project,
+          () -> findingDetailsPanel.showServerOnlyIssue(showFinding.getModule(), showFinding.getFile(), showFinding.getRuleKey(), rangeMarker, showFinding.getFlows(),
+            showFinding.getFlowMessage()));
+      });
+    }
   }
 
 }

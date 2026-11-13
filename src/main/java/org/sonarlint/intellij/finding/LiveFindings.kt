@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.finding
 
@@ -31,8 +31,23 @@ class LiveFindings(
 
     fun onlyFor(files: Set<VirtualFile>): LiveFindings {
         return LiveFindings(
-            issuesPerFile.filterKeys { files.contains(it) },
-            securityHotspotsPerFile.filterKeys { files.contains(it) })
+            issuesPerFile.filterKeys { it in files },
+            securityHotspotsPerFile.filterKeys { it in files })
+    }
+
+    fun merge(other: LiveFindings?): LiveFindings {
+        other ?: return this
+        val mergedIssuesPerFile = issuesPerFile.toMutableMap()
+        other.issuesPerFile.forEach { (file, issues) ->
+            mergedIssuesPerFile.merge(file, issues) { oldIssues, newIssues -> oldIssues + newIssues }
+        }
+
+        val mergedSecurityHotspotsPerFile = securityHotspotsPerFile.toMutableMap()
+        other.securityHotspotsPerFile.forEach { (file, hotspots) ->
+            mergedSecurityHotspotsPerFile.merge(file, hotspots) { oldHotspots, newHotspots -> oldHotspots + newHotspots }
+        }
+
+        return LiveFindings(mergedIssuesPerFile, mergedSecurityHotspotsPerFile)
     }
 
     companion object {

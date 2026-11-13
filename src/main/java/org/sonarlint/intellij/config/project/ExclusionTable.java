@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.project;
 
@@ -35,7 +35,7 @@ import java.util.function.UnaryOperator;
 import javax.swing.JPanel;
 import javax.swing.ListSelectionModel;
 import javax.swing.table.AbstractTableModel;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 public class ExclusionTable {
   private final Supplier<ExclusionItem> onAdd;
@@ -153,7 +153,7 @@ public class ExclusionTable {
     }
 
     public void set(List<ExclusionItem> rows) {
-      this.rows = rows;
+      this.rows = new ArrayList<>(rows);
       fireTableDataChanged();
     }
 

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij
 
@@ -23,6 +23,7 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.serviceContainer.ComponentManagerImpl
 import com.intellij.testFramework.HeavyPlatformTestCase
+import java.lang.reflect.Method
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.TestInfo
@@ -33,12 +34,7 @@ import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.config.global.SonarLintGlobalSettings
 import org.sonarlint.intellij.config.project.SonarLintProjectSettings
 import org.sonarlint.intellij.core.BackendService
-import org.sonarlint.intellij.core.EngineManager
 import org.sonarlint.intellij.core.ProjectBindingManager
-import org.sonarlint.intellij.core.TestEngineManager
-import java.lang.reflect.Method
-import java.nio.file.Path
-import java.nio.file.Paths
 
 @ExtendWith(RunInEdtInterceptor::class)
 abstract class AbstractSonarLintHeavyTests : HeavyPlatformTestCase() {
@@ -58,19 +54,12 @@ abstract class AbstractSonarLintHeavyTests : HeavyPlatformTestCase() {
         // explicitly call TestCase.setName as IntelliJ relies on it for the setup
         name = testInfo.testMethod.map(Method::getName).orElseGet { "test" }
         super.setUp()
-        getEngineManager().stopAllEngines(false)
     }
 
     @AfterEach
     fun afterEachHeavyTest() {
         super.tearDown()
     }
-
-    protected fun getTestDataPath(): Path =
-        Paths.get("src/test/testData/${javaClass.simpleName}").toAbsolutePath()
-
-    protected fun getEngineManager() =
-        getService(EngineManager::class.java) as TestEngineManager
 
     protected fun connectModuleTo(projectKey: String) {
         connectModuleTo(module, projectKey)

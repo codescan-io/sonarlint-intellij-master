@@ -15,11 +15,15 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config;
 
+import com.intellij.util.ui.HTMLEditorKitBuilder;
+import com.intellij.util.ui.UIUtil;
 import javax.swing.JComponent;
+import javax.swing.JEditorPane;
+import javax.swing.text.DefaultCaret;
 
 public interface ConfigurationPanel<T> {
   JComponent getComponent();
@@ -29,4 +33,16 @@ public interface ConfigurationPanel<T> {
   void save(T settings);
 
   void load(T settings);
+
+  default void initHtmlPane(JEditorPane editorPane) {
+    editorPane.setContentType(UIUtil.HTML_MIME);
+    if (editorPane.getCaret() == null) {
+      editorPane.setCaret(new DefaultCaret());
+    }
+    ((DefaultCaret) editorPane.getCaret()).setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
+    editorPane.setEditorKit(HTMLEditorKitBuilder.simple());
+    editorPane.setFocusable(false);
+    editorPane.setEditable(false);
+    editorPane.setOpaque(false);
+  }
 }

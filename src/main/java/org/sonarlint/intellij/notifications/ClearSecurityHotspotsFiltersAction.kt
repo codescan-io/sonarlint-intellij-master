@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.notifications
 
@@ -33,7 +33,7 @@ class ClearSecurityHotspotsFiltersAction(private val securityHotspotKey: String)
             SonarLintActions.getInstance().includeResolvedHotspotAction().setSelected(e, true)
             if (!SonarLintUtils.getService(it, SonarLintToolWindow::class.java).trySelectSecurityHotspot(securityHotspotKey)) {
                 SonarLintProjectNotifications.get(it)
-                    .notifyUnableToOpenSecurityHotspot("The Security Hotspot could not be opened by SonarLint.")
+                    .notifyUnableToOpenFinding("The Security Hotspot could not be opened by CodeScan")
             }
         }
         notification.expire()

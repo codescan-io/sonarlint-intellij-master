@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.nodes;
 
@@ -30,8 +30,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class FileNodeTests {
-  private VirtualFile file = mock(VirtualFile.class);
-  private FileNode node = new FileNode(file, false);
+  private final VirtualFile file = mock(VirtualFile.class);
+  private final FileNode node = new FileNode(file, false);
 
   @BeforeEach
   void setUp() {

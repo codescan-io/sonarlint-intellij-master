@@ -15,16 +15,18 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.analysis
 
 import com.intellij.openapi.vfs.VirtualFile
+import java.time.Instant
+import java.util.UUID
 import org.sonarlint.intellij.finding.LiveFindings
 import org.sonarlint.intellij.trigger.TriggerType
-import java.time.Instant
 
 data class AnalysisResult(
+    val analysisId: UUID?,
     val findings: LiveFindings,
     val analyzedFiles: MutableCollection<out VirtualFile>,
     val triggerType: TriggerType,

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.analysis;
 
@@ -153,15 +153,12 @@ class JavaAnalysisConfiguratorTests extends AbstractSonarLintLightTests {
   }
 
   private static void addLibrary(Path libraryPath, String libraryName, ModifiableRootModel model, DependencyScope scope, boolean exported) {
-    var lib = PsiTestUtil.addLibrary(model, libraryName, libraryPath.getParent().toString(), libraryPath.getFileName().toString());
+    PsiTestUtil.addLibrary(model, libraryName, libraryPath.getParent().toString(), libraryPath.getFileName().toString());
     // workaround as ModifiableRootModel#findLibraryOrderEntry does not work
     for (OrderEntry entry : model.getOrderEntries()) {
-      if (entry instanceof LibraryOrderEntry) {
-        var libraryEntry = (LibraryOrderEntry) entry;
-        if (libraryName.equals(libraryEntry.getLibraryName())) {
-          libraryEntry.setScope(scope);
-          libraryEntry.setExported(exported);
-        }
+      if (entry instanceof LibraryOrderEntry libraryEntry && libraryName.equals(libraryEntry.getLibraryName())) {
+        libraryEntry.setScope(scope);
+        libraryEntry.setExported(exported);
       }
     }
   }
