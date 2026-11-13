@@ -32,6 +32,9 @@ not_ok() { FAILS=$((FAILS + 1));   echo "NOT OK - $1"; }
 RC=0
 run_check() {
   name=$1; shift
+  # Without --zip or --no-zip the script looks for a zip itself (and exits 3 if there is none); most cases are about
+  # the source tree only, so they say --no-zip.
+  case " $* " in *" --zip "*|*" --no-zip "*) ;; *) set -- --no-zip "$@" ;; esac
   if [ -x "$CHECK" ]; then
     "$CHECK" "$@" > "$WORK/$name.out" 2>&1
     RC=$?
@@ -111,6 +114,7 @@ expect_rc badopt nonzero
 run_check nozipfile --zip "$WORK/no-such.zip" "$PRE"
 expect_rc nozipfile nonzero
 
+PRE_VERSION=$(sed -n 's/^version=//p' "$PRE/gradle.properties")
 ICONS="images/CodeScan.png images/CodeScanAction.svg images/CodeScanToolWindow.svg images/codescan-16.png images/codescan-round.png images/codescan@2x.png META-INF/pluginIcon.svg"
 
 # stage_jar <dir>: lays out what the main plugin jar of a good CodeScan build holds. Real files come from the 7.2.3 tree.
@@ -120,10 +124,14 @@ stage_jar() {
   mkdir -p "$d/META-INF" "$d/images" "$d/org/sonarlint/intellij"
   for e in $ICONS; do cp "$PRE/src/main/resources/$e" "$d/$e"; done
   for e in plugin.xml plugin-java.xml plugin-git.xml; do cp "$PRE/src/main/resources/META-INF/$e" "$d/META-INF/$e"; done
+  # the build replaces ${project.version} in plugin.xml
+  sed "s/\${project.version}/$PRE_VERSION/" "$PRE/src/main/resources/META-INF/plugin.xml" > "$d/META-INF/plugin.xml"
   : > "$d/org/sonarlint/intellij/SonarLintIcons.class"
   for e in CodeScan.png codescan-16.png CodeScanToolWindow.svg CodeScanAction.svg codescan-round.png codescan@2x.png execute.png; do
     echo "/images/$e" >> "$d/org/sonarlint/intellij/SonarLintIcons.class"
   done
+  # a real class file also holds the names of its fields
+  grep -ohE 'SonarLintIcons\.[A-Z_0-9]+' "$PRE"/src/main/resources/META-INF/plugin*.xml | sed 's/.*\.//' | sort -u >> "$d/org/sonarlint/intellij/SonarLintIcons.class"
 }
 
 # pack_zip <jar dir> <zipfile>: a plugin zip with the main jar (from the dir) and one unrelated jar next to it
@@ -272,8 +280,8 @@ run_check url-unused-const "$UP"
 expect_line url-unused-const "^FAIL P5 "
 expect_no_line url-unused-const "^PASS P5 "
 rm -f "$UP/src/main/java/org/sonarlint/intellij/Unused.java"
-# After the Redo the address reaches the backend through SonarCloudAlternativeEnvironmentDto; that form must PASS.
-change_and_expect url-redo-form "$UP" src/main/java/org/sonarlint/intellij/core/BackendService.kt PASS P5 \
+# A default in getProperty alone is not the Redo (see the p5-backend-* cases below): upstream still returns null without the websocket property.
+change_and_expect url-redo-form "$UP" src/main/java/org/sonarlint/intellij/core/BackendService.kt FAIL P5 \
   sed 's|getProperty("sonarlint.internal.sonarcloud.url")|getProperty("sonarlint.internal.sonarcloud.url", "https://app.codescan.io")|'
 
 # The URL lives in two files; P5 must fail only when both lose it.
@@ -341,16 +349,19 @@ run_check p5-wizard-only "$CASE"
 expect_line p5-wizard-only "^FAIL P5 "
 expect_no_line p5-wizard-only "^PASS P5 "
 rm -rf "$CASE"
-# ... and the backend forms must PASS: a default in getProperty, or an elvis fallback.
+# ... a default in getProperty or an elvis fallback does NOT reach the backend: upstream builds the DTO only when the
+# websocket property is also set, and returns null otherwise. P5 is a first warning sign, Task 5 gets the real code test.
 new_case p5-backend-default up
 case_sed src/main/java/org/sonarlint/intellij/core/BackendService.kt 's|getProperty("sonarlint.internal.sonarcloud.url")|getProperty("sonarlint.internal.sonarcloud.url", "https://app.codescan.io")|'
 run_check p5-backend-default "$CASE"
-expect_line p5-backend-default "^PASS P5 "
+expect_line p5-backend-default "^FAIL P5 .*websocket"
+expect_no_line p5-backend-default "^PASS P5 "
 rm -rf "$CASE"
 new_case p5-backend-elvis up
 case_sed src/main/java/org/sonarlint/intellij/core/BackendService.kt 's|getProperty("sonarlint.internal.sonarcloud.url")$|getProperty("sonarlint.internal.sonarcloud.url") ?: "https://app.codescan.io"|'
 run_check p5-backend-elvis "$CASE"
-expect_line p5-backend-elvis "^PASS P5 "
+expect_line p5-backend-elvis "^FAIL P5 .*websocket"
+expect_no_line p5-backend-elvis "^PASS P5 "
 rm -rf "$CASE"
 
 # 2. P4: the icon code and the plugin icon must be the CodeScan ones, not only present.
@@ -426,6 +437,189 @@ new_case p9-generated-skipped
 mkdir -p "$CASE/build/generated/source/proto/main/java"
 printf 'package x;\nclass Gen {}\n' > "$CASE/build/generated/source/proto/main/java/Gen.java"
 expect_rows p9-generated-skipped -
+
+# ---- Fix round 3: a third reviewer's trees that wrongly passed ----
+
+BS=src/main/java/org/sonarlint/intellij/core/BackendService.kt
+FCONTRIB=common/src/main/java/org/sonarlint/intellij/common/analysis/FilesContributor.java
+
+# put_up <relpath>: copy ONE upstream file into $CASE. Java/Kotlin files keep the CodeScan license header, so that only
+# the check under test reacts and not P9.
+put_up() {
+  mkdir -p "$(dirname "$CASE/$1")"
+  case "$1" in
+    *.java|*.kt)
+      if [ -f "$CASE/$1" ]; then hdr="$CASE/$1"; else hdr="$PRE/$PIC"; fi
+      { head -19 "$hdr"; tail -n +20 "$UP/$1"; } > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$1" ;;
+    *) cp "$UP/$1" "$CASE/$1" ;;
+  esac
+}
+# expect_fails <name> <rows>: run the check on $CASE; these rows must FAIL (other rows may fail too)
+expect_fails() {
+  fname=$1; frows=$2
+  before=$FAILS
+  run_check "$fname" "$CASE"
+  expect_rc "$fname" nonzero
+  for r in $frows; do expect_line "$fname" "^FAIL $r "; done
+  show_output "$before" "$fname"
+  rm -rf "$CASE"
+}
+# fix_backend: in an upstream copy, make the function always return the DTO with the CodeScan address (the intended fix)
+fix_backend() {
+  awk '/private fun getSonarCloudAlternativeEnvironment\(\)/ {
+         print "    private fun getSonarCloudAlternativeEnvironment(): SonarCloudAlternativeEnvironmentDto {"
+         print "        val sonarCloudUrl = System.getProperty(\"sonarlint.internal.sonarcloud.url\") ?: \"https://app.codescan.io\""
+         print "        val sonarCloudWebSocketUrl = System.getProperty(\"sonarlint.internal.sonarcloud.websocket.url\") ?: \"wss://app.codescan.io/ws\""
+         print "        return SonarCloudAlternativeEnvironmentDto(URI.create(sonarCloudUrl), URI.create(sonarCloudWebSocketUrl))"
+         print "    }"
+         skip = 1; next }
+       skip && /^    }/ { skip = 0; next }
+       skip { next }
+       { print }' "$CASE/$BS" > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$BS"
+}
+# expect_row_line <name> <PASS|FAIL> <row> [more regex]: run the check on $CASE and look at one row's line
+expect_row_line() {
+  rl=$1
+  before=$FAILS
+  run_check "$rl" "$CASE"
+  expect_line "$rl" "^$2 $3 ${4:-}"
+  if [ "$2" = PASS ]; then expect_no_line "$rl" "^FAIL $3 "; else expect_no_line "$rl" "^PASS $3 "; fi
+  show_output "$before" "$rl"
+  rm -rf "$CASE"
+}
+
+# 1a. The intended fix: the function always returns the DTO with the CodeScan address, and start-up passes it in.
+new_case p5-backend-fixed up
+fix_backend
+expect_row_line p5-backend-fixed PASS P5
+# 1b. Start-up passes a literal null instead of the alternative environment (what /tmp/rv/upB did).
+new_case p5-start-null up
+fix_backend
+case_sed $BS 's|^\( *\)getSonarCloudAlternativeEnvironment(),|\1null,|'
+expect_row_line p5-start-null FAIL P5 ".*InitializeParams"
+new_case p5-upB up
+case_sed $BS 's|^\( *\)getSonarCloudAlternativeEnvironment(),|\1null,|'
+case_sed $BS 's|URI.create(sonarCloudUrl)|URI.create("https://app.codescan.io")|'
+expect_row_line p5-upB FAIL P5
+# 1c. A name that holds the address in ANOTHER file is not the same name.
+new_case p5-decoy-name up
+fix_backend
+case_sed $BS 's|\(sonarlint.internal.sonarcloud.url")\) ?: "https://app.codescan.io"|\1|'
+printf 'package org.sonarlint.intellij.core\nval sonarCloudUrl = "https://app.codescan.io"\n' > "$CASE/src/main/java/org/sonarlint/intellij/core/Decoy.kt"
+expect_row_line p5-decoy-name FAIL P5
+new_case p5-decoy-name-7
+case_sed src/main/java/org/sonarlint/intellij/config/global/wizard/ServerStep.java 's|setServerUrl(CodescanCloudConstants.CODESCAN_US_URL)|setServerUrl(DEFAULT_URL)|'
+{ head -19 "$CASE/$PIC"; printf 'package org.sonarlint.intellij.config.global.wizard;\nclass Decoy2 { static final String DEFAULT_URL = "https://app.codescan.io"; }\n'; } > "$CASE/src/main/java/org/sonarlint/intellij/config/global/wizard/Decoy2.java"
+expect_rows p5-decoy-name-7 P5
+# 1d. 10.x is told by BackendService.kt using InitializeParams, not by one exact import line.
+new_case p5-wildcard-import up
+case_sed $BS 's|^import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.InitializeParams$|import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.*|'
+# the wizard alone sets the address (enough in 7.2.3, not in 10.x)
+case_sed src/main/java/org/sonarlint/intellij/config/global/wizard/ServerStep.java 's|model.setServerUrl(SONARCLOUD_URL);|model.setServerUrl("https://app.codescan.io");|'
+expect_row_line p5-wildcard-import FAIL P5
+
+# 2. P4: upstream's branded images and names must not come back, in code, in plugin.xml and in the zip.
+# preD from the reviewer: upstream's SONARQUBE_* icons added to SonarLintIcons.kt, and plugin.xml uses them.
+add_up_icons() {
+  awk '{ print } /val SONARLINT_32 = / {
+    print "    val SONARQUBE_FOR_INTELLIJ_13PX = getIcon(\"/images/sonarqube_for_intellij_13px.svg\")"
+    print "    val SONARQUBE_FOR_INTELLIJ_EMPTY_TOOLWINDOW = getIcon(\"/images/sonarqube_for_intellij_empty_toolwindow.svg\")" }' "$CASE/$PIC" > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$PIC"
+}
+new_case p4-preD
+add_up_icons
+case_sed $META/plugin.xml 's/SonarLintIcons\.SONARLINT_ACTION/SonarLintIcons.SONARQUBE_FOR_INTELLIJ_13PX/'
+case_sed $META/plugin.xml 's/SonarLintIcons\.SONARLINT_TOOLWINDOW_EMPTY/SonarLintIcons.SONARQUBE_FOR_INTELLIJ_EMPTY_TOOLWINDOW/'
+expect_rows p4-preD P4
+new_case p4-kt-upstream-names
+add_up_icons
+expect_rows p4-kt-upstream-names P4
+new_case p4-xml-upstream-names
+case_sed $META/plugin.xml 's/SonarLintIcons\.SONARLINT_ACTION/SonarLintIcons.SONARQUBE_FOR_INTELLIJ_13PX/'
+expect_rows p4-xml-upstream-names P4
+new_case p4-xml-name-only
+awk '{ print } /val SONARLINT_ACTION = / { print "    @JvmField"; print "    val SONARQUBE_ACTION = getIcon(\"/images/CodeScanAction.svg\")" }' "$CASE/$PIC" > "$CASE/x.new" && mv "$CASE/x.new" "$CASE/$PIC"
+case_sed $META/plugin.xml 's/SonarLintIcons\.SONARLINT_ACTION/SonarLintIcons.SONARQUBE_ACTION/'
+expect_rows p4-xml-name-only P4
+if command -v zip > /dev/null 2>&1; then
+  zapp() { echo "$1" >> "$3/$2"; }     # zapp <text> <relpath> <dir>
+  zip_case zip-icons-sonar-path P4 zapp "/images/sonarqube_for_intellij_13px.svg" org/sonarlint/intellij/SonarLintIcons.class
+  zip_case zip-xml-icon-field P4 zsed 's/SonarLintIcons\.SONARLINT_ACTION/SonarLintIcons.SONARQUBE_FOR_INTELLIJ_13PX/' META-INF/plugin.xml
+  zip_case zip-xml-icon-unknown P4 zsed 's/SonarLintIcons\.SONARLINT_ACTION/SonarLintIcons.NOT_IN_THE_CLASS/' META-INF/plugin.xml
+fi
+
+# 3. One upstream file in an otherwise CodeScan tree.
+new_case p5-up-backendservice
+put_up $BS
+expect_rows p5-up-backendservice P5
+new_case p32-up-filescontributor
+put_up $FCONTRIB
+expect_rows p32-up-filescontributor P32
+new_case p32-up-pluginjava
+put_up $META/plugin-java.xml
+expect_rows p32-up-pluginjava P32
+new_case p4-up-pluginxml
+put_up $META/plugin.xml
+expect_fails p4-up-pluginxml "P1 P2 P4"
+new_case p4-up-icons-kt
+put_up $PIC
+expect_rows p4-up-icons-kt P4
+
+# 4. No zip: look in build/distributions, otherwise say SKIP and exit 3 (0 only with --no-zip).
+run_raw() { name=$1; shift; "$CHECK" "$@" > "$WORK/$name.out" 2>&1; RC=$?; }
+expect_rc_is() { if [ "$RC" -eq "$2" ]; then ok "$1: exit code $2"; else not_ok "$1: expected exit code $2, got $RC"; fi; }
+new_case zip-skip
+run_raw zip-skip "$CASE"
+expect_rc_is zip-skip 3
+expect_line zip-skip '^SKIP zip checks \(no --zip and no build/distributions zip\)$'
+expect_no_line zip-skip '^FAIL '
+run_raw zip-noflag --no-zip "$CASE"
+expect_rc_is zip-noflag 0
+expect_line zip-noflag '^SKIP zip checks '
+echo x > "$WORK/x.zip"
+run_raw zip-both --no-zip --zip "$WORK/x.zip" "$CASE"
+expect_rc_is zip-both 2
+expect_line zip-both 'no-zip.*zip|zip.*no-zip'
+expect_no_line zip-both 'Unknown|unknown'
+case_sed $META/plugin.xml 's:<id>com.code-scan.intellij</id>:<id>org.sonarlint.idea</id>:'
+run_raw zip-skip-fail "$CASE"
+expect_rc_is zip-skip-fail 1
+expect_line zip-skip-fail '^FAIL P1 '
+rm -rf "$CASE"
+if command -v zip > /dev/null 2>&1; then
+  GD=$(mktemp -d "$WORK/stage.XXXXXX"); stage_jar "$GD"; pack_zip "$GD" "$WORK/good.zip"
+  BD=$(mktemp -d "$WORK/stage.XXXXXX"); stage_jar "$BD"; rm -f "$BD/META-INF/plugin.xml"; pack_zip "$BD" "$WORK/bad.zip"
+  new_case zip-found
+  mkdir -p "$CASE/build/distributions"; cp "$WORK/good.zip" "$CASE/build/distributions/CodeScan-7.3.0.zip"
+  run_raw zip-found "$CASE"
+  expect_rc_is zip-found 0
+  expect_line zip-found '^PASS P4 .*zip'
+  expect_no_line zip-found '^SKIP '
+  # several zips: the newest one is used
+  cp "$WORK/bad.zip" "$CASE/build/distributions/CodeScan-7.2.0.zip"
+  touch -t 202001010000 "$CASE/build/distributions/CodeScan-7.2.0.zip"
+  run_raw zip-newest-good "$CASE"
+  expect_rc_is zip-newest-good 0
+  touch -t 202001010000 "$CASE/build/distributions/CodeScan-7.3.0.zip"
+  touch -t 202101010000 "$CASE/build/distributions/CodeScan-7.2.0.zip"
+  run_raw zip-newest-bad "$CASE"
+  expect_rc_is zip-newest-bad 1
+  expect_line zip-newest-bad '^FAIL P4 .*zip'
+  rm -rf "$CASE"
+fi
+
+# 5. A stale zip (built from another version of the source) must fail.
+if command -v zip > /dev/null 2>&1; then
+  zip_case zip-stale P1 zsed 's:<version>7.3.0</version>:<version>7.2.9</version>:' META-INF/plugin.xml
+  expect_line zip-stale '^FAIL P1 .*zip.*version'
+  new_case zip-stale-source
+  case_sed gradle.properties 's/^version=.*/version=7.4.0/'
+  run_check zip-stale-source --zip "$WORK/good.zip" "$CASE"
+  expect_line zip-stale-source '^FAIL P1 .*zip.*version'
+  case_sed gradle.properties 's/^version=.*/# no version here/'
+  run_check zip-no-version --zip "$WORK/good.zip" "$CASE"
+  expect_line zip-no-version '^FAIL P1 .*version'
+  rm -rf "$CASE"
+fi
 
 run_check pre-again "$PRE"
 expect_rc pre-again 0
