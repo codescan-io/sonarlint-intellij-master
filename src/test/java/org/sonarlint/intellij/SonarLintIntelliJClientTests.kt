@@ -21,7 +21,9 @@ package org.sonarlint.intellij
 
 import java.nio.file.Paths
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.assertj.core.api.Assertions.tuple
+import org.eclipse.lsp4j.jsonrpc.ResponseErrorException
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.sonarlint.intellij.config.global.ServerConnection
@@ -179,6 +181,15 @@ class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
         )
 
         assertThat(projectNotifications).isEmpty()
+    }
+
+    @Test
+    fun it_should_report_a_clear_error_when_a_connection_has_no_credentials() {
+        globalSettings.serverConnections = listOf(ServerConnection.newBuilder().setName("connectionId").build())
+
+        assertThatThrownBy { client.getCredentials("connectionId") }
+            .isInstanceOf(ResponseErrorException::class.java)
+            .hasMessageContaining("No credentials stored for connection 'connectionId'")
     }
 
     @Test
