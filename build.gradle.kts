@@ -203,23 +203,6 @@ intellijPlatform {
     }
 }
 
-intellijPlatformTesting {
-    runIde {
-        // Used by `./gradlew runIde -PrunIdeDirectory=<IDE folder>`, see tasks.runIde below
-        register("runLocalIde") {
-            if (project.hasProperty("runIdeDirectory")) {
-                localPath = file(runIdeDirectory)
-            }
-            sandboxDirectory = project.layout.buildDirectory.dir("codescan-local-ide")
-            prepareSandboxTask {
-                doLast {
-                    setupSandbox(destinationDir, pluginName)
-                }
-            }
-        }
-    }
-}
-
 fun setupSandbox(destinationDir: File, pluginName: Property<String>) {
     val pluginsDir = file("$destinationDir/${pluginName.get()}/plugins")
 
@@ -318,10 +301,13 @@ tasks {
     }
 
     runIde {
-        // With -PrunIdeDirectory, start that installed IDE instead of the downloaded one (through runLocalIde).
+        // With -PrunIdeDirectory, the installed IDE is started by :its:runLocalIde, and this task skips itself. Plugin
+        // 2.7.2 cannot hold that IDE in this project: every IDE a project knows about adds a rule that rewrites the jar
+        // paths of all bundled plugins, so compileJava would look for 2023.1.7's Java plugin inside the installed IDE.
+        // Upstream later fixed this with `useCache = false` (plugin 2.19.0).
         if (project.hasProperty("runIdeDirectory")) {
-            dependsOn("runLocalIde")
-            onlyIf("runLocalIde started the IDE from runIdeDirectory instead") { false }
+            dependsOn(":its:runLocalIde")
+            onlyIf("the installed IDE from runIdeDirectory is started by :its:runLocalIde") { false }
         }
     }
 

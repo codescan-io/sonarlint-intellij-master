@@ -60,6 +60,46 @@ tasks {
     verifyPlugin {
         enabled = false
     }
+    // UI tests start their IDE through runIdeForUiTests. Without this, a root-level `./gradlew runIde` would also start
+    // a second, plugin-less IDE from this project.
+    runIde {
+        enabled = false
+    }
+}
+
+// Started by the root `./gradlew runIde -PrunIdeDirectory=<IDE folder>`: runs the CodeScan plugin in that installed IDE.
+// It lives here, not in the root project, because plugin 2.7.2 mixes up bundled-plugin paths when one project knows
+// two IDEs (see the runIde comment in the root build.gradle.kts).
+val runLocalIde by intellijPlatformTesting.runIde.registering {
+    if (project.hasProperty("runIdeDirectory")) {
+        localPath = file(runIdeDirectory)
+    }
+    sandboxDirectory = rootProject.layout.buildDirectory.dir("codescan-local-ide")
+
+    prepareSandboxTask {
+        // Keep only CodeScan: without this, this test helper project would load as a plugin as well.
+        doLast {
+            delete(destinationDir.resolve(pluginName.get()))
+        }
+    }
+
+    task {
+        onlyIf("runIdeDirectory is set") { project.hasProperty("runIdeDirectory") }
+        systemProperty("sonarlint.telemetry.disabled", "true")
+        maxHeapSize = "2g"
+        // Debugging is off by default. `-Pdebug` opens port 5005 for a debugger; the IDE does not wait for it.
+        if (project.hasProperty("debug")) {
+            debugOptions {
+                enabled = true
+                port = 5005
+                suspend = false
+            }
+        }
+    }
+
+    plugins {
+        localPlugin(rootProject.dependencies.project(":"))
+    }
 }
 
 val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
