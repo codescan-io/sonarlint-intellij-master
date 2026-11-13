@@ -175,11 +175,11 @@
 
     <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
          on how to target different products -->
+    <!-- CodeScan: IntelliJ IDEA only, so the Java plugin is required -->
     <depends>com.intellij.modules.lang</depends>
+    <depends>com.intellij.modules.platform</depends>
+    <depends config-file="plugin-java.xml">com.intellij.modules.java</depends>
     <depends optional="true" config-file="plugin-git.xml">Git4Idea</depends>
-    <depends optional="true" config-file="plugin-go.xml">org.jetbrains.plugins.go</depends>
-    <depends optional="true" config-file="plugin-plsql.xml">com.intellij.database</depends>
-    <depends optional="true" config-file="plugin-java.xml">com.intellij.modules.java</depends>
     <depends optional="true" config-file="plugin-jupyter.xml">intellij.jupyter</depends>
 
     <projectListeners>

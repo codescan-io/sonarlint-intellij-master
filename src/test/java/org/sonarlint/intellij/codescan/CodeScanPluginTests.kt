@@ -90,6 +90,16 @@ class CodeScanPluginTests : AbstractSonarLintHeavyTests() {
     }
 
     @Test
+    fun pluginInstallsOnlyInIntelliJIdea() {
+        // CodeScan supports IntelliJ IDEA only, so the Java plugin is required and the Go and database extras are not declared
+        val dependencies = PluginManagerCore.getPlugin(PluginId.getId(CODESCAN_PLUGIN_ID))!!.dependencies
+
+        assertThat(dependencies.filterNot { it.isOptional }.map { it.pluginId.idString })
+            .contains("com.intellij.modules.platform", "com.intellij.modules.lang", "com.intellij.modules.java")
+        assertThat(dependencies.map { it.pluginId.idString }).doesNotContain("org.jetbrains.plugins.go", "com.intellij.database")
+    }
+
+    @Test
     fun toolWindowIsCalledCodeScan() {
         val ours = ToolWindowEP.EP_NAME.extensionList.filter { it.pluginDescriptor.pluginId == PluginId.getId(CODESCAN_PLUGIN_ID) }
 
