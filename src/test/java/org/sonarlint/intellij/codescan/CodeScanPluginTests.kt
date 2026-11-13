@@ -20,12 +20,18 @@
 package org.sonarlint.intellij.codescan
 
 import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.extensions.PluginId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.sonarlint.intellij.AbstractSonarLintHeavyTests
 import org.sonarlint.intellij.SonarLintPlugin
+import org.sonarlint.intellij.common.analysis.AnalysisConfigurator
+import org.sonarlint.intellij.common.analysis.FileExclusionContributor
+import org.sonarlint.intellij.common.analysis.FilesContributor
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
+import org.sonarlint.intellij.common.vcs.VcsRepoProvider
+import org.sonarlint.intellij.java.JavaAnalysisConfigurator
 
 /**
  * How the plugin presents itself to the IDE, read from the plugin the test IDE has loaded.
@@ -39,6 +45,15 @@ class CodeScanPluginTests : AbstractSonarLintHeavyTests() {
         assertThat(plugin).`as`("plugin $CODESCAN_PLUGIN_ID").isNotNull
         assertThat(plugin!!.name).isEqualTo("CodeScan")
         assertThat(getService(SonarLintPlugin::class.java).path).isEqualTo(plugin.pluginPath)
+    }
+
+    @Test
+    fun extensionPointsAreFoundUnderThePluginId() {
+        listOf(AnalysisConfigurator.EP_NAME, FileExclusionContributor.EP_NAME, FilesContributor.EP_NAME, VcsRepoProvider.EP_NAME).forEach {
+            assertThat(it.name).startsWith("$CODESCAN_PLUGIN_ID.")
+            assertThat(ApplicationManager.getApplication().extensionArea.hasExtensionPoint(it)).`as`("extension point ${it.name} is declared").isTrue()
+        }
+        assertThat(AnalysisConfigurator.EP_NAME.extensionList).hasAtLeastOneElementOfType(JavaAnalysisConfigurator::class.java)
     }
 
     companion object {
