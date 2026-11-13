@@ -79,6 +79,7 @@ import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.check.Chec
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.config.DidUpdateConnectionsParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.GetOrganizationParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.ListUserOrganizationsParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.OrganizationDto
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.projects.GetAllProjectsParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.validate.ValidateConnectionParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.HotspotRpcService
@@ -400,6 +401,19 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
     }
 
     @Test
+    fun organizationStepAllowsNextWithZeroOrOneOrganization() {
+        // OrganizationStep's form is not bound in tests, so this checks the rule its isComplete() uses
+        assertThat(cloudWizardWithOrganizations().isOrganizationStepComplete(null)).isTrue()
+        assertThat(cloudWizardWithOrganizations("org").isOrganizationStepComplete(null)).isTrue()
+
+        val twoOrganizations = cloudWizardWithOrganizations("org", "other")
+        assertThat(twoOrganizations.isOrganizationStepComplete(null)).isFalse()
+        assertThat(twoOrganizations.isOrganizationStepComplete(twoOrganizations.organizationList[1])).isTrue()
+
+        assertThat(WizardModel().setServerType(WizardModel.ServerType.SONARQUBE).isOrganizationStepComplete(null)).isTrue()
+    }
+
+    @Test
     fun noSonarQubeBrandedIconsInUse() {
         val iconsSource = sourceFile("src/main/java/org/sonarlint/intellij/SonarLintIcons.kt").readText()
         val imageByField = Regex("""val\s+(\w+)\s*=\s*getIcon\(\s*"([^"]+)"""").findAll(iconsSource)
@@ -452,6 +466,9 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
 
     private fun cloudConnection() =
         ServerConnection.newBuilder().setName("cs").setHostUrl(CODESCAN_CLOUD_URL).setToken(TOKEN).setOrganizationKey("org").build()
+
+    private fun cloudWizardWithOrganizations(vararg keys: String) =
+        WizardModel().setServerType(WizardModel.ServerType.SONARCLOUD).setOrganizationList(keys.map { OrganizationDto(it, it, "") }.toMutableList())
 
     private fun settingsFromConfiguratorsOtherThanJava(): Map<String, String> =
         AnalysisConfigurator.EP_NAME.extensionList

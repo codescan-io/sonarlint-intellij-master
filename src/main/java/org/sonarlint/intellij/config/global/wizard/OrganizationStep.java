@@ -144,8 +144,7 @@ public class OrganizationStep extends AbstractWizardStepEx {
   }
 
   @Override public boolean isComplete() {
-    // even if skipped in the SQ context, this step is still checked for completion
-    return !model.isSonarCloud() || orgList.getSelectedValue() != null;
+    return model.isOrganizationStepComplete(orgList.getSelectedValue());
   }
 
   @Override public void commit(CommitType commitType) {

@@ -200,6 +200,13 @@ public class WizardModel {
     return this;
   }
 
+  public boolean isOrganizationStepComplete(@Nullable OrganizationDto selectedOrganization) {
+    // even if skipped in the SQ context, this step is still checked for completion.
+    // CodeScan: with zero or one organization there is nothing to choose, so Next is allowed. With zero, the connection is
+    // saved without an organization, which the backend skips (BackendService) until one is added with "Select another organization".
+    return !isSonarCloud() || organizationList.size() <= 1 || selectedOrganization != null;
+  }
+
   @CheckForNull
   public String getServerUrl() {
     return serverUrl;
