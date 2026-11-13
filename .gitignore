@@ -45,3 +45,6 @@ build
 
 # Visual Studio
 .vs
+
+# Kotlin 2.x compiler session data
+.kotlin
