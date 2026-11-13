@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -41,9 +41,12 @@ import org.sonarlint.intellij.common.util.SonarLintUtils;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.equalsIgnoringTrailingSlash;
 
 public final class SonarLintGlobalSettings {
+  private boolean isFocusOnNewCode = false;
+  private boolean isPromotionDisabled = false;
 
   private boolean autoTrigger = true;
   private String nodejsPath = "";
+
   private List<ServerConnection> servers = new LinkedList<>();
   private List<String> fileExclusions = new LinkedList<>();
   @Deprecated
@@ -55,7 +58,16 @@ public final class SonarLintGlobalSettings {
   @Transient
   Map<String, Rule> rulesByKey = new HashMap<>();
   private boolean taintVulnerabilitiesTabDisclaimerDismissed;
+
   private boolean secretsNeverBeenAnalysed = true;
+
+  public boolean isPromotionDisabled() {
+    return isPromotionDisabled;
+  }
+
+  public void setPromotionDisabled(boolean promotionDisabled) {
+    isPromotionDisabled = promotionDisabled;
+  }
 
   public void rememberNotificationOnSecretsBeenSent() {
     setSecretsNeverBeenAnalysed(false);
@@ -148,6 +160,14 @@ public final class SonarLintGlobalSettings {
     this.rulesByKey = new HashMap<>(rules);
   }
 
+  public boolean isFocusOnNewCode() {
+    return isFocusOnNewCode;
+  }
+
+  public void setFocusOnNewCode(boolean focusOnNewCode) {
+    isFocusOnNewCode = focusOnNewCode;
+  }
+
   public boolean isAutoTrigger() {
     return autoTrigger;
   }
@@ -173,7 +193,7 @@ public final class SonarLintGlobalSettings {
   public void setServerConnections(List<ServerConnection> servers) {
     this.servers = servers.stream()
       .filter(s -> !SonarLintUtils.isBlank(s.getName()))
-      .collect(Collectors.toUnmodifiableList());
+      .toList();
   }
 
   public Optional<ServerConnection> getServerConnectionByName(String name) {
@@ -241,7 +261,7 @@ public final class SonarLintGlobalSettings {
   public List<ServerConnection> getConnectionsTo(String serverUrl) {
     return servers.stream()
       .filter(it -> equalsIgnoringTrailingSlash(it.getHostUrl(), serverUrl))
-      .collect(Collectors.toList());
+      .toList();
   }
 
   public static class Rule {

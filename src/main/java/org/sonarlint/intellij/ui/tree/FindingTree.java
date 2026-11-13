@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -58,11 +58,10 @@ public abstract class FindingTree extends Tree {
   @CheckForNull
   protected VirtualFile getSelectedFile() {
     var node = getSelectedNode();
-    if (!(node instanceof FileNode)) {
-      return null;
+    if (node instanceof FileNode fileNode) {
+      return fileNode.file();
     }
-    var fileNode = (FileNode) node;
-    return fileNode.file();
+    return null;
   }
 
   @CheckForNull

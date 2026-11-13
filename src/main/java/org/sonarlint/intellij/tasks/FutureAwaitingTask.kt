@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -46,11 +46,11 @@ open class FutureAwaitingTask<T>(
             }
             return try {
                 future.get(100, TimeUnit.MILLISECONDS)
-            } catch (t: TimeoutException) {
+            } catch (_: TimeoutException) {
                 continue
-            } catch (e: InterruptedException) {
+            } catch (_: InterruptedException) {
                 throw InterruptedException("Interrupted")
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 throw InterruptedException("Operation cancelled")
             } catch (e: ExecutionException) {
                 throw e.cause ?: e

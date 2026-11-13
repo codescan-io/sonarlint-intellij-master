@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,11 +27,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.sonarsource.sonarlint.core.commons.Language;
-
 public interface AnalysisConfigurator {
   // Name is constructed from plugin-id.extension-point-name
-  ExtensionPointName<AnalysisConfigurator> EP_NAME = ExtensionPointName.create("com.code-scan.intellij.analysisConfiguration");
+  ExtensionPointName<AnalysisConfigurator> EP_NAME = ExtensionPointName.create("org.sonarlint.idea.analysisConfiguration");
 
   AnalysisConfiguration configure(Module module, Collection<VirtualFile> filesToAnalyze);
 
@@ -45,8 +43,6 @@ public interface AnalysisConfigurator {
     /**
      * Force the language of a file, instead of relying on default language detection mechanism (based on file suffixes)
      */
-    public final Map<VirtualFile, Language> forcedLanguages = new HashMap<>();
-
-
+    public final Map<VirtualFile, ForcedLanguage> forcedLanguages = new HashMap<>();
   }
 }

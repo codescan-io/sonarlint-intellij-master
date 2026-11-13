@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@ import com.intellij.codeInsight.daemon.impl.HighlightInfo
 import com.intellij.codeInsight.daemon.impl.HighlightInfoType
 import com.intellij.codeInsight.daemon.impl.UpdateHighlightersUtil
 import com.intellij.lang.annotation.HighlightSeverity
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
@@ -33,13 +34,15 @@ import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.JBColor
+import java.awt.Font
+import java.util.function.Consumer
+import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.computeReadActionSafely
 import org.sonarlint.intellij.config.SonarLintTextAttributes
 import org.sonarlint.intellij.finding.Flow
 import org.sonarlint.intellij.finding.LiveFinding
 import org.sonarlint.intellij.finding.Location
 import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability
-import java.awt.Font
-import java.util.function.Consumer
+import org.sonarlint.intellij.ui.UiUtils.Companion.runOnUiThread
 
 private const val HIGHLIGHT_GROUP_ID = 1001
 
@@ -49,9 +52,12 @@ class EditorDecorator(private val project: Project) {
     private var blinker: RangeBlinker? = null
 
     fun removeHighlights() {
+        ApplicationManager.getApplication().assertIsDispatchThread()
         currentHighlightedDoc.forEach {
             clearSecondaryLocationNumbers(it)
-            UpdateHighlightersUtil.setHighlightersToEditor(project, it, 0, it.textLength, emptyList(), null, HIGHLIGHT_GROUP_ID)
+            UpdateHighlightersUtil.setHighlightersToEditor(
+                project, it, 0, it.textLength, emptyList(), null, HIGHLIGHT_GROUP_ID
+            )
         }
         currentHighlightedDoc.clear()
         stopBlinking()
@@ -82,6 +88,12 @@ class EditorDecorator(private val project: Project) {
         finding.context().ifPresent { displaySecondaryLocationNumbers(it.flows()[0], null) }
     }
 
+    fun highlightRange(range: RangeMarker) {
+        createHighlight(range, null)?.let {
+            updateHighlights(listOf(it))
+        }
+    }
+
     fun highlight(vulnerability: LocalTaintVulnerability) {
         val highlights = createHighlights(vulnerability.flows[0].locations)
         createHighlight(vulnerability.rangeMarker(), vulnerability.message())?.let(highlights::add)
@@ -105,12 +117,14 @@ class EditorDecorator(private val project: Project) {
     }
 
     private fun updateHighlights(highlights: List<Highlight>) {
-        removeHighlights()
-        highlights.groupBy({ it.document }, { it.highlightInfo })
-            .forEach { (doc, hs) ->
-                highlightInDocument(hs, doc)
-                blinkLocations(hs, doc)
-            }
+        runOnUiThread(project) {
+            removeHighlights()
+            highlights.groupBy({ it.document }, { it.highlightInfo })
+                .forEach { (doc, hs) ->
+                    highlightInDocument(hs, doc)
+                    blinkLocations(hs, doc)
+                }
+        }
     }
 
     private fun highlightInDocument(highlights: List<HighlightInfo?>, document: Document) {
@@ -134,8 +148,14 @@ class EditorDecorator(private val project: Project) {
             return
         }
         val marker = location.range!!
-        getEditors(marker.document)
-            .forEach { it.inlayModel.addInlineElement(marker.startOffset, SecondaryLocationIndexRenderer(location, index, selected)) }
+        runOnUiThread(project) {
+            getEditors(marker.document).forEach {
+                it.inlayModel.addInlineElement(
+                    marker.startOffset,
+                    SecondaryLocationIndexRenderer(location, index, selected)
+                )
+            }
+        }
     }
 
     private fun getEditors(document: Document): List<Editor> {
@@ -153,7 +173,7 @@ class EditorDecorator(private val project: Project) {
     }
 
     fun isActiveInEditor(editor: Editor): Boolean {
-        return currentHighlightedDoc.contains(editor.document)
+        return editor.document in currentHighlightedDoc
     }
 
     private fun createHighlights(locations: List<Location>): MutableList<Highlight> {
@@ -176,9 +196,9 @@ class EditorDecorator(private val project: Project) {
             .severity(HighlightSeverity.ERROR)
             .textAttributes(SonarLintTextAttributes.SELECTED)
         if (!message.isNullOrEmpty() && "..." != message) {
-            builder.descriptionAndTooltip("CodeScan: $message")
+            builder.descriptionAndTooltip("SonarQube: $message")
         }
-        return builder.create()?.let { Highlight(location.document, it) }
+        return builder.create()?.let { hl -> computeReadActionSafely { Highlight(location.document, hl) } }
     }
 
     class Highlight(val document: Document, val highlightInfo: HighlightInfo)

@@ -1,11 +1,10 @@
 plugins {
     id("org.jetbrains.intellij")
-    id("com.github.hierynomus.license")
     kotlin("jvm")
 }
 
 group = "org.sonarsource.sonarlint.intellij.its"
-description = "ITs for CodeScan IntelliJ"
+description = "ITs for SonarLint IntelliJ"
 
 java {
     toolchain {
@@ -20,51 +19,57 @@ val compileTestKotlin: org.jetbrains.kotlin.gradle.tasks.KotlinCompile by tasks
 compileTestKotlin.kotlinOptions.jvmTarget = "17"
 
 repositories {
-    maven("https://repox.jfrog.io/repox/sonarsource")
     maven("https://packages.jetbrains.team/maven/p/ij/intellij-dependencies")
     mavenCentral()
 }
 
-val remoteRobotVersion = "0.11.19"
-
 dependencies {
-    testImplementation("org.sonarsource.orchestrator:sonar-orchestrator:3.40.0.183") {
+    testImplementation("org.sonarsource.orchestrator:sonar-orchestrator-junit5:5.1.0.2254") {
         exclude(group = "org.slf4j", module = "log4j-over-slf4j")
     }
-    testImplementation("org.sonarsource.slang:sonar-scala-plugin:1.8.3.2219")
-    testImplementation("org.sonarsource.sonarqube:sonar-ws:9.9.0.65466")
-    testImplementation("com.intellij.remoterobot:remote-robot:$remoteRobotVersion")
-    testImplementation("com.intellij.remoterobot:remote-fixtures:$remoteRobotVersion")
+    testImplementation(libs.its.sonar.scala)
+    testImplementation(libs.its.sonar.ws)
+    testImplementation(libs.bundles.its.remote)
     testImplementation(libs.junit.api)
-    testRuntimeOnly(libs.junit.engine)
-    // Needed for https://github.com/gradle/gradle/issues/22333
-    testRuntimeOnly(libs.junit.launcher)
     testImplementation(libs.assertj.core)
+    testRuntimeOnly(libs.junit.engine)
 }
 
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        val tag = System.getenv("TEST_SUITE")
+
+        if (tag != null && (tag == "OpenInIdeTests" || tag == "ConnectedAnalysisTests"
+                || tag == "ConfigurationTests" || tag == "Standalone")
+        ) {
+            includeTags(tag)
+        }
+    }
     testLogging.showStandardStreams = true
 }
 
 license {
-    mapping(
-        mapOf(
-            "kt" to "SLASHSTAR_STYLE"
-        )
-    )
     // exclude file from resources (workaround for https://github.com/hierynomus/license-gradle-plugin/issues/145)
     exclude("**.xml")
 }
 
 tasks.downloadRobotServerPlugin {
-    version.set(remoteRobotVersion)
+    version.set(libs.versions.its.remote)
 }
 
 val ijVersion: String by project
 
 intellij {
-    version.set(if (project.hasProperty("ijVersion")) ijVersion else rootProject.intellij.version.get())
+    if (project.hasProperty("ijVersion")) {
+        version.set(ijVersion)
+    } else {
+        if (rootProject.intellij.version.isPresent) {
+            version.set(rootProject.intellij.version.get())
+        } else {
+            localPath.set(rootProject.intellij.localPath.get())
+            localSourcesPath.set(rootProject.intellij.localSourcesPath.get())
+        }
+    }
     pluginName.set("sonarlint-intellij-its")
     updateSinceUntilBuild.set(false)
     if (!project.hasProperty("slPluginDirectory")) {
@@ -76,8 +81,11 @@ intellij {
 val runIdeDirectory: String by project
 
 tasks.runIdeForUiTests {
+    systemProperty("sonarlint.internal.sonarcloud.url", "https://sc-staging.io")
+    systemProperty("sonarlint.internal.sonarcloud.websocket.url", "wss://events-api.sc-staging.io/")
     systemProperty("robot-server.port", "8082")
     systemProperty("sonarlint.telemetry.disabled", "true")
+    systemProperty("sonarlint.logs.verbose", "true")
     systemProperty("idea.trust.all.projects", "true")
     systemProperty("ide.show.tips.on.startup.default.value", "false")
     systemProperty("jb.privacy.policy.text", "<!--999.999-->")

@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -52,13 +52,19 @@ public class RulesTreeTable extends TreeTable {
     this.treeTableModel = treeTableModel;
 
     setUpColumns();
-    setListeners();
+    installListeners();
 
     getTableHeader().setReorderingAllowed(false);
     getEmptyText().setText("No rules available");
   }
 
-  private void setListeners() {
+  private void installListeners() {
+    installDoubleClickListener();
+    installKeyboardListener();
+    installMouseListener();
+  }
+
+  private void installDoubleClickListener() {
     new DoubleClickListener() {
       @Override
       protected boolean onDoubleClick(MouseEvent event) {
@@ -72,7 +78,9 @@ public class RulesTreeTable extends TreeTable {
         return true;
       }
     }.installOn(this);
+  }
 
+  private void installKeyboardListener() {
     registerKeyboardAction(e -> {
       final var path = getTree().getPathForRow(getTree().getLeadSelectionRow());
       if (path != null) {
@@ -80,7 +88,9 @@ public class RulesTreeTable extends TreeTable {
       }
       updateUI();
     }, KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), JComponent.WHEN_FOCUSED);
+  }
 
+  private void installMouseListener() {
     addMouseMotionListener(new MouseAdapter() {
       @Override
       public void mouseMoved(final MouseEvent e) {
@@ -97,12 +107,13 @@ public class RulesTreeTable extends TreeTable {
 
         var obj = path.getLastPathComponent();
 
-        if (obj instanceof RulesTreeNode.Rule) {
-          var rule = (RulesTreeNode.Rule) obj;
-          var label = new JLabel();
-          var severityAndType = rule.severity() + " " + rule.type();
-          label.setText(StringUtil.capitalize(severityAndType.replace('_', ' ').toLowerCase(Locale.US)));
-          IdeTooltipManager.getInstance().show(new IdeTooltip(RulesTreeTable.this, point, label), false);
+        if (obj instanceof RulesTreeNode.Rule rule && (rule.getHighestQuality() != null && rule.getHighestImpact() != null)) {
+            var label = new JLabel();
+            var qualityText = StringUtil.capitalize(rule.getHighestQuality().toString().toLowerCase(Locale.ENGLISH));
+            var impactText = StringUtil.capitalize(rule.getHighestImpact().getLabel().toLowerCase(Locale.ENGLISH));
+            var text = impactText + " impact on " + qualityText;
+            label.setText(StringUtil.capitalize(text.replace('_', ' ').toLowerCase(Locale.ENGLISH)));
+            IdeTooltipManager.getInstance().show(new IdeTooltip(RulesTreeTable.this, point, label), false);
         }
       }
     });
@@ -132,7 +143,8 @@ public class RulesTreeTable extends TreeTable {
         return value;
       }
     });
-    iconsColumn.setMaxWidth(JBUI.scale(40));
+
+    iconsColumn.setMaxWidth(JBUI.scale(20));
   }
 
   private static int getAdditionalPadding() {

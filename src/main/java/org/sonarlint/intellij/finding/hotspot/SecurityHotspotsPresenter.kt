@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -37,8 +37,8 @@ class SecurityHotspotsPresenter(private val project: Project) {
     fun presentSecurityHotspotsForOpenFiles() {
         getService(BackendService::class.java)
             .checkLocalSecurityHotspotDetectionSupported(project)
-            .thenApply { response -> if (response.isSupported) Supported else NotSupported(response.reason!!) }
-            .thenAccept { status ->
+            .thenApplyAsync { response -> if (response.isSupported) Supported else NotSupported(response.reason!!) }
+            .thenAcceptAsync { status ->
                 runOnUiThread(project) {
                     getService(project, SonarLintToolWindow::class.java).populateSecurityHotspotsTab(status)
                     if (status is Supported) {

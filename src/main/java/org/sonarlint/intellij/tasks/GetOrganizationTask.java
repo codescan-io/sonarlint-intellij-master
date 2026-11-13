@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,9 +26,10 @@ import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.core.BackendService;
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.OrganizationDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.OrganizationDto;
 
 import static org.sonarlint.intellij.util.ProgressUtils.waitForFuture;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.computeOnPooledThreadWithoutCatching;
 
 public class GetOrganizationTask extends Task.Modal {
   private final ServerConnection server;
@@ -38,21 +39,22 @@ public class GetOrganizationTask extends Task.Modal {
   private OrganizationDto organization;
 
   public GetOrganizationTask(ServerConnection server, String organizationKey) {
-    super(null, "Fetch Organization From CodeScanCloud", true);
+    super(null, "Fetch Organization From SonarQube Cloud", true);
     this.server = server;
     this.organizationKey = organizationKey;
   }
 
   @Override
   public void run(@NotNull ProgressIndicator indicator) {
-    indicator.setText("Connecting to CodeScanCloud...");
-    indicator.setIndeterminate(false);
-
+    indicator.setIndeterminate(true);
     try {
       indicator.setText("Searching organization");
-      organization = waitForFuture(indicator, SonarLintUtils.getService(BackendService.class).getOrganization(server, organizationKey)).getOrganization();
+      organization = computeOnPooledThreadWithoutCatching("Get User Organization Task",
+        () -> waitForFuture(indicator, SonarLintUtils.getService(BackendService.class).getOrganization(server, organizationKey)).getOrganization());
     } catch (Exception e) {
-      SonarLintConsole.get(myProject).error("Failed to fetch organizations", e);
+      if (myProject != null) {
+        SonarLintConsole.get(myProject).error("Failed to fetch organization", e);
+      }
       exception = e;
     }
   }

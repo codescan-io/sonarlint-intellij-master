@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,17 +21,19 @@ package org.sonarlint.intellij.clion;
 
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.vfs.VirtualFile;
-
 import java.util.Collection;
-
+import org.sonarlint.intellij.clion.common.AnalyzerConfiguration;
+import org.sonarlint.intellij.clion.common.BuildWrapperJsonGenerator;
 import org.sonarlint.intellij.common.analysis.AnalysisConfigurator;
+import org.sonarlint.intellij.common.ui.SonarLintConsole;
 
 public class CFamilyAnalysisConfigurator implements AnalysisConfigurator {
 
   @Override
   public AnalysisConfiguration configure(Module module, Collection<VirtualFile> filesToAnalyze) {
+    SonarLintConsole.get(module.getProject()).debug("Running CFamily analysis configurator for CLion");
     var result = new AnalysisConfiguration();
-    var analyzerConfiguration = new AnalyzerConfiguration(module.getProject());
+    var analyzerConfiguration = new CLionAnalyzerConfiguration(module.getProject());
     var buildWrapperJsonGenerator = new BuildWrapperJsonGenerator();
     filesToAnalyze.stream()
       .map(analyzerConfiguration::getConfiguration)
@@ -39,8 +41,8 @@ public class CFamilyAnalysisConfigurator implements AnalysisConfigurator {
       .map(AnalyzerConfiguration.ConfigurationResult::getConfiguration)
       .forEach(configuration -> {
         buildWrapperJsonGenerator.add(configuration);
-        if (configuration.sonarLanguage != null) {
-          result.forcedLanguages.put(configuration.virtualFile, configuration.sonarLanguage);
+        if (configuration.sonarLanguage() != null) {
+          result.forcedLanguages.put(configuration.virtualFile(), configuration.sonarLanguage());
         }
       });
     result.extraProperties.put("sonar.cfamily.build-wrapper-content", buildWrapperJsonGenerator.build());

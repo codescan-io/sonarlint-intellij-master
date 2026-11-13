@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,11 +19,12 @@
  */
 package org.sonarlint.intellij.its.utils
 
-import com.sonar.orchestrator.Orchestrator
-import com.sonar.orchestrator.OrchestratorBuilder
 import com.sonar.orchestrator.build.MavenBuild
 import com.sonar.orchestrator.build.SonarScanner
 import com.sonar.orchestrator.container.Server
+import com.sonar.orchestrator.junit5.OrchestratorExtension
+import com.sonar.orchestrator.junit5.OrchestratorExtensionBuilder
+import org.sonarlint.intellij.its.utils.ItUtils.SONAR_VERSION
 import org.sonarqube.ws.client.HttpConnector
 import org.sonarqube.ws.client.WsClient
 import org.sonarqube.ws.client.WsClientFactories
@@ -32,15 +33,16 @@ import org.sonarqube.ws.client.usertokens.GenerateRequest
 import java.io.File
 
 class OrchestratorUtils {
+
     companion object {
         private const val SONARLINT_USER = "sonarlint"
         private const val SONARLINT_PWD = "sonarlintpwd"
 
-        fun defaultBuilderEnv(): OrchestratorBuilder {
-            return Orchestrator.builderEnv()
+        fun defaultBuilderEnv(): OrchestratorExtensionBuilder {
+            return OrchestratorExtension.builderEnv()
                 .defaultForceAuthentication()
                 .useDefaultAdminCredentialsForBuilds(true)
-                .setSonarVersion(ItUtils.SONAR_VERSION)
+                .setSonarVersion(SONAR_VERSION)
         }
 
         fun newAdminWsClientWithUser(server: Server): WsClient {
@@ -51,12 +53,12 @@ class OrchestratorUtils {
                     .build()
             )
             wsClient.users()
-                .create(CreateRequest().setLogin(SONARLINT_USER).setPassword(SONARLINT_PWD).setName("CodeScan"))
+                .create(CreateRequest().setLogin(SONARLINT_USER).setPassword(SONARLINT_PWD).setName("SonarLint"))
 
-            return wsClient;
+            return wsClient
         }
 
-        fun executeBuildWithMaven(filePath: String, orchestrator: Orchestrator) {
+        fun executeBuildWithMaven(filePath: String, orchestrator: OrchestratorExtension) {
             orchestrator.executeBuild(
                 MavenBuild.create(File(filePath))
                     .setCleanPackageSonarGoals()
@@ -65,7 +67,7 @@ class OrchestratorUtils {
             )
         }
 
-        fun executeBuildWithSonarScanner(filePath: String, orchestrator: Orchestrator, projectKey: String) {
+        fun executeBuildWithSonarScanner(filePath: String, orchestrator: OrchestratorExtension, projectKey: String) {
             orchestrator.executeBuild(
                 SonarScanner.create(File(filePath))
                     .setProperty("sonar.login", SONARLINT_USER)
@@ -74,10 +76,12 @@ class OrchestratorUtils {
             )
         }
 
-        fun generateToken(wsClient: WsClient) : String {
+        fun generateTokenNameAndValue(wsClient: WsClient, userName: String): Pair<String, String> {
             val generateRequest = GenerateRequest()
-            generateRequest.name = "TestUser"
-            return wsClient.userTokens().generate(generateRequest).token
+            generateRequest.name = "TestUser_$userName"
+            val response = wsClient.userTokens().generate(generateRequest)
+            return Pair(response.name, response.token)
         }
     }
+
 }

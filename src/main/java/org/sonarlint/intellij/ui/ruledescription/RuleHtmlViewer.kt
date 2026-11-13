@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,7 @@ package org.sonarlint.intellij.ui.ruledescription
 import com.intellij.ui.BrowserHyperlinkListener
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.JBPanel
+import com.intellij.util.ui.HTMLEditorKitBuilder
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.SwingHelper
 import com.intellij.util.ui.UIUtil
@@ -38,7 +39,7 @@ class RuleHtmlViewer(scrollable: Boolean) : JBPanel<RuleHtmlViewer>(BorderLayout
             caret = DefaultCaret()
         }
         (caret as DefaultCaret).updatePolicy = DefaultCaret.NEVER_UPDATE
-        editorKit = UIUtil.getHTMLEditorKit()
+        editorKit = HTMLEditorKitBuilder.simple()
         border = JBUI.Borders.empty(10)
         isEditable = false
         isOpaque = false
@@ -67,6 +68,5 @@ class RuleHtmlViewer(scrollable: Boolean) : JBPanel<RuleHtmlViewer>(BorderLayout
     fun updateHtml(html: String) {
         SwingHelper.setHtml(editor, html, UIUtil.getLabelForeground())
     }
-
 
 }

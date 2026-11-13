@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,6 +26,11 @@ import com.intellij.openapi.project.Project
 class UiUtils {
     companion object {
         @JvmStatic
+        fun runOnUiThread(modality: ModalityState, runnable: Runnable) {
+            ApplicationManager.getApplication().invokeLater(runnable, modality)
+        }
+
+        @JvmStatic
         fun runOnUiThread(project: Project, runnable: Runnable) {
             runOnUiThread(project, ModalityState.defaultModalityState(), runnable)
         }
@@ -40,12 +45,12 @@ class UiUtils {
         }
 
         @JvmStatic
-        fun runOnUiThreadAndWait(project: Project, runnable: Runnable) {
-            ApplicationManager.getApplication().invokeAndWait {
+        fun runOnUiThreadAndWait(project: Project, modality: ModalityState, runnable: Runnable) {
+            ApplicationManager.getApplication().invokeAndWait({
                 if (!project.isDisposed) {
                     runnable.run()
                 }
-            }
+            }, modality)
         }
     }
 }

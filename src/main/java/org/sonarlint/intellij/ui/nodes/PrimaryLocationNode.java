@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,6 +20,7 @@
 package org.sonarlint.intellij.ui.nodes;
 
 import com.intellij.openapi.editor.RangeMarker;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.util.ui.JBUI;
 import javax.annotation.CheckForNull;
@@ -30,15 +31,17 @@ import org.sonarlint.intellij.ui.tree.TreeCellRenderer;
 public class PrimaryLocationNode extends AbstractNode {
   private final String message;
   private final Flow associatedFlow;
+  private final VirtualFile file;
   private final Integer number;
   private final RangeMarker rangeMarker;
   private boolean bold = false;
 
-  public PrimaryLocationNode(RangeMarker rangeMarker, @Nullable String message, Flow associatedFlow) {
-    this(null, rangeMarker, message, associatedFlow);
+  public PrimaryLocationNode(VirtualFile file, RangeMarker rangeMarker, @Nullable String message, Flow associatedFlow) {
+    this(file, null, rangeMarker, message, associatedFlow);
   }
 
-  protected PrimaryLocationNode(@Nullable Integer number, RangeMarker rangeMarker, @Nullable String message, Flow associatedFlow) {
+  protected PrimaryLocationNode(@Nullable VirtualFile file, @Nullable Integer number, RangeMarker rangeMarker, @Nullable String message, Flow associatedFlow) {
+    this.file = file;
     this.number = number;
     this.rangeMarker = rangeMarker;
     this.message = message;
@@ -63,7 +66,7 @@ public class PrimaryLocationNode extends AbstractNode {
   }
 
   @Override public void render(TreeCellRenderer renderer) {
-    renderer.setIpad(JBUI.insets(3, 3, 3, 3));
+    renderer.setIpad(JBUI.insets(3));
     renderer.setBorder(null);
     renderer.append(issueCoordinates(), bold ? SimpleTextAttributes.GRAYED_BOLD_ATTRIBUTES : SimpleTextAttributes.GRAY_ATTRIBUTES);
     if (number != null) {
@@ -76,7 +79,7 @@ public class PrimaryLocationNode extends AbstractNode {
   }
 
   private String issueCoordinates() {
-    return formatRangeMarker(rangeMarker);
+    return formatRangeMarker(file, rangeMarker);
   }
 
   @Override

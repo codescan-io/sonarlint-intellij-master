@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,7 +21,7 @@ package org.sonarlint.intellij.ui.tree;
 
 import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiFile;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -29,35 +29,45 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import javax.annotation.Nullable;
 import javax.swing.tree.DefaultTreeModel;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.sonarlint.intellij.AbstractSonarLintLightTests;
 import org.sonarlint.intellij.finding.issue.LiveIssue;
 import org.sonarlint.intellij.ui.nodes.AbstractNode;
-import org.sonarsource.sonarlint.core.client.api.common.analysis.Issue;
-import org.sonarsource.sonarlint.core.commons.CleanCodeAttribute;
-import org.sonarsource.sonarlint.core.commons.ImpactSeverity;
-import org.sonarsource.sonarlint.core.commons.IssueSeverity;
-import org.sonarsource.sonarlint.core.commons.RuleType;
-import org.sonarsource.sonarlint.core.commons.SoftwareQuality;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.ImpactDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.RaisedIssueDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.CleanCodeAttribute;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Either;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.IssueSeverity;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.MQRModeDetails;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.RuleType;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.StandardModeDetails;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.sonarsource.sonarlint.core.commons.ImpactSeverity.HIGH;
-import static org.sonarsource.sonarlint.core.commons.ImpactSeverity.LOW;
-import static org.sonarsource.sonarlint.core.commons.IssueSeverity.MAJOR;
-import static org.sonarsource.sonarlint.core.commons.IssueSeverity.MINOR;
-import static org.sonarsource.sonarlint.core.commons.SoftwareQuality.MAINTAINABILITY;
+import static org.sonarsource.sonarlint.core.rpc.protocol.common.ImpactSeverity.BLOCKER;
+import static org.sonarsource.sonarlint.core.rpc.protocol.common.ImpactSeverity.HIGH;
+import static org.sonarsource.sonarlint.core.rpc.protocol.common.ImpactSeverity.INFO;
+import static org.sonarsource.sonarlint.core.rpc.protocol.common.ImpactSeverity.LOW;
+import static org.sonarsource.sonarlint.core.rpc.protocol.common.IssueSeverity.MAJOR;
+import static org.sonarsource.sonarlint.core.rpc.protocol.common.IssueSeverity.MINOR;
+import static org.sonarsource.sonarlint.core.rpc.protocol.common.SoftwareQuality.MAINTAINABILITY;
 
-class IssueTreeModelBuilderTests {
-  private final IssueTreeModelBuilder treeBuilder = new IssueTreeModelBuilder();
-  private final DefaultTreeModel model = treeBuilder.createModel();
+class IssueTreeModelBuilderTests extends AbstractSonarLintLightTests {
+  private IssueTreeModelBuilder treeBuilder;
+  private DefaultTreeModel model;
+
+  @BeforeEach
+  void prepare() {
+    treeBuilder = new IssueTreeModelBuilder(getProject());
+    model = treeBuilder.createModel(false);
+  }
 
   @Test
   void createModel() {
-    var model = treeBuilder.createModel();
     assertThat(model.getRoot()).isNotNull();
   }
 
@@ -71,7 +81,7 @@ class IssueTreeModelBuilderTests {
     addFile(data, "file2", 2);
     addFile(data, "file3", 2);
 
-    treeBuilder.updateModel(data, "empty");
+    treeBuilder.updateModel(data);
     var first = treeBuilder.getNextIssue((AbstractNode) model.getRoot());
     assertThat(first).isNotNull();
 
@@ -91,8 +101,8 @@ class IssueTreeModelBuilderTests {
     var list = new ArrayList<LiveIssue>();
 
     list.add(mockIssuePointer(100, "rule1", MAJOR, null));
-    list.add(mockIssuePointer(100, "rule2", MAJOR, 1000L));
-    list.add(mockIssuePointer(100, "rule3", MINOR, 2000L));
+    list.add(mockIssuePointer(100, "rule2", MAJOR, Instant.now().minusSeconds(50)));
+    list.add(mockIssuePointer(100, "rule3", MINOR, Instant.now().minusSeconds(20)));
     list.add(mockIssuePointer(50, "rule4", MINOR, null));
     list.add(mockIssuePointer(100, "rule5", MAJOR, null));
 
@@ -107,17 +117,19 @@ class IssueTreeModelBuilderTests {
   void testIssueComparatorNewCct() {
     var list = new ArrayList<LiveIssue>();
 
-    list.add(mockIssuePointer(100, "rule1", Map.of(MAINTAINABILITY, HIGH), null));
-    list.add(mockIssuePointer(100, "rule2", Map.of(MAINTAINABILITY, HIGH), 1000L));
-    list.add(mockIssuePointer(100, "rule3", Map.of(MAINTAINABILITY, LOW), 2000L));
-    list.add(mockIssuePointer(50, "rule4", Map.of(MAINTAINABILITY, LOW), null));
-    list.add(mockIssuePointer(100, "rule5", Map.of(MAINTAINABILITY, HIGH), null));
+    list.add(mockIssuePointer(100, "rule1", List.of(new ImpactDto(MAINTAINABILITY, HIGH)), null));
+    list.add(mockIssuePointer(100, "rule2", List.of(new ImpactDto(MAINTAINABILITY, HIGH)), Instant.now().minusSeconds(50)));
+    list.add(mockIssuePointer(100, "rule3", List.of(new ImpactDto(MAINTAINABILITY, LOW)), Instant.now().minusSeconds(20)));
+    list.add(mockIssuePointer(50, "rule4", List.of(new ImpactDto(MAINTAINABILITY, LOW)), null));
+    list.add(mockIssuePointer(100, "rule5", List.of(new ImpactDto(MAINTAINABILITY, HIGH)), null));
+    list.add(mockIssuePointer(100, "rule6", List.of(new ImpactDto(MAINTAINABILITY, INFO)), null));
+    list.add(mockIssuePointer(100, "rule7", List.of(new ImpactDto(MAINTAINABILITY, BLOCKER)), null));
 
     var sorted = new ArrayList<>(list);
     sorted.sort(new IssueTreeModelBuilder.IssueComparator());
 
     // criteria: creation date (most recent, nulls last), getImpact (highest first), rule alphabetically
-    assertThat(sorted).containsExactly(list.get(2), list.get(1), list.get(0), list.get(4), list.get(3));
+    assertThat(sorted).containsExactly(list.get(2), list.get(1), list.get(6), list.get(0), list.get(4), list.get(3), list.get(5));
   }
 
   private void addFile(Map<VirtualFile, Collection<LiveIssue>> data, String fileName, int numIssues) {
@@ -128,43 +140,40 @@ class IssueTreeModelBuilderTests {
     var issueList = new LinkedList<LiveIssue>();
 
     for (var i = 0; i < numIssues; i++) {
-      issueList.add(mockIssuePointer(i, "rule" + i, MAJOR, (long) i));
+      issueList.add(mockIssuePointer(i, "rule" + i, MAJOR, Instant.now()));
     }
 
     data.put(file, issueList);
   }
 
-  private static LiveIssue mockIssuePointer(int startOffset, String rule, IssueSeverity severity, @Nullable Long introductionDate) {
-    var psiFile = mock(PsiFile.class);
-    when(psiFile.isValid()).thenReturn(true);
+  private LiveIssue mockIssuePointer(int startOffset, String rule, IssueSeverity severity, @Nullable Instant introductionDate) {
+    var file = mock(VirtualFile.class);
+    when(file.isValid()).thenReturn(true);
 
-    var issue = mock(Issue.class);
+    var issue = mock(RaisedIssueDto.class);
     when(issue.getRuleKey()).thenReturn(rule);
-    when(issue.getSeverity()).thenReturn(severity);
-    when(issue.getType()).thenReturn(RuleType.BUG);
+    when(issue.getSeverityMode()).thenReturn(Either.forLeft(new StandardModeDetails(severity, RuleType.BUG)));
 
     var marker = mock(RangeMarker.class);
     when(marker.getStartOffset()).thenReturn(startOffset);
 
-    var liveIssue = new LiveIssue(issue, psiFile, Collections.emptyList());
+    var liveIssue = new LiveIssue(getModule(), issue, file, Collections.emptyList());
     liveIssue.setIntroductionDate(introductionDate);
     return liveIssue;
   }
 
-  private static LiveIssue mockIssuePointer(int startOffset, String rule, Map<SoftwareQuality, ImpactSeverity> impacts, @Nullable Long introductionDate) {
-    var psiFile = mock(PsiFile.class);
-    when(psiFile.isValid()).thenReturn(true);
+  private LiveIssue mockIssuePointer(int startOffset, String rule, List<ImpactDto> impacts, @Nullable Instant introductionDate) {
+    var file = mock(VirtualFile.class);
+    when(file.isValid()).thenReturn(true);
 
-    var issue = mock(Issue.class);
+    var issue = mock(RaisedIssueDto.class);
     when(issue.getRuleKey()).thenReturn(rule);
-    when(issue.getType()).thenReturn(RuleType.BUG);
-    when(issue.getCleanCodeAttribute()).thenReturn(Optional.of(CleanCodeAttribute.defaultCleanCodeAttribute()));
-    when(issue.getImpacts()).thenReturn(impacts);
+    when(issue.getSeverityMode()).thenReturn(Either.forRight(new MQRModeDetails(CleanCodeAttribute.CONVENTIONAL, impacts)));
 
     var marker = mock(RangeMarker.class);
     when(marker.getStartOffset()).thenReturn(startOffset);
 
-    var liveIssue = new LiveIssue(issue, psiFile, Collections.emptyList());
+    var liveIssue = new LiveIssue(getModule(), issue, file, Collections.emptyList());
     liveIssue.setIntroductionDate(introductionDate);
     return liveIssue;
   }

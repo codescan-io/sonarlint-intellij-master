@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -34,6 +34,8 @@ public class CurrentFileStatusPanel extends JBPanel<CurrentFileStatusPanel> {
 
   private final Project project;
 
+  public static final String HELP_TEXT = "SonarQube for IDE analyzes in real-time the active file only, and reports any issues found in this view. ";
+
   CurrentFileStatusPanel(Project project) {
     super(new BorderLayout());
     this.project = project;
@@ -41,12 +43,15 @@ public class CurrentFileStatusPanel extends JBPanel<CurrentFileStatusPanel> {
   }
 
   private void createPanel() {
-    add(new AutoTriggerStatusPanel(project).getPanel(), BorderLayout.CENTER);
+    add(new AutoTriggerStatusPanel(project).getPanel(), BorderLayout.WEST);
+
+    add(new WhatsInThisViewPanel(project, HELP_TEXT).getPanel(), BorderLayout.CENTER);
+
     add(new CurrentFileConnectedModePanel(project).getPanel(), BorderLayout.EAST);
   }
 
   static void subscribeToEventsThatAffectCurrentFile(Project project, Runnable runnable) {
-    var busConnection = project.getMessageBus().connect(project);
+    var busConnection = project.getMessageBus().connect();
     busConnection.subscribe(GlobalConfigurationListener.TOPIC, new GlobalConfigurationListener.Adapter() {
       @Override
       public void applied(SonarLintGlobalSettings previousSettings, SonarLintGlobalSettings newSettings) {

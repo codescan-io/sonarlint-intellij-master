@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -47,7 +47,7 @@ class RiderAnalysisConfigurator : AnalysisConfigurator {
         }
         val msBuildPathStr = module.project.solution.activeMsBuildPath.value
         if (msBuildPathStr != null) {
-            val msBuildPath = Paths.get(msBuildPathStr);
+            val msBuildPath = Paths.get(msBuildPathStr)
             result.extraProperties["sonar.cs.internal.msBuildPath"] = if (msBuildPath.isFile()) msBuildPath.parent.toString() else msBuildPath.toString()
         }
         return result

@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -45,13 +45,13 @@ class DisableRuleIntentionActionTests extends AbstractSonarLintLightTests {
 
   @Test
   void text_should_mention_rule_key() {
-    assertThat(quickFix.getText()).isEqualTo("CodeScan: Disable rule 'rule'");
+    assertThat(quickFix.getText()).isEqualTo("SonarQube: Disable rule 'rule'");
   }
 
   @Test
   void check_getters() {
     assertThat(quickFix.getIcon(0)).isEqualTo(AllIcons.Actions.Cancel);
-    assertThat(quickFix.getFamilyName()).isEqualTo("CodeScan disable rule");
+    assertThat(quickFix.getFamilyName()).isEqualTo("SonarQube disable rule");
     assertThat(quickFix.startInWriteAction()).isFalse();
   }
 

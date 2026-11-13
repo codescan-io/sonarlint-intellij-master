@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,5 +23,5 @@ import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import org.sonarsource.sonarlint.plugin.api.module.file.ModuleFileEvent
 
 fun interface VirtualFileSystemEventsHandler {
-    fun forwardEventsAsync(events: List<VFileEvent>, eventTypeConverter: (VFileEvent) -> ModuleFileEvent.Type?, fileEventsNotifier: ModuleFileEventsNotifier)
+    fun forwardEventsAsync(events: List<VFileEvent>, eventTypeConverter: (VFileEvent) -> ModuleFileEvent.Type?)
 }

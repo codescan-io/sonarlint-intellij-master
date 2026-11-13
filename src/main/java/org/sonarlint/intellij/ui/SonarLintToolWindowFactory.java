@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -39,13 +39,14 @@ import org.sonarlint.intellij.ui.vulnerabilities.TaintVulnerabilitiesPanel;
 
 import static org.sonarlint.intellij.actions.SonarLintToolWindow.buildTabName;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 /**
- * Factory of CodeScan tool window.
+ * Factory of SonarLint tool window.
  * Nothing can be injected as it runs in the root pico container.
  */
 public class SonarLintToolWindowFactory implements ToolWindowFactory {
-  public static final String TOOL_WINDOW_ID = "CodeScan";
+  public static final String TOOL_WINDOW_ID = "SonarQube for IDE";
   public static final String LOG_TAB_TITLE = "Log";
   public static final String CURRENT_FILE_TAB_TITLE = "Current File";
   public static final String REPORT_TAB_TITLE = "Report";
@@ -54,17 +55,19 @@ public class SonarLintToolWindowFactory implements ToolWindowFactory {
 
   @Override
   public void createToolWindowContent(Project project, final ToolWindow toolWindow) {
-    var contentManager = toolWindow.getContentManager();
-    addCurrentFileTab(project, contentManager);
-    addReportTab(project, contentManager);
-    var sonarLintToolWindow = getService(project, SonarLintToolWindow.class);
-    addSecurityHotspotsTab(project, contentManager);
-    if (SonarLintUtils.isTaintVulnerabilitiesEnabled()) {
-      addTaintVulnerabilitiesTab(project, contentManager);
-    }
-    addLogTab(project, toolWindow);
-    toolWindow.setType(ToolWindowType.DOCKED, null);
-    contentManager.addContentManagerListener(sonarLintToolWindow);
+    runOnUiThread(project, () -> {
+      var contentManager = toolWindow.getContentManager();
+      addCurrentFileTab(project, contentManager);
+      addReportTab(project, contentManager);
+      var sonarLintToolWindow = getService(project, SonarLintToolWindow.class);
+      addSecurityHotspotsTab(project, contentManager);
+      if (SonarLintUtils.isTaintVulnerabilitiesEnabled()) {
+        addTaintVulnerabilitiesTab(project, contentManager);
+      }
+      addLogTab(project, toolWindow);
+      toolWindow.setType(ToolWindowType.DOCKED, null);
+      contentManager.addContentManagerListener(sonarLintToolWindow);
+    });
   }
 
   public static JBSplitter createSplitter(Project project, JComponent parentComponent, Disposable parentDisposable, JComponent c1, JComponent c2, String proportionProperty,

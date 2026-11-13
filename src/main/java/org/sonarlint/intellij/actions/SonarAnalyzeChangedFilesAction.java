@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -25,9 +25,13 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vcs.changes.ChangeListManager;
 import javax.swing.Icon;
 import org.jetbrains.annotations.Nullable;
-import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
+import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.core.BackendService;
+
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class SonarAnalyzeChangedFilesAction extends AbstractSonarAction {
   public SonarAnalyzeChangedFilesAction() {
@@ -43,7 +47,8 @@ public class SonarAnalyzeChangedFilesAction extends AbstractSonarAction {
       return false;
     }
     var changeListManager = ChangeListManager.getInstance(project);
-    return !changeListManager.getAffectedFiles().isEmpty();
+    var backendIsAlive = getService(BackendService.class).isAlive();
+    return !changeListManager.getAffectedFiles().isEmpty() && backendIsAlive;
   }
 
   @Override
@@ -58,6 +63,6 @@ public class SonarAnalyzeChangedFilesAction extends AbstractSonarAction {
       return;
     }
 
-    SonarLintUtils.getService(project, AnalysisSubmitter.class).analyzeVcsChangedFiles();
+    runOnPooledThread(project, () -> SonarLintUtils.getService(project, AnalysisSubmitter.class).analyzeVcsChangedFiles());
   }
 }

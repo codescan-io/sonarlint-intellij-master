@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@ public class FlowSecondaryLocationNode extends PrimaryLocationNode {
   private final Location secondaryLocation;
 
   public FlowSecondaryLocationNode(@Nullable Integer number, Location secondaryLocation, Flow parentFlow) {
-    super(number, secondaryLocation.getRange(), secondaryLocation.getMessage(), parentFlow);
+    super(secondaryLocation.getFile(), number, secondaryLocation.getRange(), secondaryLocation.getMessage(), parentFlow);
     this.secondaryLocation = secondaryLocation;
   }
 

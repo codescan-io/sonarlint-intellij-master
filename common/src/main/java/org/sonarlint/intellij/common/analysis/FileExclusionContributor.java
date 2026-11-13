@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 
 public interface FileExclusionContributor {
   // Name is constructed from plugin-id.extension-point-name
-  ExtensionPointName<FileExclusionContributor> EP_NAME = ExtensionPointName.create("com.code-scan.intellij.fileExclusionContributor");
+  ExtensionPointName<FileExclusionContributor> EP_NAME = ExtensionPointName.create("org.sonarlint.idea.fileExclusionContributor");
 
   ExcludeResult shouldExclude(Module module, VirtualFile filesToAnalyze);
 

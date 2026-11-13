@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,7 +20,7 @@
 package org.sonarlint.intellij.ui.ruledescription.section
 
 import org.sonarlint.intellij.util.GlobalLogOutput
-import org.sonarsource.sonarlint.core.commons.log.ClientLogOutput
+import org.sonarsource.sonarlint.core.client.utils.ClientLogOutput
 
 class Section {
     val fragments: MutableList<SectionFragment> = mutableListOf()

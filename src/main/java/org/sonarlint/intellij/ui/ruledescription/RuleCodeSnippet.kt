@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,13 +23,13 @@ import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.diff.tools.util.base.TextDiffSettingsHolder
 import com.intellij.diff.util.DiffUtil
-import com.intellij.ide.highlighter.HighlighterFactory
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.editor.ex.EditorEx
+import com.intellij.openapi.editor.highlighter.EditorHighlighterFactory
 import com.intellij.openapi.editor.markup.HighlighterTargetArea
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.progress.EmptyProgressIndicator
@@ -39,11 +39,11 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.DocumentUtil
 import com.intellij.util.ui.JBUI
+import java.awt.BorderLayout
 import org.sonarlint.intellij.config.SonarLintTextAttributes.DIFF_ADDITION
 import org.sonarlint.intellij.config.SonarLintTextAttributes.DIFF_REMOVAL
 import org.sonarlint.intellij.ui.ruledescription.section.CodeExampleFragment
 import org.sonarlint.intellij.ui.ruledescription.section.CodeExampleType
-import java.awt.BorderLayout
 
 
 class RuleCodeSnippet(private val project: Project, fileTypeFromRule: FileType, private val codeExampleFragment: CodeExampleFragment) :
@@ -74,6 +74,8 @@ class RuleCodeSnippet(private val project: Project, fileTypeFromRule: FileType, 
         settings.isRightMarginShown = false
         settings.isCaretRowShown = false
         settings.isLineNumbersShown = false
+        settings.isVirtualSpace = false
+        settings.isAdditionalPageAtBottom = false
         editor.setCaretEnabled(false)
         editor.contextMenuGroupId = null
 
@@ -90,7 +92,7 @@ class RuleCodeSnippet(private val project: Project, fileTypeFromRule: FileType, 
         document.replaceString(0, document.textLength, text)
         val scheme = EditorColorsManager.getInstance().globalScheme
         myEditor.highlighter =
-            HighlighterFactory.createHighlighter(fileType, scheme, project)
+            EditorHighlighterFactory.getInstance().createEditorHighlighter(fileType, scheme, project)
 
         if (codeExampleFragment.diffTarget != null) {
             val provider = DiffUtil.createTextDiffProvider(

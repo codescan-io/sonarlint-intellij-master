@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,23 +19,24 @@
  */
 package org.sonarlint.intellij.config.global.rules;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import javax.swing.tree.DefaultMutableTreeNode;
-import org.sonarsource.sonarlint.core.client.api.standalone.StandaloneRuleDetails;
-import org.sonarsource.sonarlint.core.client.api.standalone.StandaloneRuleParam;
-import org.sonarsource.sonarlint.core.client.api.standalone.StandaloneRuleParamType;
-import org.sonarsource.sonarlint.core.commons.IssueSeverity;
-import org.sonarsource.sonarlint.core.commons.RuleType;
+import org.sonarsource.sonarlint.core.client.utils.CleanCodeAttribute;
+import org.sonarsource.sonarlint.core.client.utils.ImpactSeverity;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.ImpactDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.RuleDefinitionDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Language;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.SoftwareQuality;
 
 public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
+
   protected Boolean activated;
 
   public Iterable<T> childrenIterable() {
@@ -66,11 +67,11 @@ public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
     return activated;
   }
 
-  public static class Language extends RulesTreeNode<RulesTreeNode.Rule> {
+  public static class LanguageNode extends RulesTreeNode<RulesTreeNode.Rule> {
     private final String label;
     private boolean nonDefault;
 
-    public Language(String label) {
+    public LanguageNode(String label) {
       this.label = label;
     }
 
@@ -89,7 +90,7 @@ public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
     }
   }
 
-  public static class Root extends RulesTreeNode<RulesTreeNode.Language> {
+  public static class Root extends RulesTreeNode<LanguageNode> {
     @Override
     public String toString() {
       return "root";
@@ -102,21 +103,22 @@ public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
   }
 
   public static class Rule extends RulesTreeNode {
-    private final StandaloneRuleDetails details;
+    private final RuleDefinitionDto details;
     private final Map<String, String> nonDefaultParams;
+    private final SoftwareQuality highestQuality;
+    private final ImpactSeverity highestImpact;
 
-    public Rule(StandaloneRuleDetails details, boolean activated, Map<String, String> nonDefaultParams) {
+    public Rule(RuleDefinitionDto details, boolean activated, Map<String, String> nonDefaultParams) {
       this.details = details;
       this.activated = activated;
       this.nonDefaultParams = new HashMap<>(nonDefaultParams);
+      var highestQualityImpact = details.getSoftwareImpacts().stream().max(Comparator.comparing(ImpactDto::getImpactSeverity));
+      this.highestQuality = highestQualityImpact.map(ImpactDto::getSoftwareQuality).orElse(null);
+      this.highestImpact = highestQualityImpact.map(ImpactDto::getImpactSeverity).map(ImpactSeverity::fromDto).orElse(null);
     }
 
     public String getKey() {
       return details.getKey();
-    }
-
-    public String getHtmlDescription() {
-      return details.getHtmlDescription();
     }
 
     public String getName() {
@@ -127,15 +129,16 @@ public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
       return details.isActiveByDefault();
     }
 
-    public IssueSeverity severity() {
-      return details.getDefaultSeverity();
+    public CleanCodeAttribute attribute() {
+      var cleanCodeAttribute = details.getCleanCodeAttribute();
+      return cleanCodeAttribute == null ? null : CleanCodeAttribute.fromDto(cleanCodeAttribute);
     }
 
-    public RuleType type() {
-      return details.getType();
+    public List<ImpactDto> impacts() {
+      return details.getSoftwareImpacts();
     }
 
-    public org.sonarsource.sonarlint.core.commons.Language language() {
+    public Language language() {
       return details.getLanguage();
     }
 
@@ -149,17 +152,6 @@ public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
       return getName();
     }
 
-    public boolean hasParameters() {
-      return !getParamDetails().isEmpty();
-    }
-
-    public List<RuleParam> getParamDetails() {
-      return details.paramDetails()
-              .stream()
-              .map(RuleParam::new)
-              .collect(Collectors.toList());
-    }
-
     public Map<String, String> getCustomParams() {
       return nonDefaultParams;
     }
@@ -169,40 +161,24 @@ public abstract class RulesTreeNode<T> extends DefaultMutableTreeNode {
       if (this == o) {
         return true;
       }
-      if (!(o instanceof Rule)) {
-        return false;
+      if (o instanceof Rule rule) {
+        return details.getKey().equals(rule.details.getKey()) && activated == rule.activated && nonDefaultParams.equals(rule.nonDefaultParams);
       }
-      var rule = (Rule) o;
-      return details.getKey().equals(rule.details.getKey()) && activated == rule.activated && nonDefaultParams.equals(rule.nonDefaultParams);
+      return false;
     }
 
     @Override
     public int hashCode() {
       return Objects.hash(details.getKey(), activated, nonDefaultParams);
     }
-  }
-  public static class RuleParam {
-    final String key;
-    final String name;
-    final String description;
-    final StandaloneRuleParamType type;
-    final boolean isMultiple;
-    @CheckForNull
-    final String defaultValue;
-    final String[] options;
 
-    public RuleParam(StandaloneRuleParam p) {
-      this(p.key(), p.name(), p.description(), p.type(), p.multiple(), p.defaultValue(), p.possibleValues().toArray(new String[0]));
+    public SoftwareQuality getHighestQuality() {
+      return highestQuality;
     }
 
-    public RuleParam(String key, String name, String description, StandaloneRuleParamType type, boolean isMultiple, @Nullable String defaultValue, String... options) {
-      this.key = key;
-      this.name = name;
-      this.description = description;
-      this.type = type;
-      this.isMultiple = isMultiple;
-      this.defaultValue = defaultValue;
-      this.options = options;
+    public ImpactSeverity getHighestImpact() {
+      return highestImpact;
     }
   }
+
 }

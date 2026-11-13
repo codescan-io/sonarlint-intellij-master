@@ -1,7 +1,7 @@
 <!--
 
-    CodeScan for IntelliJ IDEA
-    Copyright (C) 2015-2023 SonarSource SA
+    SonarLint for IntelliJ IDEA
+    Copyright (C) 2015-2024 SonarSource
     sonarlint@sonarsource.com
 
     This program is free software; you can redistribute it and/or
@@ -19,9 +19,10 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
 
 -->
-<idea-plugin xmlns:xi="http://www.w3.org/2001/XInclude">
+<idea-plugin>
     <extensions defaultExtensionNs="org.sonarlint.idea">
         <analysisConfiguration implementation="org.sonarlint.intellij.rider.RiderAnalysisConfigurator"/>
-        <languageActivator implementation="org.sonarlint.intellij.rider.CsharpLanguageActivator"/>
+        <filesContributor implementation="org.sonarlint.intellij.rider.RiderFilesContributor"/>
+        <vcsProvider implementation="org.sonarlint.intellij.rider.RiderSolutionGitRepoProvider"/>
     </extensions>
 </idea-plugin>

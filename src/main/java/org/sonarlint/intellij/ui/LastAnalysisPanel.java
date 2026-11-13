@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@ import java.time.Instant;
 import javax.annotation.Nullable;
 import javax.swing.Box;
 import javax.swing.Timer;
-import org.sonarsource.sonarlint.core.client.api.util.DateUtils;
+import org.sonarlint.intellij.util.DateUtils;
 
 public class LastAnalysisPanel extends JBPanel<LastAnalysisPanel> {
 

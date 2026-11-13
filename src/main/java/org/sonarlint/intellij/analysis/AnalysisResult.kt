@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,11 +20,13 @@
 package org.sonarlint.intellij.analysis
 
 import com.intellij.openapi.vfs.VirtualFile
+import java.time.Instant
+import java.util.UUID
 import org.sonarlint.intellij.finding.LiveFindings
 import org.sonarlint.intellij.trigger.TriggerType
-import java.time.Instant
 
 data class AnalysisResult(
+    val analysisId: UUID?,
     val findings: LiveFindings,
     val analyzedFiles: MutableCollection<out VirtualFile>,
     val triggerType: TriggerType,

@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,21 +19,27 @@
  */
 package org.sonarlint.intellij.analysis
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import java.net.URI
+import java.util.concurrent.ConcurrentHashMap
 import org.sonarlint.intellij.actions.SonarLintToolWindow
 import org.sonarlint.intellij.common.util.SonarLintUtils
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.editor.CodeAnalyzerRestarter
+import org.sonarlint.intellij.finding.LiveFinding
 import org.sonarlint.intellij.finding.LiveFindings
+import org.sonarlint.intellij.finding.RawIssueAdapter
 import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot
 import org.sonarlint.intellij.finding.issue.LiveIssue
 import org.sonarlint.intellij.ui.UiUtils.Companion.runOnUiThread
-import java.util.concurrent.ConcurrentHashMap
+import org.sonarlint.intellij.util.VirtualFileUtils.uriToVirtualFile
+import org.sonarsource.sonarlint.core.rpc.protocol.client.hotspot.RaisedHotspotDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.RaisedIssueDto
 
 class OnTheFlyFindingsHolder(private val project: Project) : FileEditorManagerListener {
     private var selectedFile: VirtualFile? = null
@@ -41,7 +47,6 @@ class OnTheFlyFindingsHolder(private val project: Project) : FileEditorManagerLi
     private val currentSecurityHotspotsPerOpenFile: MutableMap<VirtualFile, Collection<LiveSecurityHotspot>> = ConcurrentHashMap()
 
     init {
-        ApplicationManager.getApplication().invokeAndWait { selectedFile = SonarLintUtils.getSelectedFile(project) }
         project.messageBus.connect()
             .subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, this)
     }
@@ -53,17 +58,56 @@ class OnTheFlyFindingsHolder(private val project: Project) : FileEditorManagerLi
         updateViewsWithNewFindings(intermediateResult.findings)
 
     private fun updateViewsWithNewFindings(findings: LiveFindings) {
-        with(findings.onlyFor(openFiles)) {
-            currentIssuesPerOpenFile.putAll(issuesPerFile)
-            currentSecurityHotspotsPerOpenFile.putAll(securityHotspotsPerFile)
+        if (selectedFile == null) {
             runOnUiThread(project) {
-                if (issuesPerFile.keys.contains(selectedFile)) {
-                    updateCurrentFileTab()
-                }
-                updateSecurityHotspots()
-                getService(project, CodeAnalyzerRestarter::class.java).refreshFiles(filesInvolved)
+                selectedFile = SonarLintUtils.getSelectedFile(project)
             }
         }
+        // Temporary workaround as FileEditorManager.openFiles does not return open files on dev containers/SSH
+        val openedFiles = openFiles.ifEmpty { setOfNotNull(selectedFile) }
+        with(findings.onlyFor(openedFiles)) {
+            currentIssuesPerOpenFile.putAll(issuesPerFile)
+            currentSecurityHotspotsPerOpenFile.putAll(securityHotspotsPerFile)
+        }
+        updateCurrentFileTab()
+        updateSecurityHotspots()
+        getService(project, CodeAnalyzerRestarter::class.java).refreshFiles(findings.onlyFor(openedFiles).filesInvolved)
+    }
+
+    fun updateViewsWithNewIssues(module: Module, raisedIssues: Map<URI, List<RaisedIssueDto>>) {
+        val issues = raisedIssues.mapNotNull { (uri, rawIssues) ->
+            val virtualFile = uriToVirtualFile(uri) ?: return
+            val liveIssues = rawIssues.mapNotNull {
+                RawIssueAdapter.toLiveIssue(module, it, virtualFile, null)
+            }
+            virtualFile to liveIssues
+        }.toMap()
+        currentIssuesPerOpenFile.putAll(issues)
+        if (selectedFile == null) {
+            runOnUiThread(project) {
+                selectedFile = SonarLintUtils.getSelectedFile(project)
+            }
+        }
+        updateCurrentFileTab()
+        getService(project, CodeAnalyzerRestarter::class.java).refreshFiles(issues.keys)
+    }
+
+    fun updateViewsWithNewSecurityHotspots(module: Module, raisedSecurityHotspots: Map<URI, List<RaisedHotspotDto>>) {
+        val securityHotspots = raisedSecurityHotspots.mapNotNull { (uri, rawSecurityHotspots) ->
+            val virtualFile = uriToVirtualFile(uri) ?: return
+            val liveIssues = rawSecurityHotspots.mapNotNull {
+                RawIssueAdapter.toLiveSecurityHotspot(module, it, virtualFile, null)
+            }
+            virtualFile to liveIssues
+        }.toMap().filterKeys { it in openFiles }
+        currentSecurityHotspotsPerOpenFile.putAll(securityHotspots)
+        if (selectedFile == null) {
+            runOnUiThread(project) {
+                selectedFile = SonarLintUtils.getSelectedFile(project)
+            }
+        }
+        updateSecurityHotspots()
+        getService(project, CodeAnalyzerRestarter::class.java).refreshFiles(securityHotspots.keys)
     }
 
     override fun selectionChanged(event: FileEditorManagerEvent) {
@@ -76,6 +120,9 @@ class OnTheFlyFindingsHolder(private val project: Project) : FileEditorManagerLi
         currentSecurityHotspotsPerOpenFile.remove(file)
         // update only Security Hotspots, issues will be updated in reaction to selectionChanged
         updateSecurityHotspots()
+        if (currentIssuesPerOpenFile.isEmpty()) {
+            updateCurrentFileTab()
+        }
     }
 
     private fun updateSecurityHotspots() {
@@ -94,7 +141,22 @@ class OnTheFlyFindingsHolder(private val project: Project) : FileEditorManagerLi
         }
     }
 
+    fun getFindingsForFile(file: VirtualFile): Collection<LiveFinding> {
+        return currentIssuesPerOpenFile[file]?.plus(currentSecurityHotspotsPerOpenFile[file] ?: emptyList()) ?: emptyList()
+    }
+
+    fun getIssuesForFile(file: VirtualFile): Collection<LiveIssue> {
+        return currentIssuesPerOpenFile[file] ?: emptyList()
+    }
+
+    fun getSecurityHotspotsForFile(file: VirtualFile): Collection<LiveSecurityHotspot> {
+        return currentSecurityHotspotsPerOpenFile[file] ?: emptyList()
+    }
+
     fun clearCurrentFile() {
+        if (selectedFile == null) {
+            selectedFile = SonarLintUtils.getSelectedFile(project)
+        }
         if (selectedFile != null) {
             currentIssuesPerOpenFile.remove(selectedFile)
         }

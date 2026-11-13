@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,7 +19,7 @@
  */
 package org.sonarlint.intellij
 
-import com.intellij.testFramework.TestRunnerUtil
+import com.intellij.testFramework.UITestUtil
 import com.intellij.testFramework.runInEdtAndWait
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.junit.jupiter.api.extension.InvocationInterceptor
@@ -30,7 +30,7 @@ import java.lang.reflect.Method
 class RunInEdtInterceptor : InvocationInterceptor {
     companion object {
         init {
-            TestRunnerUtil.replaceIdeEventQueueSafely();
+            UITestUtil.replaceIdeEventQueueSafely()
         }
     }
 

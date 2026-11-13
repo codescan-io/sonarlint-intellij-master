@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -30,7 +30,7 @@ class DisableBindingSuggestionsAction : NotificationAction("Don't ask again") {
     override fun actionPerformed(e: AnActionEvent, notification: Notification) {
         notification.expire()
         val project = e.project!!
-        getSettingsFor(project).setBindingSuggestionsEnabled(false)
+        getSettingsFor(project).isBindingSuggestionsEnabled = false
         getService(BackendService::class.java).bindingSuggestionsDisabled(project)
     }
 }

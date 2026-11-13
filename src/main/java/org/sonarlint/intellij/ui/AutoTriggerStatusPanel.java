@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +23,9 @@ import com.intellij.codeInsight.hint.HintManager;
 import com.intellij.codeInsight.hint.HintUtil;
 import com.intellij.ide.PowerSaveMode;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.HyperlinkAdapter;
 import com.intellij.ui.HyperlinkLabel;
 import com.intellij.ui.awt.RelativePoint;
@@ -31,7 +33,9 @@ import com.intellij.util.ui.JBUI;
 import java.awt.CardLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import javax.swing.Box;
 import javax.swing.Icon;
 import javax.swing.JLabel;
@@ -41,19 +45,22 @@ import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.SonarLintIcons;
 import org.sonarlint.intellij.analysis.LocalFileExclusions;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarlint.intellij.exception.InvalidBindingException;
+import org.sonarlint.intellij.core.BackendService;
 
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
+import static org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile;
 import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class AutoTriggerStatusPanel {
+
   private static final String AUTO_TRIGGER_ENABLED = "AUTO_TRIGGER_ENABLED";
   private static final String FILE_DISABLED = "FILE_DISABLED";
   private static final String POWER_SAVE_MODE_ENABLED = "POWER_SAVE_MODE_ENABLED";
   private static final String AUTO_TRIGGER_DISABLED = "AUTO_TRIGGER_DISABLED";
 
-  private static final String TOOLTIP = "Some files are not automatically analyzed. Check the CodeScan debug logs for details.";
+  private static final String TOOLTIP = "Some files are not automatically analyzed. Check the SonarQube for IDE debug logs for details.";
 
   private static final String POWER_SAVE_MODE_TOOLTIP = "Disable power save mode for automatic analysis";
 
@@ -65,8 +72,8 @@ public class AutoTriggerStatusPanel {
   public AutoTriggerStatusPanel(Project project) {
     this.project = project;
     createPanel();
-    switchCards();
-    CurrentFileStatusPanel.subscribeToEventsThatAffectCurrentFile(project, this::switchCards);
+    runOnUiThread(project, this::switchCards);
+    CurrentFileStatusPanel.subscribeToEventsThatAffectCurrentFile(project, () -> runOnUiThread(project, this::switchCards));
   }
 
   public JPanel getPanel() {
@@ -88,19 +95,23 @@ public class AutoTriggerStatusPanel {
     if (selectedFile != null) {
       // Computing server exclusions may take time, so lets move from EDT to pooled thread
       runOnPooledThread(project, () -> {
-        var localFileExclusions = SonarLintUtils.getService(project, LocalFileExclusions.class);
-        try {
-          var nonExcluded = localFileExclusions.retainNonExcludedFilesByModules(Collections.singleton(selectedFile), false, (f, r) -> switchCard(FILE_DISABLED));
+        if (!getService(BackendService.class).isAlive()) {
+          switchCard(AUTO_TRIGGER_DISABLED);
+          return;
+        }
 
-          if (PowerSaveMode.isEnabled()) {
-            switchCard(POWER_SAVE_MODE_ENABLED);
+        if (PowerSaveMode.isEnabled()) {
+          switchCard(POWER_SAVE_MODE_ENABLED);
+        } else {
+          var localFileExclusions = getService(project, LocalFileExclusions.class);
+          var nonExcluded = localFileExclusions.retainNonExcludedFilesByModules(Collections.singleton(selectedFile), false, (f, r) -> {
+          });
+
+          if (nonExcluded.isEmpty()) {
+            switchCard(FILE_DISABLED);
+          } else {
+            handleExcludedFiles(selectedFile, nonExcluded);
           }
-          if (!nonExcluded.isEmpty()) {
-            switchCard(AUTO_TRIGGER_ENABLED);
-          }
-        } catch (InvalidBindingException e) {
-          // not much we can do, analysis won't run anyway. Notification about it was shown by SonarLintEngineManager
-          switchCard(AUTO_TRIGGER_ENABLED);
         }
       });
     } else {
@@ -108,12 +119,27 @@ public class AutoTriggerStatusPanel {
     }
   }
 
+  private void handleExcludedFiles(VirtualFile selectedFile, Map<Module, Collection<VirtualFile>> nonExcluded) {
+    var module = findModuleForFile(selectedFile, project);
+    if (!nonExcluded.isEmpty() && module != null) {
+      var files = nonExcluded.get(module);
+      var excludedFilesFromServer = getService(BackendService.class).getExcludedFiles(module, files);
+      files.removeAll(excludedFilesFromServer);
+
+      if (files.isEmpty()) {
+        switchCard(FILE_DISABLED);
+        return;
+      }
+    }
+    switchCard(AUTO_TRIGGER_ENABLED);
+  }
+
   private void createPanel() {
     layout = new CardLayout();
     panel = new JPanel(layout);
 
     var gc = new GridBagConstraints(GridBagConstraints.RELATIVE, 0, 1, 1, 0, 0, GridBagConstraints.WEST, GridBagConstraints.NONE,
-      JBUI.insets(2, 2, 2, 2), 0, 0);
+      JBUI.insets(2), 0, 0);
 
     var enabledCard = new JPanel(new GridBagLayout());
     var disabledCard = new JPanel(new GridBagLayout());

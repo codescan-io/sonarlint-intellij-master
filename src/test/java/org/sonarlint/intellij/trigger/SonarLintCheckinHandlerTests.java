@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,37 +27,45 @@ import com.intellij.openapi.vfs.VirtualFile;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.UUID;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.sonarlint.intellij.AbstractSonarLintLightTests;
 import org.sonarlint.intellij.actions.SonarLintToolWindow;
 import org.sonarlint.intellij.analysis.AnalysisResult;
+import org.sonarlint.intellij.analysis.AnalysisState;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
+import org.sonarlint.intellij.analysis.RunningAnalysesTracker;
+import org.sonarlint.intellij.callable.CheckInCallable;
 import org.sonarlint.intellij.finding.LiveFindings;
 import org.sonarlint.intellij.finding.issue.LiveIssue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class SonarLintCheckinHandlerTests extends AbstractSonarLintLightTests {
-  private SonarLintCheckinHandler handler;
-  private CompletableFuture<Void> future = new CompletableFuture<>();
 
-  private VirtualFile file = mock(VirtualFile.class);
-  private AnalysisSubmitter analysisSubmitter = mock(AnalysisSubmitter.class);
-  private SonarLintToolWindow toolWindow = mock(SonarLintToolWindow.class);
-  private CheckinProjectPanel checkinProjectPanel = mock(CheckinProjectPanel.class);
+  private final VirtualFile file = mock(VirtualFile.class);
+  private final AnalysisSubmitter analysisSubmitter = mock(AnalysisSubmitter.class);
+  private final RunningAnalysesTracker runningAnalysesTracker = mock(RunningAnalysesTracker.class);
+  private final SonarLintToolWindow toolWindow = mock(SonarLintToolWindow.class);
+  private final CheckinProjectPanel checkinProjectPanel = mock(CheckinProjectPanel.class);
+  private final CheckInCallable checkInCallable = mock(CheckInCallable.class);
+  private SonarLintCheckinHandler handler;
 
   @BeforeEach
   void prepare() {
     replaceProjectService(AnalysisSubmitter.class, analysisSubmitter);
+    replaceProjectService(RunningAnalysesTracker.class, runningAnalysesTracker);
     replaceProjectService(SonarLintToolWindow.class, toolWindow);
 
     when(checkinProjectPanel.getVirtualFiles()).thenReturn(Collections.singleton(file));
@@ -65,27 +73,39 @@ class SonarLintCheckinHandlerTests extends AbstractSonarLintLightTests {
 
   @Test
   void testNoUnresolvedIssues() {
-    future.complete(null);
+    var uuid = UUID.randomUUID();
+    var analysisState = new AnalysisState(uuid, checkInCallable, Collections.singleton(file), getModule(), TriggerType.CHECK_IN, null);
     var issue = mock(LiveIssue.class);
     when(issue.isResolved()).thenReturn(true);
-    when(analysisSubmitter.analyzeFilesPreCommit(Collections.singleton(file))).thenReturn(new AnalysisResult(new LiveFindings(Map.of(file, Set.of(issue)),
-      Collections.emptyMap()), Set.of(file), TriggerType.CHECK_IN, Instant.now()));
+    when(checkInCallable.analysisSucceeded()).thenReturn(true);
+    when(checkInCallable.getResults())
+      .thenReturn(List.of(new AnalysisResult(null, new LiveFindings(Map.of(file, Set.of(issue)), Collections.emptyMap()), Set.of(file), TriggerType.CHECK_IN, Instant.now())));
+    when(runningAnalysesTracker.getById(uuid)).thenReturn(analysisState);
+    when(runningAnalysesTracker.getById(uuid)).thenReturn(null);
+    when(analysisSubmitter.analyzeFilesPreCommit(Collections.singleton(file)))
+      .thenReturn(Pair.of(checkInCallable, List.of(uuid)));
 
     handler = new SonarLintCheckinHandler(getProject(), checkinProjectPanel);
     var result = handler.beforeCheckin(null, null);
 
     assertThat(result).isEqualTo(CheckinHandler.ReturnResult.COMMIT);
-    verify(analysisSubmitter).analyzeFilesPreCommit(Collections.singleton(file));
+    verify(analysisSubmitter, timeout(1000)).analyzeFilesPreCommit(Collections.singleton(file));
     verifyNoInteractions(toolWindow);
   }
 
   @Test
   void testIssues() {
-    future.complete(null);
+    var uuid = UUID.randomUUID();
+    var analysisState = new AnalysisState(uuid, checkInCallable, Collections.singleton(file), getModule(), TriggerType.CHECK_IN, null);
     var issue = mock(LiveIssue.class);
     when(issue.getRuleKey()).thenReturn("java:S123");
-    when(analysisSubmitter.analyzeFilesPreCommit(Collections.singleton(file))).thenReturn(new AnalysisResult(new LiveFindings(Map.of(file, Set.of(issue)),
-      Collections.emptyMap()), Set.of(file), TriggerType.CHECK_IN, Instant.now()));
+    when(checkInCallable.analysisSucceeded()).thenReturn(true);
+    when(checkInCallable.getResults())
+      .thenReturn(List.of(new AnalysisResult(null, new LiveFindings(Map.of(file, Set.of(issue)), Collections.emptyMap()), Set.of(file), TriggerType.CHECK_IN, Instant.now())));
+    when(runningAnalysesTracker.getById(uuid)).thenReturn(analysisState);
+    when(runningAnalysesTracker.getById(uuid)).thenReturn(null);
+    when(analysisSubmitter.analyzeFilesPreCommit(Collections.singleton(file)))
+      .thenReturn(Pair.of(checkInCallable, List.of(uuid)));
 
     handler = new SonarLintCheckinHandler(getProject(), checkinProjectPanel);
     var messages = new ArrayList<>();
@@ -96,21 +116,28 @@ class SonarLintCheckinHandlerTests extends AbstractSonarLintLightTests {
     var result = handler.beforeCheckin(null, null);
 
     assertThat(result).isEqualTo(CheckinHandler.ReturnResult.CLOSE_WINDOW);
-    assertThat(messages).containsExactly("SonarLint analysis on 1 file found 1 issue");
+    assertThat(messages).containsExactly("SonarQube for IDE analysis on 1 file found 1 issue");
     ArgumentCaptor<AnalysisResult> analysisResultCaptor = ArgumentCaptor.forClass(AnalysisResult.class);
-    verify(toolWindow).openReportTab(analysisResultCaptor.capture());
+    verify(toolWindow, timeout(1000)).openReportTab(analysisResultCaptor.capture());
     var analysisResult = analysisResultCaptor.getValue();
     assertThat(analysisResult.getFindings().getIssuesPerFile()).containsEntry(file, Set.of(issue));
-    verify(analysisSubmitter).analyzeFilesPreCommit(Collections.singleton(file));
+    verify(analysisSubmitter, timeout(1000)).analyzeFilesPreCommit(Collections.singleton(file));
+
   }
 
   @Test
   void testSecretsIssues() {
-    future.complete(null);
+    var uuid = UUID.randomUUID();
+    var analysisState = new AnalysisState(uuid, checkInCallable, Collections.singleton(file), getModule(), TriggerType.CHECK_IN, null);
     var issue = mock(LiveIssue.class);
     when(issue.getRuleKey()).thenReturn("secrets:S123");
-    when(analysisSubmitter.analyzeFilesPreCommit(Collections.singleton(file))).thenReturn(new AnalysisResult(new LiveFindings(Map.of(file, Set.of(issue)),
-      Collections.emptyMap()), Set.of(file), TriggerType.CHECK_IN, Instant.now()));
+    when(checkInCallable.analysisSucceeded()).thenReturn(true);
+    when(checkInCallable.getResults())
+      .thenReturn(List.of(new AnalysisResult(null, new LiveFindings(Map.of(file, Set.of(issue)), Collections.emptyMap()), Set.of(file), TriggerType.CHECK_IN, Instant.now())));
+    when(runningAnalysesTracker.getById(uuid)).thenReturn(analysisState);
+    when(runningAnalysesTracker.getById(uuid)).thenReturn(null);
+    when(analysisSubmitter.analyzeFilesPreCommit(Collections.singleton(file)))
+      .thenReturn(Pair.of(checkInCallable, List.of(uuid)));
 
     handler = new SonarLintCheckinHandler(getProject(), checkinProjectPanel);
     var messages = new ArrayList<>();
@@ -121,13 +148,14 @@ class SonarLintCheckinHandlerTests extends AbstractSonarLintLightTests {
     var result = handler.beforeCheckin(null, null);
 
     assertThat(result).isEqualTo(CheckinHandler.ReturnResult.CLOSE_WINDOW);
-    assertThat(messages).containsExactly("SonarLint analysis on 1 file found 1 issue\n" +
-      "\n" +
-      "SonarLint analysis found 1 secret. Committed secrets may lead to unauthorized system access.");
+    assertThat(messages).containsExactly("""
+      SonarQube for IDE analysis on 1 file found 1 issue
+
+      SonarQube for IDE analysis found 1 secret. Committed secrets may lead to unauthorized system access.""");
     ArgumentCaptor<AnalysisResult> analysisResultCaptor = ArgumentCaptor.forClass(AnalysisResult.class);
-    verify(toolWindow).openReportTab(analysisResultCaptor.capture());
+    verify(toolWindow, timeout(1000)).openReportTab(analysisResultCaptor.capture());
     var analysisResult = analysisResultCaptor.getValue();
     assertThat(analysisResult.getFindings().getIssuesPerFile()).containsEntry(file, Set.of(issue));
-    verify(analysisSubmitter).analyzeFilesPreCommit(Collections.singleton(file));
+    verify(analysisSubmitter, timeout(1000)).analyzeFilesPreCommit(Collections.singleton(file));
   }
 }

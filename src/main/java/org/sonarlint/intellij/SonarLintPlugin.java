@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,13 +21,12 @@ package org.sonarlint.intellij;
 
 import com.intellij.ide.plugins.IdeaPluginDescriptor;
 import com.intellij.ide.plugins.PluginManagerCore;
-import com.intellij.openapi.Disposable;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.extensions.PluginId;
 import java.nio.file.Path;
 
 @Service(Service.Level.APP)
-public final class SonarLintPlugin implements Disposable {
+public final class SonarLintPlugin {
   private IdeaPluginDescriptor plugin;
 
   public String getVersion() {
@@ -40,13 +39,8 @@ public final class SonarLintPlugin implements Disposable {
 
   private IdeaPluginDescriptor getPlugin() {
     if (plugin == null) {
-      plugin = PluginManagerCore.getPlugin(PluginId.getId("com.code-scan.intellij"));
+      plugin = PluginManagerCore.getPlugin(PluginId.getId("org.sonarlint.idea"));
     }
     return plugin;
-  }
-
-  @Override
-  public void dispose() {
-    // Nothing to do
   }
 }

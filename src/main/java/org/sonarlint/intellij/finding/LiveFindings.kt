@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -31,8 +31,23 @@ class LiveFindings(
 
     fun onlyFor(files: Set<VirtualFile>): LiveFindings {
         return LiveFindings(
-            issuesPerFile.filterKeys { files.contains(it) },
-            securityHotspotsPerFile.filterKeys { files.contains(it) })
+            issuesPerFile.filterKeys { it in files },
+            securityHotspotsPerFile.filterKeys { it in files })
+    }
+
+    fun merge(other: LiveFindings?): LiveFindings {
+        other ?: return this
+        val mergedIssuesPerFile = issuesPerFile.toMutableMap()
+        other.issuesPerFile.forEach { (file, issues) ->
+            mergedIssuesPerFile.merge(file, issues) { oldIssues, newIssues -> oldIssues + newIssues }
+        }
+
+        val mergedSecurityHotspotsPerFile = securityHotspotsPerFile.toMutableMap()
+        other.securityHotspotsPerFile.forEach { (file, hotspots) ->
+            mergedSecurityHotspotsPerFile.merge(file, hotspots) { oldHotspots, newHotspots -> oldHotspots + newHotspots }
+        }
+
+        return LiveFindings(mergedIssuesPerFile, mergedSecurityHotspotsPerFile)
     }
 
     companion object {

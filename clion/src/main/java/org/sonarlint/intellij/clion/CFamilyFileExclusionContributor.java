@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,18 +26,24 @@ import com.jetbrains.cidr.lang.psi.OCPsiFile;
 import org.sonarlint.intellij.common.analysis.ExcludeResult;
 import org.sonarlint.intellij.common.analysis.FileExclusionContributor;
 
+import static org.sonarlint.intellij.common.util.SonarLintUtils.isCLion;
+
 public class CFamilyFileExclusionContributor implements FileExclusionContributor {
 
   @Override
   public ExcludeResult shouldExclude(Module module, VirtualFile fileToAnalyze) {
+    if (!isCLion()) {
+      return ExcludeResult.notExcluded();
+    }
     var psiFile = PsiManager.getInstance(module.getProject()).findFile(fileToAnalyze);
     if (!(psiFile instanceof OCPsiFile)) {
       return ExcludeResult.notExcluded();
     }
-    var configurationResult = new AnalyzerConfiguration(module.getProject()).getConfiguration(fileToAnalyze);
+    var configurationResult = new CLionAnalyzerConfiguration(module.getProject()).getConfiguration(fileToAnalyze);
     if (configurationResult.hasConfiguration()) {
       return ExcludeResult.notExcluded();
     }
     return ExcludeResult.excluded(configurationResult.getSkipReason());
   }
+
 }

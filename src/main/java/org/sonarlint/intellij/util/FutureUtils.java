@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,35 +22,79 @@ package org.sonarlint.intellij.util;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
 import java.time.Duration;
-import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import javax.annotation.Nullable;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
 
 public class FutureUtils {
 
   private static final long WAITING_FREQUENCY = 100;
+  public static final String TASK_EXPIRED = "task expired";
+  public static final String TASK_FAILED = "task failed";
+
+  @Nullable
+  public static <T> T waitForTask(Future<T> task, String taskName, Duration timeoutDuration) {
+    try {
+      return waitForFutureWithTimeout(task, timeoutDuration);
+    } catch (TimeoutException ex) {
+      task.cancel(true);
+      GlobalLogOutput.get().logError(taskName + " " + TASK_EXPIRED, ex);
+    } catch (InterruptedException ex) {
+      Thread.currentThread().interrupt();
+    } catch (Exception ex) {
+      GlobalLogOutput.get().logError(taskName + " " + TASK_FAILED, ex);
+    }
+    return null;
+  }
+
+  @Nullable
+  public static <T> T waitForTaskWithoutCatching(Future<T> task, String taskName, Duration timeoutDuration) throws TimeoutException, ExecutionException {
+    try {
+      return waitForFutureWithTimeout(task, timeoutDuration);
+    } catch (TimeoutException ex) {
+      task.cancel(true);
+      GlobalLogOutput.get().logError(taskName + " " + TASK_EXPIRED, ex);
+      throw ex;
+    } catch (InterruptedException ex) {
+      Thread.currentThread().interrupt();
+    } catch (Exception ex) {
+      GlobalLogOutput.get().logError(taskName + " " + TASK_FAILED, ex);
+      throw ex;
+    }
+    return null;
+  }
 
   public static void waitForTask(Project project, ProgressIndicator indicator, Future<?> task, String taskName, Duration timeoutDuration) {
     try {
       waitForFutureWithTimeout(indicator, task, timeoutDuration);
     } catch (TimeoutException ex) {
       task.cancel(true);
-      SonarLintConsole.get(project).error(taskName + " task expired", ex);
+      SonarLintConsole.get(project).error(taskName + " " + TASK_EXPIRED, ex);
     } catch (InterruptedException ex) {
       Thread.currentThread().interrupt();
     } catch (Exception ex) {
-      SonarLintConsole.get(project).error(taskName + " task failed", ex);
+      SonarLintConsole.get(project).error(taskName + " " + TASK_FAILED, ex);
     }
   }
 
-  public static void waitForTasks(Project project, ProgressIndicator indicator, List<Future<?>> updateTasks, String taskName) {
-    for (var f : updateTasks) {
-      waitForTask(project, indicator, f, taskName, Duration.ofSeconds(20));
+  private static <T> T waitForFutureWithTimeout(Future<T> future, Duration durationTimeout)
+    throws InterruptedException, ExecutionException, TimeoutException {
+    long counter = 0;
+    while (counter < durationTimeout.toMillis()) {
+      counter += WAITING_FREQUENCY;
+      try {
+        return future.get(WAITING_FREQUENCY, TimeUnit.MILLISECONDS);
+      } catch (TimeoutException ignored) {
+        continue;
+      } catch (InterruptedException | CancellationException e) {
+        throw new InterruptedException("Interrupted");
+      }
     }
+    throw new TimeoutException();
   }
 
   private static void waitForFutureWithTimeout(ProgressIndicator indicator, Future<?> future, Duration durationTimeout)

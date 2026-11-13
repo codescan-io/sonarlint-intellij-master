@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -153,15 +153,12 @@ class JavaAnalysisConfiguratorTests extends AbstractSonarLintLightTests {
   }
 
   private static void addLibrary(Path libraryPath, String libraryName, ModifiableRootModel model, DependencyScope scope, boolean exported) {
-    var lib = PsiTestUtil.addLibrary(model, libraryName, libraryPath.getParent().toString(), libraryPath.getFileName().toString());
+    PsiTestUtil.addLibrary(model, libraryName, libraryPath.getParent().toString(), libraryPath.getFileName().toString());
     // workaround as ModifiableRootModel#findLibraryOrderEntry does not work
     for (OrderEntry entry : model.getOrderEntries()) {
-      if (entry instanceof LibraryOrderEntry) {
-        var libraryEntry = (LibraryOrderEntry) entry;
-        if (libraryName.equals(libraryEntry.getLibraryName())) {
-          libraryEntry.setScope(scope);
-          libraryEntry.setExported(exported);
-        }
+      if (entry instanceof LibraryOrderEntry libraryEntry && libraryName.equals(libraryEntry.getLibraryName())) {
+        libraryEntry.setScope(scope);
+        libraryEntry.setExported(exported);
       }
     }
   }

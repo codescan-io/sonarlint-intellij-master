@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -39,7 +39,7 @@ class SonarLintActionsTests extends AbstractSonarLintLightTests {
 
   @BeforeEach
   void prepare() {
-    when(actionManager.getAction("CodeScan.AnalyzeMenu")).thenReturn(sonarlintAnalyzeMenuGroup);
+    when(actionManager.getAction("SonarLint.AnalyzeMenu")).thenReturn(sonarlintAnalyzeMenuGroup);
     instance = new SonarLintActions(actionManager);
   }
 
@@ -55,6 +55,9 @@ class SonarLintActionsTests extends AbstractSonarLintLightTests {
     assertActionFields(instance.cleanConsole());
     assertActionFields(instance.filterSecurityHotspots());
     assertActionFields(instance.includeResolvedHotspotAction());
+    assertActionFields(instance.includeResolvedIssuesAction());
+    assertActionFields(instance.includeResolvedTaintVulnerabilitiesAction());
+    assertActionFields(instance.analyzeCurrentFileAction());
   }
 
   @Test

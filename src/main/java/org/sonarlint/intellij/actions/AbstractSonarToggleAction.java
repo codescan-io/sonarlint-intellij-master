@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,15 +19,18 @@
  */
 package org.sonarlint.intellij.actions;
 
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
+import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.actionSystem.ToggleAction;
-import com.intellij.openapi.actionSystem.UpdateInBackground;
 import com.intellij.openapi.project.DumbAware;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.NlsActions;
 import javax.swing.Icon;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-// UpdateInBackground is scheduled for removal and comes with a replacement in 2022.2. We have to use it for older versions
-public abstract class AbstractSonarToggleAction extends ToggleAction implements DumbAware, UpdateInBackground {
+public abstract class AbstractSonarToggleAction extends ToggleAction implements DumbAware {
 
   protected AbstractSonarToggleAction() {
     super();
@@ -41,5 +44,27 @@ public abstract class AbstractSonarToggleAction extends ToggleAction implements 
     @Nullable @NlsActions.ActionDescription final String description,
     @Nullable final Icon icon) {
     super(text, description, icon);
+  }
+
+  @Override
+  public @NotNull ActionUpdateThread getActionUpdateThread() {
+    return ActionUpdateThread.BGT;
+  }
+
+  @Override
+  public void update(@NotNull AnActionEvent e) {
+    super.update(e);
+    var p = e.getProject();
+    var presentation = e.getPresentation();
+    if (p == null || !p.isInitialized() || p.isDisposed()) {
+      presentation.setEnabledAndVisible(false);
+      return;
+    }
+    presentation.setVisible(true);
+    updatePresentation(p, presentation);
+  }
+
+  protected void updatePresentation(Project project, Presentation presentation) {
+    // might be overridden
   }
 }

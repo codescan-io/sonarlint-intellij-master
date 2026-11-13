@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,23 +20,37 @@
 package org.sonarlint.intellij.util
 
 import com.intellij.openapi.application.Application
+import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.vfs.VirtualFile
-import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.computeReadActionSafely
+import com.intellij.psi.PsiDocumentManager
 import java.util.concurrent.atomic.AtomicReference
+import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.runReadActionSafely
+import org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile
+import org.sonarlint.intellij.util.SonarLintAppUtils.getRelativePathForAnalysis
 
 fun Project.getOpenFiles() = FileEditorManager.getInstance(this).openFiles.toList()
 
-fun Project.getRelativePathOf(file: VirtualFile) = SonarLintAppUtils.getRelativePathForAnalysis(this, file)
+fun Project.getRelativePathOf(file: VirtualFile) = getRelativePathForAnalysis(this, file)
 
 fun Project.findModuleOf(file: VirtualFile): Module? {
-    return computeReadActionSafely(this) {
-        return@computeReadActionSafely if (!isOpen) null else
-            ProjectFileIndex.SERVICE.getInstance(this).getModuleForFile(file, false)
+    return findModuleForFile(file, this)
+}
+
+fun Project.openFileFrom(rangeMarker: RangeMarker?) {
+    if (rangeMarker == null || !rangeMarker.isValid) {
+        return
+    }
+
+    runReadActionSafely(this) {
+        val psiFile = PsiDocumentManager.getInstance(this).getPsiFile(rangeMarker.document)
+        if (psiFile != null && psiFile.isValid) {
+            OpenFileDescriptor(this, psiFile.virtualFile, rangeMarker.startOffset).navigate(false)
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -48,8 +48,8 @@ public class SonarLintProjectPropertiesPanel {
   public JPanel create() {
     tableModel = new PropertiesTableModel();
     // Unfortunately TableModel's listener does not work properly, it doesn't receive events related to changed cells.
-    final JBTable table = new JBTable(tableModel);
-    table.getEmptyText().setText("No CodeScan properties configured for this project");
+    final var table = new JBTable(tableModel);
+    table.getEmptyText().setText("No SonarQube for IDE properties configured for this project");
 
     var tablePanel = ToolbarDecorator.createDecorator(table)
       .disableUpAction()
@@ -78,14 +78,11 @@ public class SonarLintProjectPropertiesPanel {
 
     @Override
     public String getColumnName(int column) {
-      switch (column) {
-        case 0:
-          return "Property Name";
-        case 1:
-          return "Value";
-        default:
-          return super.getColumnName(column);
-      }
+      return switch (column) {
+        case 0 -> "Property Name";
+        case 1 -> "Value";
+        default -> super.getColumnName(column);
+      };
     }
 
     @Override
@@ -110,14 +107,11 @@ public class SonarLintProjectPropertiesPanel {
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-      switch (columnIndex) {
-        case 0:
-          return myRows.get(rowIndex).key;
-        case 1:
-          return myRows.get(rowIndex).value;
-        default:
-          return null;
-      }
+      return switch (columnIndex) {
+        case 0 -> myRows.get(rowIndex).key;
+        case 1 -> myRows.get(rowIndex).value;
+        default -> null;
+      };
     }
 
     @Override
@@ -174,7 +168,7 @@ public class SonarLintProjectPropertiesPanel {
       if (!options.isEmpty()) {
         myRows.addAll(options.entrySet().stream()
           .map(e -> new KeyValuePair(e.getKey(), e.getValue()))
-          .collect(Collectors.toList()));
+          .toList());
         myRows.sort(new KeyValueComparator());
         fireTableRowsInserted(0, options.size() - 1);
       }

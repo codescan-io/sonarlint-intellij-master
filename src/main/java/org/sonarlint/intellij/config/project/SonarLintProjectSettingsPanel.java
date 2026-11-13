@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,7 @@ package org.sonarlint.intellij.config.project;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.options.ConfigurationException;
+import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.components.JBTabbedPane;
 import java.awt.BorderLayout;
@@ -31,6 +32,9 @@ import java.util.stream.Collectors;
 import javax.swing.JPanel;
 import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.core.ProjectBindingManager;
+import org.sonarlint.intellij.tasks.ConnectionTestTask;
+import org.sonarlint.intellij.util.GlobalLogOutput;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.validate.ValidateConnectionResponse;
 
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
@@ -56,7 +60,7 @@ public class SonarLintProjectSettingsPanel implements Disposable {
     rootPropertiesPane = new JPanel(new BorderLayout());
     rootPropertiesPane.add(propsPanel.create(), BorderLayout.CENTER);
 
-    tabs.insertTab("Bind to CodeScan / CodeScanCloud", null, rootBindPane, "Configure the binding to a CodeScan server or CodeScanCloud", 0);
+    tabs.insertTab("Bind to SonarQube (Server, Cloud)", null, rootBindPane, "Configure the binding to SonarQube (Server, Cloud)", 0);
     tabs.insertTab("File Exclusions", null, exclusionsPanel.getComponent(), "Configure which files to exclude from analysis", 1);
     tabs.insertTab("Analysis Properties", null, rootPropertiesPane, "Configure analysis properties", 2);
 
@@ -85,6 +89,7 @@ public class SonarLintProjectSettingsPanel implements Disposable {
       if (!getGlobalSettings().connectionExists(selectedConnection.getName())) {
         throw new ConfigurationException("Connection should be saved first");
       }
+      isConnectionValid(selectedConnection);
       if (selectedProjectKey == null || selectedProjectKey.isBlank()) {
         throw new ConfigurationException("Project key should not be empty");
       }
@@ -102,9 +107,27 @@ public class SonarLintProjectSettingsPanel implements Disposable {
     if (bindingEnabled) {
       var moduleBindingsMap = moduleBindings
         .stream().collect(Collectors.toMap(ModuleBindingPanel.ModuleBinding::getModule, ModuleBindingPanel.ModuleBinding::getSonarProjectKey));
-      bindingManager.bindTo(selectedConnection, selectedProjectKey, moduleBindingsMap);
+      bindingManager.bindToManually(selectedConnection, selectedProjectKey, moduleBindingsMap);
     } else {
       bindingManager.unbind();
+    }
+  }
+
+  private static void isConnectionValid(ServerConnection connection) throws ConfigurationException {
+    var connectionTest = new ConnectionTestTask(connection);
+    var msg = "Failed to connect to the server. Please check the configuration.";
+    ValidateConnectionResponse result;
+    try {
+      result = ProgressManager.getInstance().run(connectionTest);
+    } catch (Exception e) {
+      GlobalLogOutput.get().logError("Connection test failed", e);
+      if (e.getMessage() != null) {
+        msg = msg + " Error: " + e.getMessage();
+      }
+      throw new ConfigurationException(msg);
+    }
+    if (!result.isSuccess()) {
+      throw new ConfigurationException(result.getMessage());
     }
   }
 

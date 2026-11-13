@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@ import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 
 public class ToolWindowLogAnalysisAction extends AbstractSonarToggleAction {
   public ToolWindowLogAnalysisAction() {
-    super("Analysis logs", "Enable logging of CodeScan analysis", null);
+    super("Analysis logs", "Enable logging of SonarQube for IDE analysis", null);
   }
 
   @Override

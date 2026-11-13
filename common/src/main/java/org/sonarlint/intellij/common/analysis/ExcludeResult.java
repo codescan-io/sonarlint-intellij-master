@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,14 +19,14 @@
  */
 package org.sonarlint.intellij.common.analysis;
 
-//import javax.annotation.Nullable;
+import javax.annotation.Nullable;
 
 public class ExcludeResult {
   private final boolean excluded;
-//  @Nullable
+  @Nullable
   private final String excludeReason;
 
-  private ExcludeResult(boolean excluded, String excludeReason) {
+  private ExcludeResult(boolean excluded, @Nullable String excludeReason) {
     this.excluded = excluded;
     this.excludeReason = excludeReason;
   }

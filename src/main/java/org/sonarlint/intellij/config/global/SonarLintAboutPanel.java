@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,7 @@ package org.sonarlint.intellij.config.global;
 import com.intellij.codeInsight.hint.HintManager;
 import com.intellij.codeInsight.hint.HintUtil;
 import com.intellij.ide.BrowserUtil;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.ui.VerticalFlowLayout;
 import com.intellij.ui.HyperlinkAdapter;
 import com.intellij.ui.HyperlinkLabel;
@@ -46,9 +47,14 @@ import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.ConfigurationPanel;
 import org.sonarlint.intellij.telemetry.SonarLintTelemetry;
 
+import static org.sonarlint.intellij.documentation.SonarLintDocumentation.Intellij.BASE_DOCS_URL;
+import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
+
 public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetry> {
   private final JPanel panel;
   private JCheckBox enableTelemetryCheckBox;
+  private boolean telemetryInitiallyEnabled;
 
   public SonarLintAboutPanel() {
     panel = new JPanel(new BorderLayout(0, 20));
@@ -57,12 +63,12 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
   }
 
   private JComponent createSonarLintPanel() {
-    JBLabel sonarlintIcon = new JBLabel(SonarLintIcons.SONARLINT_32);
-    SonarLintPlugin plugin = SonarLintUtils.getService(SonarLintPlugin.class);
-    JBLabel title = new JBLabel("<html><b>CodeScan IntelliJ " + plugin.getVersion() + "</b></html>");
-    HyperlinkLabel linkLabel = new HyperlinkLabel("codescan.io");
-    linkLabel.addHyperlinkListener(e -> BrowserUtil.browse("https://www.codescan.io"));
-    JBLabel copyrightLabel = new JBLabel("<html>&copy; " + LocalDate.now().getYear() + " CodeScan</html>");
+    var sonarlintIcon = new JBLabel(SonarLintIcons.SONARQUBE_FOR_INTELLIJ_32PX);
+    var plugin = SonarLintUtils.getService(SonarLintPlugin.class);
+    var title = new JBLabel("<html><b>SonarQube for IDE " + plugin.getVersion() + "</b></html>");
+    var linkLabel = new HyperlinkLabel("Documentation");
+    linkLabel.addHyperlinkListener(e -> BrowserUtil.browse(BASE_DOCS_URL));
+    var copyrightLabel = new JBLabel("<html>&copy; " + LocalDate.now().getYear() + " SonarSource</html>");
 
     var infoPanel = new JPanel(new GridBagLayout());
     var constraints = new GridBagConstraints();
@@ -97,69 +103,85 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
     link.addHyperlinkListener(new HyperlinkAdapter() {
       @Override
       protected void hyperlinkActivated(HyperlinkEvent e) {
-        final var label = new JLabel("<html><pre>{\n"
-          + "    \"days_since_installation\": 120,\n"
-          + "    \"days_of_use\": 40,\n"
-          + "    \"sonarlint_version\": \"2.9\",\n"
-          + "    \"sonarlint_product\": \"CodeScan IntelliJ\",\n"
-          + "    \"ide_version\": \"IntelliJ IDEA 2020.1 (Community Edition)\",\n"
-          + "    \"os\": \"Linux\",\n"
-          + "    \"arch\": \"amd64\",\n"
-          + "    \"jre\": \"11.0.6\",\n"
-          + "    \"nodejs\": \"11.12.0\",\n"
-          + "    \"connected_mode_used\": true,\n"
-          + "    \"connected_mode_sonarcloud\": false,\n"
-          + "    \"system_time\":\"2018-06-27T16:31:49.173+01:00\",\n"
-          + "    \"install_time\":\"2018-02-27T16:30:49.124+01:00\",\n"
-          + "    \"analyses\":[{\"language\":\"java\",\"rate_per_duration\":{\"0-300\":100,\"300-500\":0,\"500-1000\":0,\"1000-2000\":0,\"2000-4000\":0,\"4000+\":0}}],\n"
-          + "    \"server_notifications\": {\n"
-          + "      \"count_by_type\": {\n"
-          + "        \"NEW_ISSUES\": {\n"
-          + "          \"received\": 1,\n"
-          + "          \"clicked\": 0\n"
-          + "        },\n"
-          + "        \"QUALITY_GATE\": {\n"
-          + "          \"received\": 1,\n"
-          + "          \"clicked\": 0\n"
-          + "        }\n"
-          + "      },\n"
-          + "      \"disabled\": false\n"
-          + "    },\n"
-          + "    \"hotspot\": {\n"
-          + "      \"open_in_browser_count\": 1,\n"
-          + "      \"status_changed_count\": 2\n"
-          + "    },\n"
-          + "    \"issue\": {\n"
-          + "      \"status_changed_count\": 3\n"
-          + "    },\n"
-          + "    \"show_hotspot\": {\n"
-          + "      \"requests_count\": 3\n"
-          + "    },\n"
-          + "      \"taint_vulnerabilities\": {\n"
-          + "        \"investigated_remotely_count\": 1,\n"
-          + "        \"investigated_locally_count\": 4\n"
-          + "      },\n"
-          + "     \"rules\": {\n"
-          + "      \"raised_issues\": [\n"
-          + "        \"secrets:S6290\",\n"
-          + "        \"javascript:S3353\",\n"
-          + "        \"javascript:S1441\"\n"
-          + "      ],\n"
-          + "      \"non_default_enabled\": [\n"
-          + "        \"javascript:S3513\"\n"
-          + "      ],\n"
-          + "      \"default_disabled\":  [\n"
-          + "        \"javascript:S1994\"\n"
-          + "      ],\n"
-          + "      \"quick_fix_applied\": [\n"
-          + "        \"java:S1656\",\n"
-          + "        \"java:S1872\"\n"
-          + "      ],\n"
-          + "    },\n"
-          + "    \"intellij\": {\n"
-          + "        \"jcefSupported\": true\n"
-          + "    }\n"
-          + "}</pre></html>");
+        final var label = new JLabel("""
+          <html><pre>{
+              "days_since_installation": 120,
+              "days_of_use": 40,
+              "sonarlint_version": "2.9",
+              "sonarlint_product": "SonarLint IntelliJ",
+              "ide_version": "IntelliJ IDEA 2020.1 (Community Edition)",
+              "os": "Linux",
+              "arch": "amd64",
+              "jre": "11.0.6",
+              "nodejs": "11.12.0",
+              "connected_mode_used": true,
+              "connected_mode_sonarcloud": false,
+              "system_time":"2018-06-27T16:31:49.173+01:00",
+              "install_time":"2018-02-27T16:30:49.124+01:00",
+              "analyses":[{"language":"java","rate_per_duration":{"0-300":100,"300-500":0,"500-1000":0,"1000-2000":0,"2000-4000":0,"4000+":0}}],
+              "server_notifications": {
+                "count_by_type": {
+                  "NEW_ISSUES": {
+                    "received": 1,
+                    "clicked": 0
+                  },
+                  "QUALITY_GATE": {
+                    "received": 1,
+                    "clicked": 0
+                  }
+                },
+                "disabled": false
+              },
+              "hotspot": {
+                "open_in_browser_count": 1,
+                "status_changed_count": 2
+              },
+              "issue": {
+                "status_changed_count": 3
+              },
+              "help_and_feedback": {
+                "count_by_link": {
+                  "docs": 5,
+                  "faq": 4
+                }
+              },
+              "cayc": {
+                "new_code_focus": {
+                  "enabled": true,
+                  "changes": 2
+                },
+              },
+              "show_hotspot": {
+                "requests_count": 3
+              },
+              "show_issue": {
+                "requests_count": 4
+              },
+              "taint_vulnerabilities": {
+                "investigated_remotely_count": 1,
+                "investigated_locally_count": 4
+              },
+              "rules": {
+                "raised_issues": [
+                  "secrets:S6290",
+                  "javascript:S3353",
+                  "javascript:S1441"
+                ],
+                "non_default_enabled": [
+                  "javascript:S3513"
+                ],
+                "default_disabled":  [
+                  "javascript:S1994"
+                ],
+                "quick_fix_applied": [
+                  "java:S1656",
+                  "java:S1872"
+                ],
+              },
+              "intellij": {
+                  "jcefSupported": true
+              }
+          }</pre></html>""");
         label.setOpaque(true);
         var scrollPane = new JBScrollPane(label);
         scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
@@ -170,12 +192,12 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
     });
 
     // info
-    var info = new JBLabel("<html>By sharing anonymous CodeScan usage statistics, you help us understand how Codescan is used so "
+    var info = new JBLabel("<html>By sharing anonymous SonarQube for IDE usage statistics, you help us understand how SonarQube for IDE is used so "
       + "we can improve the plugin to work even better for you. We don't collect source code, IP addresses, or any personally identifying "
       + "information. And we don't share the data with anyone else.</html>");
 
     // checkbox
-    enableTelemetryCheckBox = new JCheckBox("Share anonymous CodeScan statistics");
+    enableTelemetryCheckBox = new JCheckBox("Share anonymous SonarQube for IDE statistics");
     enableTelemetryCheckBox.setFocusable(false);
     var tickOptions = new JPanel(new VerticalFlowLayout());
     tickOptions.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
@@ -212,8 +234,11 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
 
   @Override
   public void load(SonarLintTelemetry telemetry) {
-    enableTelemetryCheckBox.setEnabled(telemetry.canBeEnabled());
-    enableTelemetryCheckBox.setSelected(telemetry.enabled());
+    // we could show a loader while getting the value
+    runOnPooledThread(() -> telemetry.enabled().thenAccept(enabled -> {
+      telemetryInitiallyEnabled = enabled;
+      runOnUiThread(ModalityState.stateForComponent(panel), () -> enableTelemetryCheckBox.setSelected(enabled));
+    }));
   }
 
   @Override
@@ -223,6 +248,6 @@ public class SonarLintAboutPanel implements ConfigurationPanel<SonarLintTelemetr
 
   @Override
   public boolean isModified(SonarLintTelemetry telemetry) {
-    return telemetry.enabled() != enableTelemetryCheckBox.isSelected();
+    return telemetryInitiallyEnabled != enableTelemetryCheckBox.isSelected();
   }
 }

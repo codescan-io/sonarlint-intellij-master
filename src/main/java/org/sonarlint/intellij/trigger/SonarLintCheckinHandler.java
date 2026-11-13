@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,8 +20,11 @@
 package org.sonarlint.intellij.trigger;
 
 import com.intellij.ide.util.PropertiesComponent;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.UnnamedConfigurable;
+import com.intellij.openapi.progress.ProgressIndicator;
+import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
@@ -33,23 +36,37 @@ import com.intellij.ui.NonFocusableCheckBox;
 import com.intellij.util.PairConsumer;
 import com.intellij.util.ui.UIUtil;
 import java.awt.BorderLayout;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.actions.SonarLintToolWindow;
 import org.sonarlint.intellij.analysis.AnalysisResult;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
+import org.sonarlint.intellij.analysis.RunningAnalysesTracker;
+import org.sonarlint.intellij.cayc.CleanAsYouCodeService;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.finding.LiveFindings;
+import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot;
 import org.sonarlint.intellij.finding.issue.LiveIssue;
+import org.sonarsource.sonarlint.core.client.utils.ImpactSeverity;
 import org.sonarsource.sonarlint.core.commons.IssueSeverity;
-import org.sonarsource.sonarlint.core.commons.Language;
+import org.sonarsource.sonarlint.core.commons.api.SonarLanguage;
 
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
+import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 public class SonarLintCheckinHandler extends CheckinHandler {
   private static final Logger LOGGER = Logger.getInstance(SonarLintCheckinHandler.class);
@@ -67,7 +84,7 @@ public class SonarLintCheckinHandler extends CheckinHandler {
   @Override
   @Nullable
   public RefreshableOnComponent getBeforeCheckinConfigurationPanel() {
-    this.checkBox = new NonFocusableCheckBox("Perform SonarLint analysis");
+    this.checkBox = new NonFocusableCheckBox("Perform SonarQube for IDE analysis");
     return new MyRefreshableOnComponent(checkBox);
   }
 
@@ -81,11 +98,30 @@ public class SonarLintCheckinHandler extends CheckinHandler {
     var affectedFiles = new HashSet<>(checkinPanel.getVirtualFiles());
     // this will block EDT (modal)
     try {
-      var result = SonarLintUtils.getService(project, AnalysisSubmitter.class).analyzeFilesPreCommit(affectedFiles);
-      if (result == null) {
+      var analysisIdsByCallback = getService(project, AnalysisSubmitter.class).analyzeFilesPreCommit(affectedFiles);
+      if (analysisIdsByCallback == null) {
         return ReturnResult.CANCEL;
       }
-      return processResult(result);
+
+      new Task.Modal(project, "Waiting for SonarQube for IDE Analysis", true) {
+        public void run(@NotNull final ProgressIndicator progressIndicator) {
+          new Timer().scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+              var analysis = analysisIdsByCallback.getRight().stream().map(id -> getService(project, RunningAnalysesTracker.class).getById(id)).filter(Objects::nonNull).toList();
+              if (analysis.isEmpty()) {
+                cancel();
+              }
+            }
+          }, 0, 100);
+        }
+      }.queue();
+
+      if (!analysisIdsByCallback.getLeft().analysisSucceeded()) {
+        return ReturnResult.CANCEL;
+      }
+      var results = analysisIdsByCallback.getLeft().getResults();
+      return processResults(results);
     } catch (Exception e) {
       handleError(e, affectedFiles.size());
       return ReturnResult.CANCEL;
@@ -93,7 +129,7 @@ public class SonarLintCheckinHandler extends CheckinHandler {
   }
 
   private void handleError(Exception e, int numFiles) {
-    var msg = "CodeScan - Error analysing " + numFiles + " changed file(s).";
+    var msg = "SonarQube for IDE - Error analysing " + numFiles + " changed file(s).";
     if (e.getMessage() != null) {
       msg = msg + ": " + e.getMessage();
     }
@@ -101,18 +137,33 @@ public class SonarLintCheckinHandler extends CheckinHandler {
     Messages.showErrorDialog(project, msg, "Error Analysing Files");
   }
 
-  private ReturnResult processResult(AnalysisResult result) {
-    var issuesPerFile = result.getFindings().getIssuesPerFile();
+  private ReturnResult processResults(List<AnalysisResult> results) {
+    var issuesPerFile = results.stream()
+      .flatMap(result -> result.getFindings().getIssuesPerFile().entrySet().stream())
+      .collect(Collectors.toMap(
+        Map.Entry::getKey,
+        Map.Entry::getValue,
+        (issues1, issues2) -> {
+          List<LiveIssue> merged = new ArrayList<>();
+          merged.addAll(issues1);
+          merged.addAll(issues2);
+          return merged;
+        }));
+
+    var shouldFocusOnNewCode = getService(CleanAsYouCodeService.class).shouldFocusOnNewCode(project);
 
     var numIssues = issuesPerFile.entrySet().stream()
       .flatMap(e -> e.getValue().stream())
       .filter(Predicate.not(LiveIssue::isResolved))
+      .filter(issue -> !shouldFocusOnNewCode || issue.isOnNewCode())
       .count();
 
     var numBlockerIssues = issuesPerFile.entrySet().stream()
       .flatMap(e -> e.getValue().stream())
       .filter(Predicate.not(LiveIssue::isResolved))
-      .filter(i -> IssueSeverity.BLOCKER.equals(i.getUserSeverity()))
+      .filter(issue -> !shouldFocusOnNewCode || issue.isOnNewCode())
+      .filter(i -> (i.getHighestImpact() != null && i.getHighestImpact().name().equals(ImpactSeverity.BLOCKER.name()))
+        || (i.getUserSeverity() != null && i.getUserSeverity().name().equals(IssueSeverity.BLOCKER.name())))
       .count();
 
     if (numIssues == 0) {
@@ -121,13 +172,30 @@ public class SonarLintCheckinHandler extends CheckinHandler {
 
     var numFiles = issuesPerFile.keySet().size();
 
-    var issues = issuesPerFile.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
-    var numSecretsIssues = issues.stream().filter(issue -> issue.getRuleKey().startsWith(Language.SECRETS.getLanguageKey())).count();
+    var issues = issuesPerFile.values().stream().flatMap(Collection::stream).toList();
+    var numSecretsIssues = issues.stream()
+      .filter(issue -> !shouldFocusOnNewCode || issue.isOnNewCode())
+      .filter(issue -> issue.getRuleKey()
+        .startsWith(SonarLanguage.SECRETS.getSonarLanguageKey()))
+      .count();
     var msg = createMessage(numFiles, numIssues, numBlockerIssues, numSecretsIssues);
 
     var choice = showYesNoCancel(msg);
 
     if (choice == ReturnResult.CLOSE_WINDOW) {
+      var hotspotsPerFile = results.stream()
+        .flatMap(result -> result.getFindings().getSecurityHotspotsPerFile().entrySet().stream())
+        .collect(Collectors.toMap(
+          Map.Entry::getKey,
+          Map.Entry::getValue,
+          (issues1, issues2) -> {
+            List<LiveSecurityHotspot> merged = new ArrayList<>();
+            merged.addAll(issues1);
+            merged.addAll(issues2);
+            return merged;
+          }));
+      var allFilesAnalyzed = results.stream().flatMap(result -> result.getAnalyzedFiles().stream()).toList();
+      var result = new AnalysisResult(null, new LiveFindings(issuesPerFile, hotspotsPerFile), allFilesAnalyzed, results.get(0).getTriggerType(), results.get(0).getAnalysisDate());
       showChangedFilesTab(result);
     }
     return choice;
@@ -140,16 +208,18 @@ public class SonarLintCheckinHandler extends CheckinHandler {
     var warningAboutLeakedSecrets = "";
     if (numSecretsIssues > 0) {
       var secretWord = SonarLintUtils.pluralize("secret", numSecretsIssues);
-      warningAboutLeakedSecrets = String.format("\n\nCodeScan analysis found %d %s. " +
-        "Committed secrets may lead to unauthorized system access.", numSecretsIssues, secretWord);
+      warningAboutLeakedSecrets = String.format("""
+        
+
+        SonarQube for IDE analysis found %d %s. Committed secrets may lead to unauthorized system access.""", numSecretsIssues, secretWord);
     }
     var message = new StringBuilder();
     if (numBlockerIssues > 0) {
       var blocker = SonarLintUtils.pluralize("issue", numBlockerIssues);
-      message.append(String.format("CodeScan analysis on %d %s found %d %s (including %d blocker %s)", filesAnalyzed, files,
+      message.append(String.format("SonarQube for IDE analysis on %d %s found %d %s (including %d blocker %s)", filesAnalyzed, files,
         numIssues, issues, numBlockerIssues, blocker));
     } else {
-      message.append(String.format("CodeScan analysis on %d %s found %d %s", filesAnalyzed, files, numIssues, issues));
+      message.append(String.format("SonarQube for IDE analysis on %d %s found %d %s", filesAnalyzed, files, numIssues, issues));
     }
     message.append(warningAboutLeakedSecrets);
     return message.toString();
@@ -158,7 +228,7 @@ public class SonarLintCheckinHandler extends CheckinHandler {
   private ReturnResult showYesNoCancel(String resultStr) {
     final var answer = Messages.showYesNoCancelDialog(project,
       resultStr,
-      "CodeScan Analysis Results",
+      "SonarQube for IDE Analysis Results",
       "&Review Issues",
       "C&ontinue",
       "Cancel",
@@ -174,7 +244,11 @@ public class SonarLintCheckinHandler extends CheckinHandler {
   }
 
   private void showChangedFilesTab(AnalysisResult analysisResult) {
-    SonarLintUtils.getService(project, SonarLintToolWindow.class).openReportTab(analysisResult);
+    if (ApplicationManager.getApplication().isUnitTestMode()) {
+      getService(project, SonarLintToolWindow.class).openReportTab(analysisResult);
+    } else {
+      runOnUiThread(project, () -> getService(project, SonarLintToolWindow.class).openReportTab(analysisResult));
+    }
   }
 
   private class MyRefreshableOnComponent implements RefreshableOnComponent, UnnamedConfigurable {
@@ -190,13 +264,8 @@ public class SonarLintCheckinHandler extends CheckinHandler {
       panel.add(checkBox);
       var dumb = DumbService.isDumb(project);
       checkBox.setEnabled(!dumb);
-      checkBox.setToolTipText(dumb ? "CodeScan analysis is impossible until indices are up-to-date" : "");
+      checkBox.setToolTipText(dumb ? "SonarQube for IDE analysis is impossible until indices are up-to-date" : "");
       return panel;
-    }
-
-    @Override
-    public void refresh() {
-      // nothing to do
     }
 
     @Override

@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,13 +26,14 @@ import com.intellij.remoterobot.fixtures.ComponentFixture
 import com.intellij.remoterobot.fixtures.DefaultXpath
 import com.intellij.remoterobot.fixtures.FixtureName
 import com.intellij.remoterobot.search.locators.byXpath
+import java.time.Duration
 
 @DefaultXpath(by = "IdeStatusBarImpl type", xpath = "//div[@class='IdeStatusBarImpl']")
 @FixtureName(name = "Status Bar")
 class IdeStatusBarFixture(remoteRobot: RemoteRobot, remoteComponent: RemoteComponent) : CommonContainerFixture(remoteRobot, remoteComponent) {
   val backgroundTaskPendingIcon
-    get() = find(ComponentFixture::class.java, byXpath("//div[@class='AsyncProcessIcon']"))
+    get() = find(ComponentFixture::class.java, byXpath("//div[@class='AsyncProcessIcon']"), Duration.ofSeconds(1))
 
   val pauseButton
-    get() = find(ComponentFixture::class.java, byXpath("//div[@accessiblename='Pause' and @class='InplaceButton']"))
+    get() = find(ComponentFixture::class.java, byXpath("//div[@accessiblename='Pause' and @class='InplaceButton']"), Duration.ofSeconds(1))
 }

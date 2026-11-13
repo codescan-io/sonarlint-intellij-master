@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -29,17 +29,13 @@ import com.intellij.openapi.vfs.newvfs.events.VFileMoveEvent
 import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.util.GlobalLogOutput
-import org.sonarsource.sonarlint.core.commons.log.ClientLogOutput
+import org.sonarsource.sonarlint.core.client.utils.ClientLogOutput
 import org.sonarsource.sonarlint.plugin.api.module.file.ModuleFileEvent
 
 /**
  * The BulkFileListener is not tied to a specific project but global to the IDE instance
  */
-class VirtualFileSystemListener(
-    private val fileEventsNotifier: ModuleFileEventsNotifier = getService(
-        ModuleFileEventsNotifier::class.java
-    )
-) : BulkFileListener {
+class VirtualFileSystemListener : BulkFileListener {
     override fun before(events: List<VFileEvent>) {
         forwardEvents(events.filter { it is VFileMoveEvent || it is VFileDeleteEvent }) { ModuleFileEvent.Type.DELETED }
     }
@@ -61,6 +57,8 @@ class VirtualFileSystemListener(
     }
 
     private fun forwardEvents(events: List<VFileEvent>, eventTypeConverter: (VFileEvent) -> ModuleFileEvent.Type?) {
-        getService(VirtualFileSystemEventsHandler::class.java).forwardEventsAsync(events, eventTypeConverter, fileEventsNotifier)
+        if (events.isNotEmpty()) {
+            getService(VirtualFileSystemEventsHandler::class.java).forwardEventsAsync(events, eventTypeConverter)
+        }
     }
 }

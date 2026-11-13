@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -28,16 +28,16 @@ import com.intellij.psi.XmlElementFactory
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
-import org.apache.commons.lang.StringEscapeUtils
-import org.apache.commons.lang.StringUtils
-import org.sonarlint.intellij.ui.ruledescription.section.CodeExampleFragment
-import org.sonarlint.intellij.ui.ruledescription.section.CodeExampleType
-import org.sonarlint.intellij.ui.ruledescription.section.HtmlFragment
-import org.sonarlint.intellij.ui.ruledescription.section.Section
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 import javax.swing.JScrollPane
 import javax.swing.ScrollPaneConstants
+import org.apache.commons.text.StringEscapeUtils
+import org.apache.commons.lang3.StringUtils
+import org.sonarlint.intellij.ui.ruledescription.section.CodeExampleFragment
+import org.sonarlint.intellij.ui.ruledescription.section.CodeExampleType
+import org.sonarlint.intellij.ui.ruledescription.section.HtmlFragment
+import org.sonarlint.intellij.ui.ruledescription.section.Section
 
 class RuleParsingUtils {
 
@@ -97,9 +97,7 @@ class RuleParsingUtils {
                 when (it) {
                     is HtmlFragment -> RuleHtmlViewer(false).apply { updateHtml(it.html) }
                     is CodeExampleFragment -> RuleCodeSnippet(project, fileType, it).apply {
-                        if (!Disposer.isDisposed(parent)) {
-                            Disposer.register(parent, this)
-                        }
+                        Disposer.tryRegister(parent, this)
                     }
                 }
             }.forEach { mainPanel.add(it) }
@@ -111,7 +109,7 @@ class RuleParsingUtils {
         }
 
         private fun replaceSpaceCharacters(text: String): String {
-            return StringEscapeUtils.unescapeHtml(text)
+            return StringEscapeUtils.unescapeHtml4(text)
                 // &nbsp;
                 .replace("\u00a0","")
                 // &ensp;

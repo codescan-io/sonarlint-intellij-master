@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -24,8 +24,8 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.ColoredListCellRenderer;
-import com.intellij.ui.ListSpeedSearch;
 import com.intellij.ui.SimpleTextAttributes;
+import com.intellij.ui.TreeUIHelper;
 import com.intellij.ui.components.JBList;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -38,7 +38,7 @@ import javax.swing.ListSelectionModel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.tasks.GetOrganizationTask;
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.OrganizationDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.OrganizationDto;
 
 import static javax.swing.JList.VERTICAL;
 
@@ -144,9 +144,8 @@ public class OrganizationStep extends AbstractWizardStepEx {
   }
 
   @Override public boolean isComplete() {
-    // if this step is skipped because there is only one organization, we still need to return true so that the wizard
-    // can finish
-    return model.getOrganizationList().size() <= 1 || orgList.getSelectedValue() != null;
+    // even if skipped in the SQ context, this step is still checked for completion
+    return !model.isSonarCloud() || orgList.getSelectedValue() != null;
   }
 
   @Override public void commit(CommitType commitType) {
@@ -170,7 +169,7 @@ public class OrganizationStep extends AbstractWizardStepEx {
     list.setEnabled(true);
     list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
     list.setCellRenderer(new ListRenderer());
-    new ListSpeedSearch<>(list, o -> o.getName() + " " + o.getKey());
+    TreeUIHelper.getInstance().installListSpeedSearch(list, o -> o.getName() + " " + o.getKey());
     orgList = list;
   }
 

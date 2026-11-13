@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,7 +21,7 @@ package org.sonarlint.intellij.its.utils
 
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.junit.jupiter.api.extension.TestWatcher
-import org.sonarlint.intellij.its.BaseUiTest
+import org.sonarlint.intellij.its.BaseUiTest.Companion.remoteRobot
 
 class ThreadDumpOnFailure : TestWatcher {
     override fun testFailed(context: ExtensionContext, cause: Throwable) {
@@ -32,7 +32,7 @@ class ThreadDumpOnFailure : TestWatcher {
     }
 
     private fun printThreadDump() {
-        val stackTrace = BaseUiTest.remoteRobot.callJs<String>(
+        val stackTrace = remoteRobot.callJs<String>(
             """
                java.lang.management.ManagementFactory.getThreadMXBean().dumpAllThreads(true, true).map(function(element){
                     return element.toString();

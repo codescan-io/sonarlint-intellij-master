@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -27,9 +27,6 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.SimpleToolWindowPanel;
 import com.intellij.openapi.wm.ToolWindow;
-import com.intellij.openapi.wm.ex.ToolWindowEx;
-import com.intellij.tools.SimpleActionGroup;
-import com.intellij.util.messages.MessageBusConnection;
 import javax.swing.Box;
 import org.sonarlint.intellij.actions.ToolWindowLogAnalysisAction;
 import org.sonarlint.intellij.actions.ToolWindowVerboseModeAction;
@@ -41,7 +38,7 @@ import org.sonarlint.intellij.util.SonarLintActions;
 import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 public class SonarLintLogPanel extends SimpleToolWindowPanel {
-  private static final String ID = "CodeScan";
+  private static final String ID = "SonarQube for IDE";
 
   private final ToolWindow toolWindow;
   private final Project project;
@@ -49,7 +46,7 @@ public class SonarLintLogPanel extends SimpleToolWindowPanel {
   private ActionToolbar mainToolbar;
 
   public SonarLintLogPanel(ToolWindow toolWindow, Project project) {
-    super(false, true);
+    super(false, false);
     this.toolWindow = toolWindow;
     this.project = project;
 
@@ -57,9 +54,8 @@ public class SonarLintLogPanel extends SimpleToolWindowPanel {
     addToolbar();
     addConsole();
 
-    MessageBusConnection busConnection = project.getMessageBus().connect(project);
-    busConnection.subscribe(StatusListener.SONARLINT_STATUS_TOPIC, newStatus ->
-      runOnUiThread(project, mainToolbar::updateActionsImmediately));
+    project.getMessageBus().connect().subscribe(StatusListener.SONARLINT_STATUS_TOPIC, newStatus ->
+    runOnUiThread(project, mainToolbar::updateActionsImmediately));
   }
 
   private void addToolbar() {
@@ -75,7 +71,7 @@ public class SonarLintLogPanel extends SimpleToolWindowPanel {
 
   private static ActionGroup createActionGroup() {
     var sonarLintActions = SonarLintActions.getInstance();
-    var actionGroup = new SimpleActionGroup();
+    var actionGroup = new DefaultActionGroup();
     actionGroup.add(sonarLintActions.configure());
     actionGroup.add(sonarLintActions.cleanConsole());
     return actionGroup;
@@ -85,7 +81,7 @@ public class SonarLintLogPanel extends SimpleToolWindowPanel {
     var group = new DefaultActionGroup();
     group.add(new ToolWindowLogAnalysisAction());
     group.add(new ToolWindowVerboseModeAction());
-    ((ToolWindowEx) toolWindow).setAdditionalGearActions(group);
+    toolWindow.setAdditionalGearActions(group);
   }
 
   private void addConsole() {

@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,23 +19,11 @@
  */
 package org.sonarlint.intellij.config.module;
 
-import java.util.UUID;
-
 import static org.sonarlint.intellij.common.util.SonarLintUtils.isBlank;
 
 public final class SonarLintModuleSettings {
-  private String uniqueId = UUID.randomUUID().toString();
-  private String sqPathPrefix = "";
-  private String idePathPrefix = "";
+
   private String projectKey = "";
-
-  public String getUniqueId() {
-    return uniqueId;
-  }
-
-  public void setUniqueId(String uniqueId) {
-    this.uniqueId = uniqueId;
-  }
 
   public String getProjectKey() {
     return projectKey;
@@ -53,19 +41,4 @@ public final class SonarLintModuleSettings {
     this.projectKey = "";
   }
 
-  public String getSqPathPrefix() {
-    return sqPathPrefix;
-  }
-
-  public void setSqPathPrefix(String sqPathPrefix) {
-    this.sqPathPrefix = sqPathPrefix;
-  }
-
-  public String getIdePathPrefix() {
-    return idePathPrefix;
-  }
-
-  public void setIdePathPrefix(String idePathPrefix) {
-    this.idePathPrefix = idePathPrefix;
-  }
 }

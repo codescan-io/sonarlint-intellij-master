@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -41,6 +41,12 @@ fun RemoteRobot.openProjectFileBrowserDialog(function: FileBrowserDialogFixture.
   "Open File or Project",
 )).apply(function)
 
+fun RemoteRobot.openSolutionBrowserDialog(function: FileBrowserDialogFixture.() -> Unit = {}) = fileBrowserDialog(
+  arrayOf(
+    "Select Path",
+  )
+).apply(function)
+
 
 @FixtureName("File Browser Dialog")
 class FileBrowserDialogFixture(
@@ -55,11 +61,10 @@ class FileBrowserDialogFixture(
   }
 
   fun selectProjectFile(projectName: String, isMaven: Boolean) {
-    val projectsDir = Paths.get("build/projects").toAbsolutePath()
-    val projectBaseDir = projectsDir.resolve(projectName)
-    val projectFile = if (isMaven && remoteRobot.ideMajorVersion() < 201) projectBaseDir.resolve("pom.xml") else projectBaseDir
+    val projectsDir = Paths.get("projects").toAbsolutePath()
+    val projectBaseDir = projectsDir.resolve("$projectName-tmp")
     val button = button("OK")
-    waitFor { button.isEnabled() }
+    waitFor(Duration.ofSeconds(10)) { button.isEnabled() }
 
     // Select parent folder and refresh
     textField.text = projectsDir.normalize().toString()
@@ -68,7 +73,7 @@ class FileBrowserDialogFixture(
     // Give some time for the refresh to work
     Thread.sleep(2000)
 
-    textField.text = projectFile.normalize().toString()
+    textField.text = projectBaseDir.normalize().toString()
     // Give some time for the refresh to work
     Thread.sleep(2000)
     button.click()

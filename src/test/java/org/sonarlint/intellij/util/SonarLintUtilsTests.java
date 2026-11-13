@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -32,9 +32,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class SonarLintUtilsTests extends AbstractSonarLintLightTests {
-  private VirtualFile testFile = mock(VirtualFile.class);
-  private FileType binary = mock(FileType.class);
-  private FileType notBinary = mock(FileType.class);
+
+  private static final String URL_WITH_SLASH = "https://sonarqube.com/next/";
+  private static final String URL_WITHOUT_SLASH = "https://sonarqube.com/next";
+
+  private final VirtualFile testFile = mock(VirtualFile.class);
+  private final FileType binary = mock(FileType.class);
+  private final FileType notBinary = mock(FileType.class);
 
   @BeforeEach
   void prepare() {
@@ -70,4 +74,17 @@ class SonarLintUtilsTests extends AbstractSonarLintLightTests {
     assertThat(SonarLintUtils.isEmpty(null)).isTrue();
     assertThat(SonarLintUtils.isEmpty(" s ")).isFalse();
   }
+
+  @Test
+  void testWithoutTrailingSlash() {
+    assertThat(SonarLintUtils.withoutTrailingSlash(URL_WITH_SLASH)).isEqualTo(URL_WITHOUT_SLASH);
+    assertThat(SonarLintUtils.withoutTrailingSlash(URL_WITHOUT_SLASH)).isEqualTo(URL_WITHOUT_SLASH);
+  }
+
+  @Test
+  void testWithTrailingSlash() {
+    assertThat(SonarLintUtils.withTrailingSlash(URL_WITH_SLASH)).isEqualTo(URL_WITH_SLASH);
+    assertThat(SonarLintUtils.withTrailingSlash(URL_WITHOUT_SLASH)).isEqualTo(URL_WITH_SLASH);
+  }
+
 }

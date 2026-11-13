@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -34,8 +34,6 @@ import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.finding.FindingContext;
 import org.sonarlint.intellij.finding.LiveFinding;
 
-import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
-
 public class ShowLocationsIntentionAction implements IntentionAction, PriorityAction, Iconable {
   private final LiveFinding finding;
   private final FindingContext context;
@@ -46,11 +44,11 @@ public class ShowLocationsIntentionAction implements IntentionAction, PriorityAc
   }
 
   @Nls @NotNull @Override public String getText() {
-    return "CodeScan: Show " + (context.hasUniqueFlow() ? "issue locations" : "data flows");
+    return "SonarQube: Show " + (context.hasUniqueFlow() ? "issue locations" : "data flows");
   }
 
   @Nls @NotNull @Override public String getFamilyName() {
-    return "CodeScan locations";
+    return "SonarQube locations";
   }
 
   @Override public boolean isAvailable(@NotNull Project project, Editor editor, PsiFile file) {
@@ -60,7 +58,7 @@ public class ShowLocationsIntentionAction implements IntentionAction, PriorityAc
   @Override public void invoke(@NotNull Project project, Editor editor, PsiFile file) {
     SonarLintUtils.getService(project, EditorDecorator.class).highlightFinding(finding);
     var sonarLintToolWindow = SonarLintUtils.getService(project, SonarLintToolWindow.class);
-    runOnUiThread(project, () -> sonarLintToolWindow.showFindingLocations(finding));
+    sonarLintToolWindow.showFindingLocations(finding);
   }
 
   @Override public boolean startInWriteAction() {

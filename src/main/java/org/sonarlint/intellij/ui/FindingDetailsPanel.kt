@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,13 +20,15 @@
 package org.sonarlint.intellij.ui
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.editor.RangeMarker
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.ProjectRootManager
-import com.intellij.openapi.util.text.StringUtil.capitalize
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.JBTabbedPane
 import org.sonarlint.intellij.common.util.SonarLintUtils
 import org.sonarlint.intellij.editor.EditorDecorator
+import org.sonarlint.intellij.finding.Flow
 import org.sonarlint.intellij.finding.LiveFinding
 import org.sonarlint.intellij.ui.tree.FlowsTree
 import org.sonarlint.intellij.ui.tree.FlowsTreeModelBuilder
@@ -40,14 +42,13 @@ class FindingDetailsPanel(private val project: Project, parentDisposable: Dispos
     private lateinit var rulePanel: SonarLintRulePanel
     private lateinit var flowsTree: FlowsTree
     private lateinit var flowsTreeBuilder: FlowsTreeModelBuilder
-    private val findingKindText: String
+    private val findingKindText: String = when(findingKind) {
+        FindingKind.ISSUE -> "issue"
+        FindingKind.SECURITY_HOTSPOT -> "Security Hotspot"
+        else -> "finding"
+    }
 
     init {
-        findingKindText = when(findingKind) {
-            FindingKind.ISSUE -> "issue"
-            FindingKind.SECURITY_HOTSPOT -> "Security Hotspot"
-            else -> "finding"
-        }
         createFlowsTree()
         createTabs(parentDisposable)
     }
@@ -57,7 +58,7 @@ class FindingDetailsPanel(private val project: Project, parentDisposable: Dispos
         val model = flowsTreeBuilder.createModel()
         flowsTree = FlowsTree(project, model)
         flowsTreeBuilder.clearFlows()
-        flowsTree.emptyText.setText("No $findingKindText selected")
+        flowsTree.emptyText.text = "No $findingKindText selected"
     }
 
     private fun createTabs(parentDisposable: Disposable) {
@@ -72,21 +73,31 @@ class FindingDetailsPanel(private val project: Project, parentDisposable: Dispos
     }
 
     fun show(liveFinding: LiveFinding) {
-        val moduleForFile = ProjectRootManager.getInstance(project).fileIndex.getModuleForFile(liveFinding.psiFile().virtualFile)
-        if (moduleForFile == null) {
-            showInvalidFindingMessage()
-            return
-        }
-        rulePanel.setSelectedFinding(moduleForFile, liveFinding)
-        SonarLintUtils.getService(project, EditorDecorator::class.java).highlightFinding(liveFinding)
-        flowsTree.emptyText.setText("Selected $findingKindText doesn't have flows")
+        rulePanel.setSelectedFinding(liveFinding.module, liveFinding, liveFinding.getId())
         flowsTreeBuilder.populateForFinding(liveFinding)
+        SonarLintUtils.getService(project, EditorDecorator::class.java).highlightFinding(liveFinding)
+        flowsTree.emptyText.text = "Selected $findingKindText doesn't have flows"
+        flowsTree.expandAll()
+    }
+
+    fun showServerOnlyIssue(
+        module: Module,
+        file: VirtualFile,
+        ruleKey: String,
+        range: RangeMarker,
+        flows: MutableList<Flow>,
+        flowMessage: String
+    ) {
+        rulePanel.setSelectedFinding(module, ruleKey)
+        flowsTreeBuilder.populateForFinding(file, range, flowMessage, flows)
+        SonarLintUtils.getService(project, EditorDecorator::class.java).highlightRange(range)
+        flowsTree.emptyText.text = "Selected $findingKindText doesn't have flows"
         flowsTree.expandAll()
     }
 
     fun clear() {
         flowsTreeBuilder.clearFlows()
-        flowsTree.emptyText.setText("No $findingKindText selected")
+        flowsTree.emptyText.text = "No $findingKindText selected"
         rulePanel.clear()
     }
 
@@ -96,12 +107,6 @@ class FindingDetailsPanel(private val project: Project, parentDisposable: Dispos
 
     fun selectLocationsTab() {
         selectedIndex = LOCATIONS_TAB_INDEX
-    }
-
-    private fun showInvalidFindingMessage() {
-        flowsTreeBuilder.clearFlows()
-        flowsTree.emptyText.setText("${capitalize(findingKindText)} location has been deleted")
-        rulePanel.clearDeletedFile()
     }
 
     companion object {

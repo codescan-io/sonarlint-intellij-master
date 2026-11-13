@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,15 +22,17 @@ package org.sonarlint.intellij.finding.hotspot
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
-import org.sonarlint.intellij.common.vcs.VcsListener
 import org.sonarlint.intellij.config.global.SonarLintGlobalSettings
+import org.sonarlint.intellij.connected.SonarProjectBranchListener
 import org.sonarlint.intellij.messages.GlobalConfigurationListener
 import org.sonarlint.intellij.messages.ProjectConfigurationListener
 import org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile
 import org.sonarlint.intellij.util.getOpenFiles
+import org.sonarlint.intellij.util.runOnPooledThread
 
 @Service(Service.Level.PROJECT)
 class SecurityHotspotsRefreshTrigger(private val project: Project) {
@@ -52,18 +54,20 @@ class SecurityHotspotsRefreshTrigger(private val project: Project) {
           triggerRefresh()
         }
       })
-      subscribe(VcsListener.TOPIC, VcsListener { module, _ ->
-        if (project.getOpenFiles().any { module == findModuleForFile(it, project) }) {
-          triggerRefresh()
-        }
+      subscribe(SonarProjectBranchListener.TOPIC, SonarProjectBranchListener { module, _ ->
+        triggerRefresh(module)
       })
     }
 
     triggerRefresh()
   }
 
-  private fun triggerRefresh() {
-    getService(project, SecurityHotspotsPresenter::class.java).presentSecurityHotspotsForOpenFiles()
+  fun triggerRefresh(onlyForModule: Module? = null) {
+    runOnPooledThread(project) {
+      if (onlyForModule == null || project.getOpenFiles().any { onlyForModule == findModuleForFile(it, project) }) {
+        getService(project, SecurityHotspotsPresenter::class.java).presentSecurityHotspotsForOpenFiles()
+      }
+    }
   }
 
 }

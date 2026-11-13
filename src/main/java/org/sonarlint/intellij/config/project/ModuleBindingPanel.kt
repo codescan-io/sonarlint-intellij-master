@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -39,13 +39,6 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBPanelWithEmptyText
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
-import org.sonarlint.intellij.common.util.SonarLintUtils
-import org.sonarlint.intellij.common.util.SonarLintUtils.getService
-import org.sonarlint.intellij.config.global.ServerConnection
-import org.sonarlint.intellij.core.ModuleBindingManager
-import org.sonarlint.intellij.core.ProjectBindingManager
-import org.sonarlint.intellij.tasks.ServerDownloadProjectTask
-import org.sonarsource.sonarlint.core.serverapi.component.ServerProject
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -59,6 +52,13 @@ import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import kotlin.math.max
 import kotlin.math.min
+import org.sonarlint.intellij.common.util.SonarLintUtils
+import org.sonarlint.intellij.common.util.SonarLintUtils.getService
+import org.sonarlint.intellij.config.global.ServerConnection
+import org.sonarlint.intellij.core.ModuleBindingManager
+import org.sonarlint.intellij.core.ProjectBindingManager
+import org.sonarlint.intellij.tasks.ServerDownloadProjectTask
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.projects.SonarProjectDto
 
 class ModuleBindingPanel(private val project: Project, currentConnectionSupplier: () -> ServerConnection?) {
     private var projectKeyTextField = JBTextField()
@@ -108,7 +108,7 @@ class ModuleBindingPanel(private val project: Project, currentConnectionSupplier
         projectKeyTextField.emptyText.text = "Input project key or search one"
         val projectKeyLabel = JLabel("Project key:")
         projectKeyLabel.labelFor = projectKeyTextField
-        val insets = JBUI.insets(2, 0, 0, 0)
+        val insets = JBUI.insetsTop(2)
         moduleBindingDetailsPanel.add(
             projectKeyLabel, GridBagConstraints(
             0, 0, 1, 1, 0.0, 0.0,
@@ -141,19 +141,19 @@ class ModuleBindingPanel(private val project: Project, currentConnectionSupplier
         searchProjectKeyButton.action = object : AbstractAction() {
             override fun actionPerformed(e: ActionEvent) {
                 val selectedConnection: ServerConnection = currentConnectionSupplier() ?: return
-                val map: Map<String, ServerProject> = downloadProjectList(project, selectedConnection) ?: return
+                val map: Map<String, SonarProjectDto> = downloadProjectList(project, selectedConnection) ?: return
                 val dialog = SearchProjectKeyDialog(
                     rootPanel,
                     projectKeyTextField.text,
                     map,
-                    selectedConnection.isCodeScanCloud
+                    selectedConnection.isSonarCloud
                 )
                 if (dialog.showAndGet() && dialog.selectedProjectKey != null) {
                     projectKeyTextField.text = dialog.selectedProjectKey
                 }
             }
         }
-        searchProjectKeyButton.text = "Search in list..."
+        searchProjectKeyButton.text = "Search in list\u2026"
 
         projectKeyTextField.document.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(e: DocumentEvent?) {
@@ -184,7 +184,7 @@ class ModuleBindingPanel(private val project: Project, currentConnectionSupplier
     private fun downloadProjectList(
         project: Project,
         selectedConnection: ServerConnection,
-    ): Map<String, ServerProject>? {
+    ): Map<String, SonarProjectDto>? {
         val downloadTask = ServerDownloadProjectTask(project, selectedConnection)
         return try {
             ProgressManager.getInstance().run(downloadTask)
@@ -240,8 +240,7 @@ class ModuleBindingPanel(private val project: Project, currentConnectionSupplier
             val existingModuleNames = collectionListModel.items.map { it.module.name }
             val modulesToPickFrom =
                 ModuleManager.getInstance(project).modules.filter {
-                    !existingModuleNames.contains(it.name) &&
-                        getService(it, ModuleBindingManager::class.java).isBindingOverrideAllowed()
+                    it.name !in existingModuleNames && getService(it, ModuleBindingManager::class.java).isBindingOverrideAllowed
                 }
             val dialog = if (ProjectAttachProcessor.canAttachToProject())
                 ChooseModulesDialog(modulesList, modulesToPickFrom.toMutableList(), "Select attached project", "Select the attached project for which you want to override the binding")

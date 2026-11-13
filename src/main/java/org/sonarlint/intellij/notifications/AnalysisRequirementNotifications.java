@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,29 +20,14 @@
 package org.sonarlint.intellij.notifications;
 
 import com.intellij.notification.NotificationAction;
-import com.intellij.notification.NotificationGroup;
-import com.intellij.notification.NotificationGroupManager;
-import com.intellij.notification.NotificationListener;
-import com.intellij.notification.NotificationType;
 import com.intellij.openapi.project.Project;
-
-import java.util.Collection;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
-
-import org.sonarsource.sonarlint.core.analysis.api.AnalysisResults;
-import org.sonarsource.sonarlint.core.client.api.common.PluginDetails;
-import org.sonarsource.sonarlint.core.plugin.commons.SkipReason;
-
-import static java.util.stream.Collectors.toSet;
+import org.sonarsource.sonarlint.core.client.utils.Language;
+import org.sonarsource.sonarlint.core.rpc.protocol.client.plugin.DidSkipLoadingPluginParams;
 
 public class AnalysisRequirementNotifications {
-
-  private static final NotificationGroup ANALYZER_REQUIREMENT_GROUP = NotificationGroupManager.getInstance()
-    .getNotificationGroup("CodeScan: Analyzer Requirement");
 
   private static final Set<String> alreadyNotified = new HashSet<>();
 
@@ -54,51 +39,34 @@ public class AnalysisRequirementNotifications {
     alreadyNotified.clear();
   }
 
-  public static void notifyOnceForSkippedPlugins(AnalysisResults analysisResults, Collection<PluginDetails> allPlugins, Project project) {
-    var attemptedLanguages = analysisResults.languagePerFile().values()
-      .stream()
-      .filter(Objects::nonNull)
-      .collect(toSet());
-    attemptedLanguages.forEach(l -> {
-      final var correspondingPlugin = allPlugins.stream().filter(p -> p.key().equals(l.getPluginKey())).findFirst();
-      correspondingPlugin.flatMap(PluginDetails::skipReason).ifPresent(skipReason -> {
-        if (skipReason instanceof SkipReason.UnsatisfiedRuntimeRequirement) {
-          final var runtimeRequirement = (SkipReason.UnsatisfiedRuntimeRequirement) skipReason;
-          final var title = "<b>CodeScan failed to analyze " + l.getLabel() + " code</b>";
-          if (runtimeRequirement.getRuntime() == SkipReason.UnsatisfiedRuntimeRequirement.RuntimeRequirement.JRE) {
-            var content = String.format(
-              "CodeScan requires Java runtime version %s or later to analyze %s code. Current version is %s.<br>" +
-                "See <a href=\"https://intellij-support.jetbrains.com/hc/en-us/articles/206544879-Selecting-the-JDK-version-the-IDE-will-run-under\">" +
-                "how to select the JDK version the IDE will run under</a>.",
-              runtimeRequirement.getMinVersion(), l.getLabel(), runtimeRequirement.getCurrentVersion());
-            createNotificationOnce(project, title, content, new NotificationListener.UrlOpeningListener(true));
-          } else if (runtimeRequirement.getRuntime() == SkipReason.UnsatisfiedRuntimeRequirement.RuntimeRequirement.NODEJS) {
-            var content = new StringBuilder(
-              String.format("CodeScan requires Node.js runtime version %s or later to analyze %s code.", runtimeRequirement.getMinVersion(), l.getLabel()));
-            if (runtimeRequirement.getCurrentVersion() != null) {
-              content.append(String.format(" Current version is %s.", runtimeRequirement.getCurrentVersion()));
-            }
-            content.append("<br>Please configure the Node.js path in the CodeScan settings.");
-            createNotificationOnce(project, title, content.toString(), null, new OpenGlobalSettingsAction(project));
-          }
-        }
-      });
-    });
+  public static void notifyOnceForSkippedPlugins(Project project, org.sonarsource.sonarlint.core.rpc.protocol.common.Language language,
+    DidSkipLoadingPluginParams.SkipReason reason, String minVersion, @Nullable String currentVersion) {
+    var languageLabel = Language.valueOf(language.name()).getLabel();
+    final var title = "<b>SonarQube for IDE failed to analyze " + languageLabel + " code</b>";
+    if (reason == DidSkipLoadingPluginParams.SkipReason.UNSATISFIED_JRE) {
+      var content = String.format(
+        "SonarQube for IDE requires Java runtime version %s or later to analyze %s code. Current version is %s.",
+        minVersion, languageLabel, currentVersion);
+      createNotificationOnce(project, title, content,
+        new OpenLinkAction("https://intellij-support.jetbrains.com/hc/en-us/articles/206544879-Selecting-the-JDK-version-the-IDE-will-run" +
+          "-under",
+          "How to change the IDE-running JDK?"));
+    } else if (reason == DidSkipLoadingPluginParams.SkipReason.UNSATISFIED_NODE_JS) {
+      var content = new StringBuilder(
+        String.format("SonarQube for IDE requires Node.js runtime version %s or later to analyze %s code.", minVersion, languageLabel));
+      if (currentVersion != null) {
+        content.append(String.format(" Current version is %s.", currentVersion));
+      }
+      content.append("<br>Please configure the Node.js path in the SonarQube for IDE settings.");
+      createNotificationOnce(project, title, content.toString(), new OpenGlobalSettingsAction(project));
+    }
   }
 
-  private static void createNotificationOnce(Project project, String title, String content, @Nullable NotificationListener listener, NotificationAction... actions) {
+  private static void createNotificationOnce(Project project, String title, String content, NotificationAction... actions) {
     if (!alreadyNotified.contains(content)) {
-      var notification = ANALYZER_REQUIREMENT_GROUP.createNotification(
-        title,
-        content,
-        NotificationType.WARNING);
-      if (listener != null) {
-        notification.setListener(listener);
-      }
-      notification.setImportant(true);
-      Stream.of(actions).forEach(notification::addAction);
-      notification.notify(project);
+      SonarLintProjectNotifications.Companion.get(project).createNotificationOnce(title, content, actions);
       alreadyNotified.add(content);
     }
   }
+
 }

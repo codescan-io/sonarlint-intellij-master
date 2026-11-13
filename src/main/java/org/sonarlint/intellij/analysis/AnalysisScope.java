@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
-import org.sonarlint.intellij.exception.InvalidBindingException;
 import org.sonarlint.intellij.trigger.TriggerType;
 
 import static java.util.stream.Collectors.toSet;
@@ -34,37 +33,39 @@ import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 
 class AnalysisScope {
 
-  public static AnalysisScope defineFrom(Project project, Collection<VirtualFile> files, TriggerType trigger) throws InvalidBindingException {
-    var isForcedAnalysis = trigger == TriggerType.ACTION;
+  public static AnalysisScope defineFrom(Project project, Collection<VirtualFile> files, TriggerType trigger) {
+    var isForcedAnalysis = trigger == TriggerType.CURRENT_FILE_ACTION || trigger == TriggerType.RIGHT_CLICK;
     var localFileExclusions = getService(project, LocalFileExclusions.class);
     var console = getService(project, SonarLintConsole.class);
     var filesByModule = localFileExclusions.retainNonExcludedFilesByModules(files, isForcedAnalysis,
       (f, r) -> console.debug("File '" + f.getName() + "' excluded: " + r.excludeReason()));
-    return new AnalysisScope(filesByModule);
+    return new AnalysisScope(filesByModule, trigger);
   }
 
   private final Map<Module, Collection<VirtualFile>> filesByModule;
   private final Set<VirtualFile> allFilesToAnalyze;
+  private final TriggerType triggerType;
 
-  public AnalysisScope(Map<Module, Collection<VirtualFile>> filesByModule) {
+  public AnalysisScope(Map<Module, Collection<VirtualFile>> filesByModule, TriggerType triggerType) {
     this.filesByModule = filesByModule;
     this.allFilesToAnalyze = filesByModule.entrySet().stream().flatMap(e -> e.getValue().stream()).collect(toSet());
+    this.triggerType = triggerType;
   }
 
   public Map<Module, Collection<VirtualFile>> getFilesByModule() {
     return filesByModule;
   }
 
-  public Set<VirtualFile> getAllFilesToAnalyze() {
-    return allFilesToAnalyze;
-  }
-
   public boolean isEmpty() {
     return allFilesToAnalyze.isEmpty();
   }
 
+  public boolean shouldFetchServerIssues() {
+    return this.triggerType.isShouldUpdateServerIssues();
+  }
+
   private int modulesCount() {
-    return filesByModule.keySet().size();
+    return filesByModule.size();
   }
 
   public String getDescription() {

@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -33,7 +33,6 @@ public final class SonarLintProjectSettings {
 
   private boolean verboseEnabled = false;
   private boolean analysisLogsEnabled = false;
-  private boolean resolvedHotspotsEnabled = false;
   private Map<String, String> additionalProperties = new LinkedHashMap<>();
   private boolean bindingEnabled = false;
   // For backward compatibility
@@ -42,9 +41,10 @@ public final class SonarLintProjectSettings {
   private String projectKey = null;
   private List<String> fileExclusions = new ArrayList<>();
   private boolean bindingSuggestionsEnabled = true;
+  private Map<String, String> moduleMapping = new LinkedHashMap<>();
 
   public boolean isVerboseEnabled() {
-    return verboseEnabled;
+    return verboseEnabled || "true".equals(System.getProperty("sonarlint.logs.verbose"));
   }
 
   public void setVerboseEnabled(boolean verboseEnabled) {
@@ -86,16 +86,7 @@ public final class SonarLintProjectSettings {
   }
 
   public boolean isAnalysisLogsEnabled() {
-    return analysisLogsEnabled;
-  }
-
-  public boolean isResolvedHotspotsEnabled() {
-    return resolvedHotspotsEnabled;
-  }
-
-
-  public void setResolvedHotspotsEnabled(boolean resolvedHotspotsEnabled) {
-    this.resolvedHotspotsEnabled = resolvedHotspotsEnabled;
+    return analysisLogsEnabled || "true".equals(System.getProperty("sonarlint.logs.verbose"));
   }
 
   public void setAnalysisLogsEnabled(boolean analysisLogsEnabled) {
@@ -137,4 +128,13 @@ public final class SonarLintProjectSettings {
   public boolean isBindingSuggestionsEnabled() {
     return bindingSuggestionsEnabled;
   }
+
+  public Map<String, String> getModuleMapping() {
+    return moduleMapping;
+  }
+
+  public void setModuleMapping(Map<String, String> moduleMapping) {
+    this.moduleMapping = new LinkedHashMap<>(moduleMapping);
+  }
+
 }

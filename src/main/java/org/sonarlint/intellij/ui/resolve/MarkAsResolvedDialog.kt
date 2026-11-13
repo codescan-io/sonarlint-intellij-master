@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,11 +22,11 @@ package org.sonarlint.intellij.ui.resolve
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import java.awt.event.ActionEvent
 import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.ui.UiUtils
-import org.sonarsource.sonarlint.core.clientapi.backend.issue.CheckStatusChangePermittedResponse
-import org.sonarsource.sonarlint.core.clientapi.backend.issue.ResolutionStatus
-import java.awt.event.ActionEvent
+import org.sonarsource.sonarlint.core.client.utils.IssueResolutionStatus
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.CheckStatusChangePermittedResponse
 
 class MarkAsResolvedDialog(
     project: Project,
@@ -40,7 +40,7 @@ class MarkAsResolvedDialog(
     init {
         title = "Mark Issue as Resolved on ${connection.productName}"
         isResizable = false
-        changeStatusAction = object : DialogWrapperAction("Mark Issue as...") {
+        changeStatusAction = object : DialogWrapperAction("Mark Issue as\u2026") {
             init {
                 putValue(DEFAULT_ACTION, true)
                 isEnabled = false
@@ -55,9 +55,6 @@ class MarkAsResolvedDialog(
             }
         }
         centerPanel = MarkAsResolvedPanel(connection, permissionCheckResponse.allowedStatuses) { changeStatusAction.isEnabled = permissionCheckResponse.isPermitted && it }
-        if (!permissionCheckResponse.isPermitted) {
-            setErrorText(permissionCheckResponse.notPermittedReason)
-        }
         init()
     }
 
@@ -79,5 +76,5 @@ class MarkAsResolvedDialog(
         ) { close(OK_EXIT_CODE) }
     }
 
-    data class Resolution(val newStatus: ResolutionStatus, val comment: String?)
+    data class Resolution(val newStatus: IssueResolutionStatus, val comment: String?)
 }

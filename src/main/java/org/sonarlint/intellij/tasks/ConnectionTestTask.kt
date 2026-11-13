@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,27 +19,25 @@
  */
 package org.sonarlint.intellij.tasks
 
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import org.sonarlint.intellij.common.util.SonarLintUtils
 import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.core.BackendService
 import org.sonarlint.intellij.util.ProgressUtils.waitForFuture
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.validate.ValidateConnectionResponse
+import org.sonarlint.intellij.util.computeOnPooledThreadWithoutCatching
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.validate.ValidateConnectionResponse
 
 class ConnectionTestTask(private val server: ServerConnection) :
     Task.WithResult<ValidateConnectionResponse?, Exception>(
-        null, "Test Connection to " + if (server.isCodeScanCloud) "CodeScanCloud" else "CodeScan", true
+        null, "Test Connection to " + if (server.isSonarCloud) "SonarQube Cloud" else "SonarQube Server", true
     ) {
 
     override fun compute(indicator: ProgressIndicator): ValidateConnectionResponse? {
-        indicator.text = "Connecting to " + server.hostUrl + "..."
+        indicator.text = "Connecting to " + server.hostUrl + "\u2026"
         indicator.isIndeterminate = true
-        return try {
+        return computeOnPooledThreadWithoutCatching("Validate Connection Task") {
             waitForFuture(indicator, SonarLintUtils.getService(BackendService::class.java).validateConnection(server))
-        } catch (e: ProcessCanceledException) {
-            null
         }
     }
 }

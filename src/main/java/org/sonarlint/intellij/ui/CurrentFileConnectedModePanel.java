@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,7 +21,6 @@ package org.sonarlint.intellij.ui;
 
 import com.intellij.ide.IdeTooltipManager;
 import com.intellij.openapi.actionSystem.ActionManager;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindowManager;
@@ -39,19 +38,20 @@ import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.SonarLintIcons;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarlint.intellij.common.vcs.VcsListener;
-import org.sonarlint.intellij.common.vcs.VcsService;
+import org.sonarlint.intellij.common.util.UrlUtils;
 import org.sonarlint.intellij.config.global.ServerConnection;
+import org.sonarlint.intellij.connected.SonarProjectBranchCache;
+import org.sonarlint.intellij.connected.SonarProjectBranchListener;
 import org.sonarlint.intellij.core.ModuleBindingManager;
 import org.sonarlint.intellij.core.ProjectBindingManager;
 import org.sonarlint.intellij.documentation.SonarLintDocumentation;
 import org.sonarlint.intellij.util.SonarLintActions;
-import org.sonarlint.intellij.util.SonarLintAppUtils;
-import org.sonarsource.sonarlint.core.serverapi.UrlUtils;
 
-import static org.apache.commons.lang.StringEscapeUtils.escapeHtml;
+import static org.apache.commons.text.StringEscapeUtils.escapeHtml4;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static org.sonarlint.intellij.common.util.SonarLintUtils.withoutTrailingSlash;
 import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
+import static org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile;
 import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class CurrentFileConnectedModePanel {
@@ -71,8 +71,7 @@ public class CurrentFileConnectedModePanel {
     createPanel();
     switchCards();
     CurrentFileStatusPanel.subscribeToEventsThatAffectCurrentFile(project, this::switchCards);
-    project.getMessageBus().connect(project).subscribe(VcsListener.TOPIC,
-      (module, branchName) -> runOnUiThread(project, this::switchCards));
+    project.getMessageBus().connect().subscribe(SonarProjectBranchListener.TOPIC, (module, branchName) -> updateBranchTooltip());
   }
 
   private void createPanel() {
@@ -110,8 +109,8 @@ public class CurrentFileConnectedModePanel {
       super(SonarLintIcons.NOT_CONNECTED);
       var notConnectedTooltip = new TooltipWithClickableLinks.ForBrowser(this,
         "<h3>Not Connected</h3>" +
-          "<p>Click to synchronize your project with CodeScan or CodeScanCloud.</p>" +
-          "<p><a href=\"" + SonarLintDocumentation.CONNECTED_MODE_LINK + "\">Learn More</a></p>");
+          "<p>Click to synchronize your project with SonarQube (Server, Cloud).</p>" +
+          "<p><a href=\"" + SonarLintDocumentation.Intellij.CONNECTED_MODE_LINK + "\">Learn More</a></p>");
       IdeTooltipManager.getInstance().setCustomTooltip(this, notConnectedTooltip);
     }
   }
@@ -121,7 +120,7 @@ public class CurrentFileConnectedModePanel {
       super(SonarLintIcons.CONNECTION_ERROR);
       var errorTooltip = new TooltipWithClickableLinks(this,
         "<h3>Connected Mode Error</h3>" +
-          "<p>There was an issue, please check for additional details in the SonarLint Log.</p>" +
+          "<p>There was an issue, please check for additional details in the SonarQube for IDE Log.</p>" +
           "<p><a href=\"#\">Open Log</a></p>",
         new HyperlinkAdapter() {
           @Override
@@ -143,7 +142,7 @@ public class CurrentFileConnectedModePanel {
 
     private void updateTooltip(Module module, ServerConnection serverConnection) {
       var projectKey = illegalStateIfNull(getService(module, ModuleBindingManager.class).resolveProjectKey(), "Could not find project key for module " + module);
-      var branchName = getService(project, VcsService.class).getServerBranchName(module);
+      var branchName = getService(project, SonarProjectBranchCache.class).getMatchedBranch(module);
       var connectedTooltip = new TooltipWithClickableLinks.ForBrowser(connectedCard, buildTooltipHtml(serverConnection, projectKey, branchName));
       IdeTooltipManager.getInstance().setCustomTooltip(connectedCard, connectedTooltip);
     }
@@ -158,47 +157,62 @@ public class CurrentFileConnectedModePanel {
   }
 
   private void switchCards() {
-    ApplicationManager.getApplication().assertIsDispatchThread();
-
-    var selectedFile = SonarLintUtils.getSelectedFile(project);
-    if (selectedFile != null) {
-      // Checking connected mode state may take time, so lets move from EDT to pooled thread
-      runOnPooledThread(project, () -> {
-        var projectBindingManager = getService(project, ProjectBindingManager.class);
-        projectBindingManager.tryGetServerConnection().ifPresentOrElse(serverConnection -> {
-          try {
-            var module = SonarLintAppUtils.findModuleForFile(selectedFile, project);
-            if (module == null) {
-              switchCard(EMPTY);
-            } else {
-              connectedCard.updateTooltip(module, serverConnection);
-              switchCard(CONNECTED);
+    runOnUiThread(project, () -> {
+      var selectedFile = SonarLintUtils.getSelectedFile(project);
+      if (selectedFile != null) {
+        // Checking connected mode state may take time, so lets move from EDT to pooled thread
+        runOnPooledThread(project, () -> {
+          var projectBindingManager = getService(project, ProjectBindingManager.class);
+          projectBindingManager.tryGetServerConnection().ifPresentOrElse(serverConnection -> {
+            try {
+              var module = findModuleForFile(selectedFile, project);
+              if (module == null) {
+                switchCard(EMPTY);
+              } else {
+                connectedCard.updateTooltip(module, serverConnection);
+                switchCard(CONNECTED);
+              }
+            } catch (IllegalStateException e) {
+              switchCard(ERROR);
             }
-          } catch (IllegalStateException e) {
-            switchCard(ERROR);
+          },
+            // No connection settings for project
+            () -> switchCard(NOT_CONNECTED));
+        });
+      } else {
+        switchCard(EMPTY);
+      }
+    });
+  }
+
+  private void updateBranchTooltip() {
+    var projectBindingManager = getService(project, ProjectBindingManager.class);
+    projectBindingManager.tryGetServerConnection().ifPresent(serverConnection -> runOnUiThread(project, () -> {
+      var selectedFile = SonarLintUtils.getSelectedFile(project);
+      if (selectedFile != null) {
+        runOnPooledThread(project, () -> {
+          var module = findModuleForFile(selectedFile, project);
+          if (module != null) {
+            runOnUiThread(project, () -> connectedCard.updateTooltip(module, serverConnection));
           }
-        },
-          // No connection settings for project
-          () -> switchCard(NOT_CONNECTED));
-      });
-    } else {
-      switchCard(EMPTY);
-    }
+        });
+      }
+    }));
   }
 
   private static String buildTooltipHtml(ServerConnection serverConnection, String projectKey, @Nullable String branchName) {
-    var projectOverviewUrl = String.format("%s/dashboard?id=%s", serverConnection.getHostUrl(), UrlUtils.urlEncode(projectKey));
+    var projectOverviewUrl = String.format("%s/dashboard?id=%s", withoutTrailingSlash(serverConnection.getHostUrl()), UrlUtils.urlEncode(projectKey));
     var branchParagraph = "<p>Synchronized with the project's main branch</p>";
     if (branchName != null) {
       projectOverviewUrl += String.format("&branch=%s", UrlUtils.urlEncode(branchName));
-      branchParagraph = String.format("<p>Synchronized with branch '%s'</p>", escapeHtml(branchName));
+      branchParagraph = String.format("<p>Synchronized with branch '%s'</p>", escapeHtml4(branchName));
     }
     return String.format(
       "<h3>Connected to %s</h3>" +
         "<p>Bound to project '%s' on connection '%s'</p>" +
         "%s" +
         "<p><a href=\"%s\">Open Project Overview</a></p>",
-      serverConnection.getProductName(), escapeHtml(projectKey), escapeHtml(serverConnection.getName()), branchParagraph, projectOverviewUrl);
+      serverConnection.getProductName(), escapeHtml4(projectKey), escapeHtml4(serverConnection.getName()), branchParagraph, projectOverviewUrl);
   }
 
   private void switchCard(String cardName) {

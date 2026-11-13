@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,10 +23,10 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBList
+import javax.swing.JList
 import org.sonarlint.intellij.SonarLintIcons
 import org.sonarlint.intellij.config.Settings.getGlobalSettings
 import org.sonarlint.intellij.notifications.binding.BindingSuggestion
-import javax.swing.JList
 
 open class BindingSuggestionSelectionDialog(bindingSuggestions: List<BindingSuggestion>) :
     DialogWrapper(true) {
@@ -61,7 +61,7 @@ class BindingSuggestionRenderer :
         val attrs = SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES
         getGlobalSettings().getServerConnectionByName(suggestion.connectionId)
             .ifPresentOrElse({
-                icon = if (it.isCodeScanCloud) SonarLintIcons.ICON_SONARCLOUD_16 else SonarLintIcons.ICON_SONARQUBE_16
+                icon = if (it.isSonarCloud) SonarLintIcons.ICON_SONARQUBE_CLOUD_16 else SonarLintIcons.ICON_SONARQUBE_SERVER_16
                 append(suggestion.projectName, attrs, true)
                 append(" (" + suggestion.projectKey + ")", SimpleTextAttributes.GRAY_ATTRIBUTES, false)
                 append(" on connection [" + suggestion.connectionId + "]", SimpleTextAttributes.GRAY_ATTRIBUTES, false)

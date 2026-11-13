@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SonarLintColorSettingsPageTests {
-  private final static String[] SEVERITIES = {"INFO", "MINOR", "MAJOR", "CRITICAL", "BLOCKER"};
+  private static final String[] SEVERITIES = {"LOW", "MEDIUM", "HIGH", "OLD", "SELECTED"};
   private SonarLintColorSettingsPage colorSettingsPage;
 
   @BeforeEach
@@ -38,7 +38,7 @@ class SonarLintColorSettingsPageTests {
   void testGetters() {
     assertThat(colorSettingsPage).isNotNull();
     assertThat(colorSettingsPage.getColorDescriptors()).isEmpty();
-    assertThat(colorSettingsPage.getDisplayName()).isEqualTo("CodeScan");
+    assertThat(colorSettingsPage.getDisplayName()).isEqualTo("SonarQube for IDE");
     assertThat(colorSettingsPage.getHighlighter()).isInstanceOf(PlainSyntaxHighlighter.class);
   }
 
@@ -46,16 +46,16 @@ class SonarLintColorSettingsPageTests {
   void testDescriptors() {
     assertThat(colorSettingsPage.getAdditionalHighlightingTagToDescriptorMap()).containsValues(
       SonarLintTextAttributes.BLOCKER,
-      SonarLintTextAttributes.INFO,
-      SonarLintTextAttributes.MAJOR,
-      SonarLintTextAttributes.MINOR,
-      SonarLintTextAttributes.CRITICAL);
+      SonarLintTextAttributes.HIGH,
+      SonarLintTextAttributes.MEDIUM,
+      SonarLintTextAttributes.LOW,
+      SonarLintTextAttributes.INFO);
   }
 
   @Test
   void testAttributeDescriptors() {
     // one per severity + selected
-    assertThat(colorSettingsPage.getAttributeDescriptors()).hasSize(6);
+    assertThat(colorSettingsPage.getAttributeDescriptors()).hasSize(7);
   }
 
   @Test
@@ -65,7 +65,7 @@ class SonarLintColorSettingsPageTests {
 
   @Test
   void testDemo() {
-    for (String txt : SEVERITIES) {
+    for (var txt : SEVERITIES) {
       assertThat(colorSettingsPage.getDemoText()).containsIgnoringCase(txt);
     }
   }

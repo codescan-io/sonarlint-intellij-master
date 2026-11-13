@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,44 +19,59 @@
  */
 package org.sonarlint.intellij.trigger;
 
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.Disposable;
+import com.intellij.openapi.components.Service;
 import com.intellij.openapi.fileEditor.FileEditorManager;
-import com.intellij.openapi.fileEditor.FileEditorManagerEvent;
 import com.intellij.openapi.fileEditor.FileEditorManagerListener;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.startup.StartupActivity;
 import com.intellij.openapi.vfs.VirtualFile;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.concurrent.ThreadSafe;
 import org.jetbrains.annotations.NotNull;
-import org.sonarlint.intellij.analysis.AnalysisSubmitter;
-import org.sonarlint.intellij.core.ProjectBindingManager;
+import org.sonarlint.intellij.common.util.FileUtils;
+import org.sonarlint.intellij.core.BackendService;
+import org.sonarlint.intellij.fs.VirtualFileEvent;
+import org.sonarsource.sonarlint.plugin.api.module.file.ModuleFileEvent;
 
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
-public class EditorOpenTrigger implements FileEditorManagerListener, StartupActivity {
+@ThreadSafe
+@Service(Service.Level.PROJECT)
+public final class EditorOpenTrigger implements FileEditorManagerListener, Disposable {
+
+  private final EventScheduler scheduler;
+  private final Project myProject;
+
+  public EditorOpenTrigger(Project project) {
+    myProject = project;
+    scheduler = new EventScheduler(myProject, "open", TriggerType.EDITOR_OPEN, 1000, true);
+  }
+
+  public void onProjectOpened() {
+    myProject.getMessageBus()
+      .connect()
+      .subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, this);
+  }
 
   @Override
   public void fileOpened(@NotNull FileEditorManager source, @NotNull VirtualFile file) {
-    getService(source.getProject(), AnalysisSubmitter.class).autoAnalyzeFile(file, TriggerType.EDITOR_OPEN);
-  }
-
-  @Override
-  public void fileClosed(@NotNull FileEditorManager source, @NotNull VirtualFile file) {
-    // nothing to do
-  }
-
-  @Override
-  public void selectionChanged(@NotNull FileEditorManagerEvent event) {
-    // nothing to do
-  }
-
-  @Override
-  public void runActivity(@NotNull Project myProject) {
-    if (!ApplicationManager.getApplication().isUnitTestMode()) {
-      myProject.getMessageBus().connect(myProject).subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, this);
-      // skip analyzing open files at startup when connected, it will be triggered after the sync
-      if (!getService(myProject, ProjectBindingManager.class).isBindingValid()) {
-        getService(myProject, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.EDITOR_OPEN);
+    runOnPooledThread(source.getProject(), () -> {
+      var module = findModuleForFile(file, source.getProject());
+      if (module != null && FileUtils.Companion.isFileValidForSonarLintWithExtensiveChecks(file, source.getProject())) {
+        getService(BackendService.class).updateFileSystem(Map.of(module, List.of(new VirtualFileEvent(ModuleFileEvent.Type.CREATED, file))), true);
       }
-    }
+      if (source.getProject().equals(myProject)) {
+        scheduler.notify(file);
+      }
+    });
   }
+
+  @Override
+  public void dispose() {
+    scheduler.stopScheduler();
+  }
+
 }

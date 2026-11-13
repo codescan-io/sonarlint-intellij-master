@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,7 @@ import org.sonarsource.sonarlint.core.analysis.api.ClientInputFile;
 
 import static java.util.stream.Collectors.toSet;
 
-class ModuleAnalysisResult {
+public class ModuleAnalysisResult {
 
   private final Set<VirtualFile> failedFiles;
 
@@ -35,6 +35,10 @@ class ModuleAnalysisResult {
       .map(ClientInputFile::getClientObject)
       .map(VirtualFile.class::cast)
       .collect(toSet());
+  }
+
+  public ModuleAnalysisResult(Set<VirtualFile> failedAnalysisFiles) {
+    failedFiles = failedAnalysisFiles;
   }
 
   public Collection<VirtualFile> failedFiles() {

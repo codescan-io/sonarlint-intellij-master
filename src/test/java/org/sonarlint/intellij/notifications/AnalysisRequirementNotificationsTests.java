@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,10 +22,8 @@ package org.sonarlint.intellij.notifications;
 import com.google.common.collect.Lists;
 import com.intellij.notification.Notification;
 import com.intellij.notification.Notifications;
-import com.intellij.notification.NotificationsAdapter;
 import com.intellij.notification.NotificationsManager;
 import com.intellij.util.messages.MessageBusConnection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,9 +35,9 @@ import org.junit.jupiter.api.Test;
 import org.sonarlint.intellij.AbstractSonarLintLightTests;
 import org.sonarsource.sonarlint.core.analysis.api.AnalysisResults;
 import org.sonarsource.sonarlint.core.analysis.api.ClientInputFile;
-import org.sonarsource.sonarlint.core.client.api.common.PluginDetails;
-import org.sonarsource.sonarlint.core.commons.Language;
-import org.sonarsource.sonarlint.core.plugin.commons.SkipReason;
+import org.sonarsource.sonarlint.core.commons.api.SonarLanguage;
+import org.sonarsource.sonarlint.core.rpc.protocol.client.plugin.DidSkipLoadingPluginParams;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Language;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -48,7 +46,7 @@ import static org.mockito.Mockito.when;
 class AnalysisRequirementNotificationsTests extends AbstractSonarLintLightTests {
 
   final AnalysisResults analysisResults = mock(AnalysisResults.class);
-  final Map<ClientInputFile, Language> detectedLang = new HashMap<>();
+  final Map<ClientInputFile, SonarLanguage> detectedLang = new HashMap<>();
 
   private List<Notification> notifications;
   private @NotNull MessageBusConnection busConnection;
@@ -61,7 +59,7 @@ class AnalysisRequirementNotificationsTests extends AbstractSonarLintLightTests 
     notifications = Lists.newCopyOnWriteArrayList();
     var project = getProject();
     busConnection = project.getMessageBus().connect(project);
-    busConnection.subscribe(Notifications.TOPIC, new NotificationsAdapter() {
+    busConnection.subscribe(Notifications.TOPIC, new Notifications() {
       @Override
       public void notify(@NotNull Notification notification) {
         notifications.add(notification);
@@ -77,45 +75,28 @@ class AnalysisRequirementNotificationsTests extends AbstractSonarLintLightTests 
   @AfterEach
   void expireAfterTest() {
     var mgr = NotificationsManager.getNotificationsManager();
-    var notifications = mgr.getNotificationsOfType(Notification.class, getProject());
-    Stream.of(notifications).forEach(mgr::expire);
+    var notifs = mgr.getNotificationsOfType(Notification.class, getProject());
+    Stream.of(notifs).forEach(mgr::expire);
     busConnection.disconnect();
   }
 
   @Test
-  void do_nothing_if_no_files() {
-    AnalysisRequirementNotifications.notifyOnceForSkippedPlugins(mock(AnalysisResults.class), Collections.emptyList(), getProject());
-
-    assertThat(notifications).isEmpty();
-  }
-
-  // SLI-453
-  @Test
-  void dont_fail_if_null_language() {
-    detectedLang.put(mock(ClientInputFile.class), null);
-    AnalysisRequirementNotifications.notifyOnceForSkippedPlugins(analysisResults, Collections.emptyList(), getProject());
-
-    assertThat(notifications).isEmpty();
-  }
-
-  @Test
   void notifyIfSkippedLanguage_JRE() {
-    detectedLang.put(mock(ClientInputFile.class), Language.JAVA);
-    List<PluginDetails> plugins = List.of(new PluginDetails("java", "Java", "1.0", new SkipReason.UnsatisfiedRuntimeRequirement(SkipReason.UnsatisfiedRuntimeRequirement.RuntimeRequirement.JRE, "1.8", "11")));
-    AnalysisRequirementNotifications.notifyOnceForSkippedPlugins(analysisResults, plugins, getProject());
+    AnalysisRequirementNotifications.notifyOnceForSkippedPlugins(getProject(), Language.JAVA, DidSkipLoadingPluginParams.SkipReason.UNSATISFIED_JRE,
+      "11", "1.8");
     assertThat(notifications).hasSize(1);
-    assertThat(notifications.get(0).getContent()).isEqualTo("SonarLint requires Java runtime version 11 or later to analyze Java code. Current version is 1.8.<br>See <a href=\"https://intellij-support.jetbrains.com/hc/en-us/articles/206544879-Selecting-the-JDK-version-the-IDE-will-run-under\">how to select the JDK version the IDE will run under</a>.");
+    assertThat(notifications.get(0).getContent()).isEqualTo("SonarQube for IDE requires Java runtime version 11 or later to analyze Java code. Current version is 1.8.");
   }
 
   @Test
   void notifyIfSkippedLanguage_Node() {
-    detectedLang.put(mock(ClientInputFile.class), Language.JS);
-    List<PluginDetails> plugins = List.of(new PluginDetails("javascript", "JS/TS", "1.0", new SkipReason.UnsatisfiedRuntimeRequirement(SkipReason.UnsatisfiedRuntimeRequirement.RuntimeRequirement.NODEJS, "7.2", "8.0")));
-    AnalysisRequirementNotifications.notifyOnceForSkippedPlugins(analysisResults, plugins, getProject());
+    AnalysisRequirementNotifications.notifyOnceForSkippedPlugins(getProject(), Language.JS, DidSkipLoadingPluginParams.SkipReason.UNSATISFIED_NODE_JS,
+      "8.0", "7.2");
     assertThat(notifications).hasSize(1);
-    assertThat(notifications.get(0).getContent()).isEqualTo("SonarLint requires Node.js runtime version 8.0 or later to analyze JavaScript code. Current version is 7.2.<br>Please configure the Node.js path in the SonarLint settings.");
+    assertThat(notifications.get(0).getContent()).isEqualTo(
+      "SonarQube for IDE requires Node.js runtime version 8.0 or later to analyze JavaScript code. Current version is 7.2.<br>Please configure the Node.js path in the SonarQube for IDE settings.");
     assertThat(notifications.get(0).getActions()).hasSize(1);
-    assertThat(notifications.get(0).getActions().get(0).getTemplatePresentation().getText()).isEqualTo("Open SonarLint Settings");
+    assertThat(notifications.get(0).getActions().get(0).getTemplatePresentation().getText()).isEqualTo("Open SonarQube for IDE Settings");
   }
 
 }

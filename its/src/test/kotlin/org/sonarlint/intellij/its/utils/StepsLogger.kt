@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -23,13 +23,13 @@ import com.intellij.remoterobot.stepsProcessing.StepLogger
 import com.intellij.remoterobot.stepsProcessing.StepWorker
 
 object StepsLogger {
-  private var initializaed = false
+    private var initialized = false
 
-  @JvmStatic
-  fun init() = synchronized(initializaed) {
-    if (initializaed.not()) {
-      StepWorker.registerProcessor(StepLogger())
-      initializaed = true
+    @JvmStatic
+    fun init() = synchronized(initialized) {
+        if (initialized.not()) {
+            StepWorker.registerProcessor(StepLogger())
+            initialized = true
+        }
     }
-  }
 }

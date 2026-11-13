@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -114,13 +114,7 @@ public class SonarLintConsoleImpl implements SonarLintConsole, Disposable {
     // nothing to do, the console view is already registered for dispose
   }
 
-  private static class Log {
-    private final String text;
-    private final ConsoleViewContentType outputType;
-
-    public Log(String text, ConsoleViewContentType outputType) {
-      this.text = text;
-      this.outputType = outputType;
-    }
+  private record Log(String text, ConsoleViewContentType outputType) {
   }
+
 }

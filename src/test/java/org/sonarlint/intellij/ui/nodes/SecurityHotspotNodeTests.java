@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,14 +19,16 @@
  */
 package org.sonarlint.intellij.ui.nodes;
 
-import com.intellij.psi.PsiFile;
+import com.intellij.openapi.vfs.VirtualFile;
 import java.util.Collections;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot;
-import org.sonarsource.sonarlint.core.client.api.common.analysis.Issue;
-import org.sonarsource.sonarlint.core.commons.RuleType;
-import org.sonarsource.sonarlint.core.commons.VulnerabilityProbability;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.VulnerabilityProbability;
+import org.sonarsource.sonarlint.core.rpc.protocol.client.hotspot.RaisedHotspotDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Either;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.IssueSeverity;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.RuleType;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.StandardModeDetails;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -43,12 +45,12 @@ class SecurityHotspotNodeTests {
   }
 
   private static LiveSecurityHotspot createSecurityHotspot() {
-    var file = mock(PsiFile.class);
+    var file = mock(VirtualFile.class);
     when(file.isValid()).thenReturn(true);
-    var issue = mock(Issue.class);
-    when(issue.getMessage()).thenReturn("rule");
-    when(issue.getVulnerabilityProbability()).thenReturn(Optional.of(VulnerabilityProbability.HIGH));
-    when(issue.getType()).thenReturn(RuleType.BUG);
-    return new LiveSecurityHotspot(issue, file, Collections.emptyList());
+    var issue = mock(RaisedHotspotDto.class);
+    when(issue.getPrimaryMessage()).thenReturn("rule");
+    when(issue.getVulnerabilityProbability()).thenReturn(VulnerabilityProbability.HIGH);
+    when(issue.getSeverityMode()).thenReturn(Either.forLeft(new StandardModeDetails(IssueSeverity.BLOCKER, RuleType.BUG)));
+    return new LiveSecurityHotspot(null, issue, file, Collections.emptyList());
   }
 }

@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.sonarlint.intellij.AbstractSonarLintLightTests;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -72,7 +73,7 @@ class CodeAnalyzerRestarterTests extends AbstractSonarLintLightTests {
 
     analyzerRestarter.refreshOpenFiles();
 
-    verify(codeAnalyzer).restart(file1);
+    verify(codeAnalyzer, timeout(1000)).restart(file1);
     verify(codeAnalyzer).restart(file2);
     verifyNoMoreInteractions(codeAnalyzer);
   }
@@ -84,7 +85,7 @@ class CodeAnalyzerRestarterTests extends AbstractSonarLintLightTests {
 
     analyzerRestarter.refreshFiles(List.of(file1.getVirtualFile(), file2.getVirtualFile()));
 
-    verify(codeAnalyzer).restart(file1);
+    verify(codeAnalyzer, timeout(1000)).restart(file1);
     verifyNoMoreInteractions(codeAnalyzer);
   }
 }

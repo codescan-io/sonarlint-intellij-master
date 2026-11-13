@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,7 +20,6 @@
 package org.sonarlint.intellij.messages
 
 import com.intellij.util.messages.Topic
-import org.sonarlint.intellij.core.ProjectBinding
 
 val PROJECT_BINDING_TOPIC = Topic.create(
     "Project binding events",
@@ -28,5 +27,7 @@ val PROJECT_BINDING_TOPIC = Topic.create(
 )
 
 interface ProjectBindingListener {
-    fun bindingChanged(previousBinding: ProjectBinding?, newBinding: ProjectBinding?)
+
+    fun bindingChanged()
+
 }

@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -33,8 +33,8 @@ import javax.swing.Icon;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
-import org.sonarlint.intellij.finding.persistence.FindingsCache;
 
+import static org.sonarlint.intellij.common.ui.ReadActionUtils.runReadActionSafely;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 
 public class ClearCurrentFileIssuesAction extends AbstractSonarAction {
@@ -49,12 +49,10 @@ public class ClearCurrentFileIssuesAction extends AbstractSonarAction {
     ApplicationManager.getApplication().assertReadAccessAllowed();
 
     if (project != null) {
-      var issueManager = getService(project, FindingsCache.class);
       var codeAnalyzer = DaemonCodeAnalyzer.getInstance(project);
 
-      ApplicationManager.getApplication().runReadAction(() -> {
-        issueManager.clearAllIssuesForAllFiles();
-        getService(project, AnalysisSubmitter.class).clearCurrentFileIssues();
+      runReadActionSafely(project, () -> {
+        getService(project, AnalysisSubmitter.class).getOnTheFlyFindingsHolder().clearCurrentFile();
 
         // run annotator to remove highlighting of issues
         var editorManager = FileEditorManager.getInstance(project);
@@ -66,6 +64,7 @@ public class ClearCurrentFileIssuesAction extends AbstractSonarAction {
   }
 
   public Collection<PsiFile> findFiles(Project project, VirtualFile[] files) {
+    ApplicationManager.getApplication().assertReadAccessAllowed();
     var psiManager = PsiManager.getInstance(project);
     var psiFiles = new ArrayList<PsiFile>(files.length);
 

@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -35,7 +35,7 @@ import java.util.function.UnaryOperator;
 import javax.swing.JPanel;
 import javax.swing.ListSelectionModel;
 import javax.swing.table.AbstractTableModel;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 public class ExclusionTable {
   private final Supplier<ExclusionItem> onAdd;
@@ -153,7 +153,7 @@ public class ExclusionTable {
     }
 
     public void set(List<ExclusionItem> rows) {
-      this.rows = rows;
+      this.rows = new ArrayList<>(rows);
       fireTableDataChanged();
     }
 

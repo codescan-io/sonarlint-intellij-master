@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -50,11 +50,10 @@ public class RulesTreeTableRenderer extends DefaultTreeRenderer {
     String text = null;
     var style = SimpleTextAttributes.STYLE_PLAIN;
 
-    if (value instanceof RulesTreeNode.Language) {
+    if (value instanceof RulesTreeNode.LanguageNode) {
       style = SimpleTextAttributes.STYLE_BOLD;
       text = node.toString();
-    } else if (value instanceof RulesTreeNode.Rule) {
-      var rule = (RulesTreeNode.Rule) value;
+    } else if (value instanceof RulesTreeNode.Rule rule) {
       text = rule.getName();
     }
 

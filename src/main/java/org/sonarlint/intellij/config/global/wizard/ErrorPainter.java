@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,9 +21,10 @@ package org.sonarlint.intellij.config.global.wizard;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.ui.AbstractPainter;
 import com.intellij.openapi.wm.IdeGlassPaneUtil;
-import com.intellij.util.ui.UIUtil;
+import com.intellij.util.ModalityUiUtil;
 import java.awt.Component;
 import java.awt.Graphics2D;
 import java.util.HashSet;
@@ -47,7 +48,8 @@ public class ErrorPainter extends AbstractPainter {
 
   public void installOn(JPanel component, Disposable disposable) {
     this.panel = component;
-    UIUtil.invokeLaterIfNeeded(() -> IdeGlassPaneUtil.installPainter(component, this, disposable));
+    ModalityUiUtil.invokeLaterIfNeeded(ModalityState.stateForComponent(component),
+      () -> IdeGlassPaneUtil.installPainter(component, this, disposable));
   }
 
   public void addComponentWithErrors(JComponent component) {

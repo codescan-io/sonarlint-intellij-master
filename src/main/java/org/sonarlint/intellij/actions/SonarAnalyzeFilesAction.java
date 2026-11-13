@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -22,23 +22,23 @@ package org.sonarlint.intellij.actions;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectCoreUtil;
-import com.intellij.openapi.vfs.VfsUtilCore;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.vfs.VirtualFileVisitor;
-import java.util.LinkedHashSet;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.jetbrains.annotations.NotNull;
-import org.sonarlint.intellij.SonarLintIcons;
+import javax.swing.Icon;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
-import org.sonarlint.intellij.ui.SonarLintToolWindowFactory;
+import org.sonarlint.intellij.core.BackendService;
 
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static org.sonarlint.intellij.util.SonarLintAppUtils.visitAndAddAllChildren;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class SonarAnalyzeFilesAction extends AbstractSonarAction {
+
+  public SonarAnalyzeFilesAction(String text, String description, Icon icon) {
+    super(text, description, icon);
+  }
+
   public SonarAnalyzeFilesAction() {
     super();
   }
@@ -51,14 +51,8 @@ public class SonarAnalyzeFilesAction extends AbstractSonarAction {
 
   @Override
   protected boolean isEnabled(AnActionEvent e, Project project, AnalysisStatus status) {
-    return !status.isRunning();
-  }
-
-  @Override
-  protected void updatePresentation(AnActionEvent e, Project project) {
-    if (SonarLintToolWindowFactory.TOOL_WINDOW_ID.equals(e.getPlace())) {
-      e.getPresentation().setIcon(SonarLintIcons.PLAY);
-    }
+    var backendIsAlive = getService(BackendService.class).isAlive();
+    return !status.isRunning() && backendIsAlive;
   }
 
   @Override
@@ -80,32 +74,15 @@ public class SonarAnalyzeFilesAction extends AbstractSonarAction {
     var fileSet = Stream.of(files)
       .flatMap(f -> {
         if (f.isDirectory()) {
-          var visitor = new CollectFilesVisitor();
-          VfsUtilCore.visitChildrenRecursively(f, visitor);
-          return visitor.files.stream();
+          var listFiles = visitAndAddAllChildren(f, project);
+          return listFiles.stream();
         } else {
           return Stream.of(f);
         }
       })
       .collect(Collectors.toSet());
 
-    getService(project, AnalysisSubmitter.class).analyzeFilesOnUserAction(fileSet, e);
+    runOnPooledThread(project, () -> getService(project, AnalysisSubmitter.class).analyzeFilesOnUserAction(fileSet, e));
   }
 
-  private static class CollectFilesVisitor extends VirtualFileVisitor {
-    private final Set<VirtualFile> files = new LinkedHashSet<>();
-
-    public CollectFilesVisitor() {
-      super(VirtualFileVisitor.NO_FOLLOW_SYMLINKS);
-    }
-
-    @Override
-    public boolean visitFile(@NotNull VirtualFile file) {
-      var projectFile = ProjectCoreUtil.isProjectOrWorkspaceFile(file, file.getFileType());
-      if (!file.isDirectory() && !file.getFileType().isBinary() && !projectFile) {
-        files.add(file);
-      }
-      return !projectFile && !".git".equals(file.getName());
-    }
-  }
 }

@@ -1,32 +1,35 @@
+
 import com.jetbrains.plugin.blockmap.core.BlockMap
-import groovy.lang.GroovyObject
-import org.jetbrains.intellij.tasks.RunPluginVerifierTask
-import org.jfrog.gradle.plugin.artifactory.dsl.PublisherConfig
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.Paths
 import java.util.EnumSet
 import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.jetbrains.intellij.tasks.RunPluginVerifierTask
 
 plugins {
-    kotlin("jvm") version "1.9.25"
-    id("org.jetbrains.intellij") version "1.16.1"
-    id("org.sonarqube") version "4.4.1.3373"
+    alias(libs.plugins.kotlin)
+    alias(libs.plugins.intellij)
+    alias(libs.plugins.sonarqube)
     java
     jacoco
-    id("com.github.hierynomus.license") version "0.16.1"
-    id("com.jfrog.artifactory") version "4.30.1"
-    id("com.google.protobuf") version "0.9.4"
+    alias(libs.plugins.license)
+    alias(libs.plugins.artifactory)
     idea
     signing
-    id("org.cyclonedx.bom") version "1.7.4"
+    alias(libs.plugins.cyclonedx)
 }
 
 buildscript {
     repositories {
-        mavenLocal()
         mavenCentral()
     }
     dependencies {
@@ -34,27 +37,20 @@ buildscript {
     }
 }
 
-group = "com.villagechief.sonarlint.intellij"
-description = "CodeScan for IntelliJ IDEA"
+group = "org.sonarsource.sonarlint.intellij"
+description = "SonarLint for IntelliJ IDEA"
 
-val sonarlintCoreVersion: String by project
-val protobufVersion: String by project
 val intellijBuildVersion: String by project
 val omnisharpVersion: String by project
 
-// The environment variables ARTIFACTORY_PRIVATE_USERNAME and ARTIFACTORY_PRIVATE_PASSWORD are used on CI env (Azure)
+// The environment variables ARTIFACTORY_PRIVATE_USERNAME and ARTIFACTORY_PRIVATE_PASSWORD are used on CI env
 // On local box, please add artifactoryUsername and artifactoryPassword to ~/.gradle/gradle.properties
-val artifactoryUsername = System.getenv("ARTIFACTORY_PRIVATE_READER_USERNAME")
-        ?: (if (project.hasProperty("artifactoryUsername")) project.property("artifactoryUsername").toString() else "")
-val artifactoryPassword = System.getenv("ARTIFACTORY_PRIVATE_READER_PASSWORD")
-        ?: (if (project.hasProperty("artifactoryPassword")) project.property("artifactoryPassword").toString() else "")
+val artifactoryUsername = System.getenv("ARTIFACTORY_PRIVATE_USERNAME")
+    ?: (if (project.hasProperty("artifactoryUsername")) project.property("artifactoryUsername").toString() else "")
+val artifactoryPassword = System.getenv("ARTIFACTORY_PRIVATE_PASSWORD")
+    ?: (if (project.hasProperty("artifactoryPassword")) project.property("artifactoryPassword").toString() else "")
 
-// AWS CodeArtifact (replaces artifactory.autorabit.com). Hosts the CodeScan-owned artifacts, e.g. the OmniSharp zips.
-// Get a token locally with: eval "$(./scripts/codeartifact-bootstrap.sh)"
-val codeartifactMavenUrl = System.getenv("CODEARTIFACT_MAVEN_URL")
-        ?: "https://autorabit-artifacts-domain-261140574810.d.codeartifact.us-east-1.amazonaws.com/maven/codescan-libs-release/"
-val codeartifactAuthToken = System.getenv("CODEARTIFACT_AUTH_TOKEN")
-        ?: (if (project.hasProperty("codeartifactAuthToken")) project.property("codeartifactAuthToken").toString() else "")
+val ideaHome: String? = System.getenv("IDEA_HOME")
 
 allprojects {
     apply {
@@ -65,23 +61,22 @@ allprojects {
         plugin("com.github.hierynomus.license")
     }
 
+    configurations.archives.get().isCanBeResolved = true
+
     repositories {
-        mavenLocal()
-        mavenCentral()
-        ivy("https://repox.jfrog.io/repox/api/npm/npm") {
-            patternLayout {
-                artifact("[organization]/-/[module]-[revision].[ext]")
-                metadataSources { artifact() }
+        maven("https://repox.jfrog.io/repox/sonarsource") {
+            if (artifactoryUsername.isNotEmpty() && artifactoryPassword.isNotEmpty()) {
+                credentials {
+                    username = artifactoryUsername
+                    password = artifactoryPassword
+                }
             }
-            content { includeGroup("typescript") }
         }
-        maven(codeartifactMavenUrl) {
-            name = "codeartifact"
-            credentials {
-                username = "aws"
-                password = codeartifactAuthToken
+        mavenCentral {
+            content {
+                // avoid dependency confusion
+                excludeGroupByRegex("com\\.sonarsource.*")
             }
-            content { includeGroup("com.villagechief.codescan.thirdparty") }
         }
     }
 
@@ -98,17 +93,18 @@ allprojects {
         }
     }
 
+
     tasks.cyclonedxBom {
         setIncludeConfigs(listOf("runtimeClasspath", "sqplugins_deps"))
         inputs.files(configurations.runtimeClasspath, configurations.archives.get())
         mustRunAfter(
-                getTasksByName("buildPluginBlockmap", true)
+            getTasksByName("buildPluginBlockmap", true)
         )
     }
 
     val bomFile = layout.buildDirectory.file("reports/bom.json")
     artifacts.add("archives", bomFile.get().asFile) {
-        name = "CodeScan-intellij"
+        name = "sonarlint-intellij"
         type = "json"
         classifier = "cyclonedx"
         builtBy("cyclonedxBom")
@@ -117,15 +113,15 @@ allprojects {
     license {
         header = rootProject.file("HEADER")
         mapping(
-                mapOf(
-                        "java" to "SLASHSTAR_STYLE",
-                        "kt" to "SLASHSTAR_STYLE",
-                        "svg" to "XML_STYLE",
-                        "form" to "XML_STYLE"
-                )
+            mapOf(
+                "java" to "SLASHSTAR_STYLE",
+                "kt" to "SLASHSTAR_STYLE",
+                "svg" to "XML_STYLE",
+                "form" to "XML_STYLE"
+            )
         )
         excludes(
-                listOf("**/*.jar", "**/*.png", "**/README", "**/proto/*.java")
+            listOf("**/*.jar", "**/*.png", "**/README")
         )
         strictCheck = true
     }
@@ -141,46 +137,46 @@ subprojects {
 }
 
 intellij {
-    version.set(intellijBuildVersion)
-    pluginName.set("CodeScan")
+    pluginName.set("sonarlint-intellij")
     updateSinceUntilBuild.set(false)
     plugins.set(listOf("java", "Git4Idea"))
+    if (!ideaHome.isNullOrBlank()) {
+        println("Using local installation of IntelliJ IDEA: $ideaHome")
+        localPath.set(ideaHome)
+        localSourcesPath.set(ideaHome)
+    } else {
+        println("No local installation of IntelliJ IDEA found, using version $intellijBuildVersion")
+        version.set(intellijBuildVersion)
+    }
 }
 
+val verifierVersions: String by project
+
 tasks.runPluginVerifier {
-    // Test oldest supported, and latest
-    ideVersions.set(listOf("IC-2023.1"))
+    if (project.hasProperty("verifierVersions")) {
+        ideVersions.set(verifierVersions.split(','))
+    } else {
+        // Test oldest supported, and latest
+        ideVersions.set(listOf("IC-2022.3.1", "IC-2024.1.4"))
+    }
     failureLevel.set(
-            EnumSet.complementOf(
-                    EnumSet.of(
-                            // these are the only issues we tolerate
-                            RunPluginVerifierTask.FailureLevel.DEPRECATED_API_USAGES,
-                            RunPluginVerifierTask.FailureLevel.EXPERIMENTAL_API_USAGES,
-                            RunPluginVerifierTask.FailureLevel.NOT_DYNAMIC,
-                            RunPluginVerifierTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
-                            // TODO Workaround for CLion
-                            RunPluginVerifierTask.FailureLevel.MISSING_DEPENDENCIES,
-                            // needed because of UpdateInBackground usages in recent versions, replacement is available from 2022.2
-                            RunPluginVerifierTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
-                    )
+        EnumSet.complementOf(
+            EnumSet.of(
+                // these are the only issues we tolerate
+                RunPluginVerifierTask.FailureLevel.DEPRECATED_API_USAGES,
+                RunPluginVerifierTask.FailureLevel.EXPERIMENTAL_API_USAGES,
+                RunPluginVerifierTask.FailureLevel.NOT_DYNAMIC,
+                RunPluginVerifierTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
+                // TODO Workaround for CLion
+                RunPluginVerifierTask.FailureLevel.MISSING_DEPENDENCIES,
+                // needed because of CPPToolset.isRemote()
+                RunPluginVerifierTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES
             )
+        )
     )
 }
 
-protobuf {
-    // Configure the protoc executable
-    protoc {
-        // Download from repositories. Must be the same as the one used in sonarlint-core
-        artifact = "com.google.protobuf:protoc:$protobufVersion"
-    }
-}
-
 tasks.test {
-    java {
-        toolchain {
-            languageVersion.set(JavaLanguageVersion.of(17))
-        }
-    }
     useJUnitPlatform()
     systemProperty("sonarlint.telemetry.disabled", "true")
 }
@@ -189,11 +185,12 @@ val runIdeDirectory: String by project
 
 tasks.runIde {
     systemProperty("sonarlint.telemetry.disabled", "true")
+    // uncomment to customize the SonarCloud URL
+    //systemProperty("sonarlint.internal.sonarcloud.url", "https://sonarcloud.io/")
     if (project.hasProperty("runIdeDirectory")) {
         ideDir.set(File(runIdeDirectory))
     }
     maxHeapSize = "2g"
-    debug = true
 }
 
 configurations {
@@ -202,67 +199,40 @@ configurations {
         extendsFrom(sqplugins)
         isTransitive = true
     }
-    create("omnisharp") { isTransitive = false }
+    create("omnisharp")
+    create("sloop")
 }
 
 dependencies {
-    implementation("org.sonarsource.sonarlint.core:sonarlint-core:$sonarlintCoreVersion")
-    implementation("commons-lang:commons-lang:2.6")
-    implementation("org.sonarsource.sonarqube:sonar-plugin-api-impl:9.9.0.65466")
+    implementation(libs.sonarlint.java.client.utils)
+    implementation(libs.sonarlint.rpc.java.client)
+    implementation(libs.sonarlint.rpc.impl)
+    implementation(libs.commons.langs3)
+    implementation(libs.commons.text)
     implementation(project(":common"))
-    compileOnly("com.google.code.findbugs:jsr305:3.0.2")
+    compileOnly(libs.findbugs.jsr305)
     runtimeOnly(project(":clion"))
+    runtimeOnly(project(":clion-resharper"))
     runtimeOnly(project(":rider"))
     runtimeOnly(project(":git"))
-    testImplementation(platform("org.junit:junit-bom:5.9.2"))
+    testImplementation(platform(libs.junit.bom))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation(libs.assertj.core)
     testImplementation(libs.mockito.core)
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.11.0") {
-        exclude(module = "junit")
-    }
-    testImplementation("org.mockito.kotlin:mockito-kotlin:4.1.0")
-    testImplementation("org.awaitility:awaitility:4.2.0")
-    "sqplugins"("org.sonarsource.java:sonar-java-plugin:7.28.0.33738")
-    "sqplugins"("org.sonarsource.javascript:sonar-javascript-plugin:10.10.0.24774")
-    "sqplugins"("org.sonarsource.php:sonar-php-plugin:3.33.0.11274")
-    "sqplugins"("org.sonarsource.python:sonar-python-plugin:4.12.0.13917")
-    "sqplugins"("org.sonarsource.kotlin:sonar-kotlin-plugin:2.17.0.2902")
-    "sqplugins"("org.sonarsource.slang:sonar-ruby-plugin:1.15.0.4655")
-    "sqplugins"("org.sonarsource.html:sonar-html-plugin:3.9.0.3600")
-    "sqplugins"("org.sonarsource.xml:sonar-xml-plugin:2.10.0.4108")
-    "sqplugins"("org.sonarsource.sonarlint.omnisharp:sonarlint-omnisharp-plugin:1.15.0.80820")
-    "sqplugins"("org.sonarsource.text:sonar-text-plugin:2.7.1.1388")
-    "sqplugins"("org.sonarsource.slang:sonar-go-plugin:1.15.0.4655")
-    "sqplugins"("org.sonarsource.iac:sonar-iac-plugin:1.22.0.7057")
+    testImplementation(libs.mockito.kotlin)
+    testImplementation(libs.awaitility)
+    "sqplugins"(libs.bundles.sonar.analyzers)
     if (artifactoryUsername.isNotEmpty() && artifactoryPassword.isNotEmpty()) {
-        "sqplugins"("com.sonarsource.cpp:sonar-cfamily-plugin:6.50.0.64514")
+        "sqplugins"(libs.sonar.cfamily)
+        "sqplugins"(libs.sonar.dotnet.enterprise)
+        "omnisharp"("org.sonarsource.sonarlint.omnisharp:omnisharp-roslyn:$omnisharpVersion:mono@zip")
+        "omnisharp"("org.sonarsource.sonarlint.omnisharp:omnisharp-roslyn:$omnisharpVersion:net472@zip")
+        "omnisharp"("org.sonarsource.sonarlint.omnisharp:omnisharp-roslyn:$omnisharpVersion:net6@zip")
     }
-    "omnisharp"("com.villagechief.codescan.thirdparty:omnisharp:$omnisharpVersion:mono@zip")
-    "omnisharp"("com.villagechief.codescan.thirdparty:omnisharp:$omnisharpVersion:net472@zip")
-    "omnisharp"("com.villagechief.codescan.thirdparty:omnisharp:$omnisharpVersion:net6@zip")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    // workaround for light tests in 2020.3, might remove later
-//    testRuntimeOnly("org.jetbrains.kotlin:kotlin-reflect")
-    testRuntimeOnly("org.jetbrains.kotlin:kotlin-reflect") {
-        exclude(module = "jsr305")
-        exclude(module = "jsr250")
-    }
-    implementation("javax.annotation:javax.annotation-api:1.3.2")
-    constraints {
-        testImplementation("com.squareup.okio:okio-jvm:3.4.0") {
-            because("this transitive dependency of okhttp3 has a high severity vulnerability not yet patched")
-        }
-    }
+    "sloop"("org.sonarsource.sonarlint.core:sonarlint-backend-cli:${libs.versions.sonarlint.core.get()}:no-arch@zip")
 }
 
 tasks {
-
-    val omnisharpZips = project.configurations["omnisharp"]
-
-    fun omnisharpZip(classifier: String): File =
-            omnisharpZips.resolvedConfiguration.resolvedArtifacts.single { it.classifier == classifier }.file
-
     fun copyPlugins(destinationDir: File, pluginName: Property<String>) {
         copy {
             from(project.configurations["sqplugins"])
@@ -270,34 +240,96 @@ tasks {
         }
     }
 
-    fun copyOmnisharp(destinationDir: File, pluginName: Property<String>) {
-        copy {
-            from(zipTree(omnisharpZip("mono")))
-            into(file("$destinationDir/${pluginName.get()}/omnisharp/mono"))
-        }
-        copy {
-            from(zipTree(omnisharpZip("net472")))
-            into(file("$destinationDir/${pluginName.get()}/omnisharp/win"))
-        }
-        copy {
-            from(zipTree(omnisharpZip("net6")))
-            into(file("$destinationDir/${pluginName.get()}/omnisharp/net6"))
+    fun renameCsharpPlugins(destinationDir: File, pluginName: Property<String>) {
+        val pluginsDir = File("$destinationDir/${pluginName.get()}/plugins")
+        pluginsDir.listFiles()?.forEach { file ->
+            if (file.name.matches(Regex("sonar-csharp-enterprise-plugin-.*\\.jar"))) {
+                file.renameTo(File(pluginsDir, "sonar-csharp-enterprise-plugin.jar"))
+            } else if (file.name.matches(Regex("sonar-csharp-plugin-.*\\.jar"))) {
+                file.renameTo(File(pluginsDir, "sonar-csharp-plugin.jar"))
+            }
         }
     }
 
+    fun copyOmnisharp(destinationDir: File, pluginName: Property<String>) {
+        configurations["omnisharp"].resolvedConfiguration.resolvedArtifacts.forEach { artifact ->
+            copy {
+                from(zipTree(artifact.file))
+                into(file("$destinationDir/${pluginName.get()}/omnisharp/${artifact.classifier}"))
+            }
+        }
+    }
+
+    fun copySloop(destinationDir: File, pluginName: Property<String>) {
+        configurations["sloop"].resolvedConfiguration.resolvedArtifacts.forEach { artifact ->
+            copy {
+                from(zipTree(artifact.file))
+                into(file("$destinationDir/${pluginName.get()}/sloop/"))
+            }
+        }
+    }
+
+    fun unzipEslintBridgeBundle(destinationDir: File, pluginName: Property<String>) {
+        val pluginsDir = File("$destinationDir/${pluginName.get()}/plugins")
+        val jarPath = pluginsDir.listFiles()?.find {
+            it.name.startsWith("sonar-javascript-plugin-") && it.name.endsWith(".jar")
+        } ?: throw GradleException("sonar-javascript-plugin-* JAR not found in $destinationDir")
+
+        val zipFile = ZipFile(jarPath)
+        val entry = zipFile.entries().asSequence().find { it.name.matches(Regex("sonarjs-.*\\.tgz")) }
+            ?: throw GradleException("eslint bridge server bundle not found in JAR $jarPath")
+
+
+        val outputFolderPath = Paths.get("$pluginsDir/eslint-bridge")
+        val outputFilePath = outputFolderPath.resolve(entry.name)
+
+        if (!Files.exists(outputFolderPath)) {
+            Files.createDirectory(outputFolderPath)
+        }
+
+        zipFile.getInputStream(entry).use { input ->
+            FileOutputStream(outputFilePath.toFile()).use { output ->
+                input.copyTo(output)
+            }
+        }
+
+        GzipCompressorInputStream(FileInputStream(outputFilePath.toFile())).use { gzipInput ->
+            TarArchiveInputStream(gzipInput).use { tarInput ->
+                var tarEntry: TarArchiveEntry?
+                while (tarInput.nextEntry.also { tarEntry = it } != null) {
+                    val outputFile = outputFolderPath.resolve(tarEntry!!.name).toFile()
+                    if (tarEntry!!.isDirectory) {
+                        outputFile.mkdirs()
+                    } else {
+                        outputFile.parentFile.mkdirs()
+                        FileOutputStream(outputFile).use { output ->
+                            tarInput.copyTo(output)
+                        }
+                    }
+                }
+            }
+        }
+
+        Files.delete(outputFilePath)
+    }
+
     prepareSandbox {
-        inputs.files(omnisharpZips)
         doLast {
             copyPlugins(destinationDir, pluginName)
+            renameCsharpPlugins(destinationDir, pluginName)
             copyOmnisharp(destinationDir, pluginName)
+            copySloop(destinationDir, pluginName)
+            unzipEslintBridgeBundle(destinationDir, pluginName)
         }
     }
 
     prepareTestingSandbox {
-        inputs.files(omnisharpZips)
         doLast {
             copyPlugins(destinationDir, pluginName)
+            renameCsharpPlugins(destinationDir, pluginName)
             copyOmnisharp(destinationDir, pluginName)
+            copySloop(destinationDir, pluginName)
+            unzipEslintBridgeBundle(destinationDir, pluginName)
         }
     }
 
@@ -306,7 +338,7 @@ tasks {
         doLast {
             val distribZip = buildPlugin.get().archiveFile.get().asFile
             val blockMapBytes =
-                    com.fasterxml.jackson.databind.ObjectMapper().writeValueAsBytes(BlockMap(distribZip.inputStream()))
+                com.fasterxml.jackson.databind.ObjectMapper().writeValueAsBytes(BlockMap(distribZip.inputStream()))
             val blockMapFile = File(distribZip.parentFile, "blockmap.json")
             blockMapFile.writeBytes(blockMapBytes)
             val blockMapFileZipFile = file(distribZip.absolutePath + ".blockmap.zip")
@@ -325,7 +357,7 @@ tasks {
                 builtBy("buildPluginBlockmap")
             }
             val fileHash = com.fasterxml.jackson.databind.ObjectMapper()
-                    .writeValueAsString(com.jetbrains.plugin.blockmap.core.FileHash(distribZip.inputStream()))
+                .writeValueAsString(com.jetbrains.plugin.blockmap.core.FileHash(distribZip.inputStream()))
             val fileHashJsonFile = file(distribZip.absolutePath + ".hash.json")
             fileHashJsonFile.writeText(fileHash)
             artifacts.add("archives", fileHashJsonFile) {
@@ -341,60 +373,66 @@ tasks {
         finalizedBy(buildPluginBlockmap)
     }
 
+    withType<Test> {
+        configure<JacocoTaskExtension> {
+            isIncludeNoLocationClasses = true
+            excludes = listOf("jdk.internal.*")
+        }
+    }
+
     jacocoTestReport {
         classDirectories.setFrom(files("build/instrumented/instrumentCode"))
         reports {
             xml.required.set(true)
         }
-        dependsOn(check)
     }
 }
 
 tasks.artifactoryPublish {
     mustRunAfter(
-            getTasksByName("cyclonedxBom", true),
-            tasks.buildPlugin,
-            getTasksByName("buildPluginBlockmap", true)
+        getTasksByName("cyclonedxBom", true),
+        tasks.buildPlugin,
+        getTasksByName("buildPluginBlockmap", true)
     )
 }
 
-sonarqube {
+sonar {
     properties {
-        property("sonar.projectName", "CodeScan for IntelliJ IDEA")
+        property("sonar.projectName", "SonarLint for IntelliJ IDEA")
     }
 }
 
 artifactory {
-    clientConfig.info.buildName = "codescan-intellij"
+    clientConfig.info.buildName = "sonarlint-intellij"
     clientConfig.info.buildNumber = System.getenv("BUILD_ID")
     clientConfig.isIncludeEnvVars = true
     clientConfig.envVarsExcludePatterns = "*password*,*PASSWORD*,*secret*,*MAVEN_CMD_LINE_ARGS*,sun.java.command,*token*,*TOKEN*,*LOGIN*,*login*,*key*,*KEY*,*PASSPHRASE*,*signing*"
     clientConfig.info.addEnvironmentProperty(
-            "ARTIFACTS_TO_DOWNLOAD",
-            "org.sonarsource.sonarlint.intellij:CodeScan-intellij:zip,org.sonarsource.sonarlint.intellij:codescan-intellij:json:cyclonedx"
+        "ARTIFACTS_TO_DOWNLOAD",
+        "org.sonarsource.sonarlint.intellij:sonarlint-intellij:zip,org.sonarsource.sonarlint.intellij:sonarlint-intellij:json:cyclonedx"
     )
     setContextUrl(System.getenv("ARTIFACTORY_URL"))
-    publish(delegateClosureOf<PublisherConfig> {
-        repository(delegateClosureOf<GroovyObject> {
+    publish {
+        repository {
             setProperty("repoKey", System.getenv("ARTIFACTORY_DEPLOY_REPO"))
             setProperty("username", System.getenv("ARTIFACTORY_DEPLOY_USERNAME"))
             setProperty("password", System.getenv("ARTIFACTORY_DEPLOY_PASSWORD"))
-        })
-        defaults(delegateClosureOf<GroovyObject> {
-            setProperty(
-                    "properties", mapOf(
+        }
+        defaults {
+            setProperties(
+                mapOf(
                     "vcs.revision" to System.getenv("CIRRUS_CHANGE_IN_REPO"),
                     "vcs.branch" to (System.getenv("CIRRUS_BASE_BRANCH")
-                            ?: System.getenv("CIRRUS_BRANCH")),
-                    "build.name" to "codescan-intellij",
+                        ?: System.getenv("CIRRUS_BRANCH")),
+                    "build.name" to "sonarlint-intellij",
                     "build.number" to System.getenv("BUILD_ID")
+                )
             )
-            )
-            invokeMethod("publishConfigs", "archives")
-            setProperty("publishPom", true) // Publish generated POM files to Artifactory (true by default)
-            setProperty("publishIvy", false) // Publish generated Ivy descriptor files to Artifactory (true by default)
-        })
-    })
+            publishConfigs("archives")
+            setPublishPom(true)
+            setPublishIvy(false)
+        }
+    }
 }
 
 signing {
@@ -402,8 +440,8 @@ signing {
         val branch = System.getenv("CIRRUS_BRANCH") ?: ""
         val pr = System.getenv("CIRRUS_PR") ?: ""
         (branch == "master" || branch.matches("branch-[\\d.]+".toRegex())) &&
-                pr == "" &&
-                gradle.taskGraph.hasTask(":artifactoryPublish")
+            pr == "" &&
+            gradle.taskGraph.hasTask(":artifactoryPublish")
     }
     val signingKeyId: String? by project
     val signingKey: String? by project

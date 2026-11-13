@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -19,8 +19,10 @@
  */
 package org.sonarlint.intellij.common.vcs
 
-import org.sonarsource.sonarlint.core.client.api.connected.ProjectBranches
+import java.nio.file.Path
 
 interface VcsRepo {
-    fun electBestMatchingServerBranchForCurrentHead(projectBranches: ProjectBranches) : String?
+    fun electBestMatchingServerBranchForCurrentHead(mainBranchName: String, allBranchNames: Set<String>): String?
+    fun isBranchMatchingCurrentHead(branch: String): Boolean
+    fun getGitDir(): Path?
 }

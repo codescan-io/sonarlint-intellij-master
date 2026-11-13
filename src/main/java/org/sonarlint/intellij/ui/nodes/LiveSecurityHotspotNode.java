@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -57,8 +57,8 @@ public class LiveSecurityHotspotNode extends FindingNode {
 
     var typeIcon = SonarLintIcons.hotspotTypeWithProbability(vulnerability);
     var gap = JBUIScale.isUsrHiDPI() ? 8 : 4;
-    var serverConnection = getService(securityHotspot.psiFile().getProject(), ProjectBindingManager.class).tryGetServerConnection();
-    if (securityHotspot.getServerFindingKey() != null && serverConnection.isPresent()) {
+    var serverConnection = getService(securityHotspot.project(), ProjectBindingManager.class).tryGetServerConnection();
+    if (securityHotspot.getServerKey() != null && serverConnection.isPresent()) {
       var productIcon = serverConnection.get().getProductIcon();
       var tooltip = vulnerabilityText + " " + typeStr + " existing on " + serverConnection.get().getProductName();
       renderer.setIconToolTip(tooltip);
@@ -69,9 +69,14 @@ public class LiveSecurityHotspotNode extends FindingNode {
     }
 
     renderer.setToolTipText("Double click to open location");
-    renderer.append(securityHotspot.getMessage());
+    if (securityHotspot.isResolved()) {
+      renderer.append(securityHotspot.getMessage(), new SimpleTextAttributes(SimpleTextAttributes.STYLE_STRIKEOUT, null));
+    } else {
+      renderer.append(securityHotspot.getMessage());
+    }
+
     if (appendFileName) {
-      renderer.append(" " + securityHotspot.getFile().getName(), SimpleTextAttributes.GRAY_ATTRIBUTES);
+      renderer.append(" " + securityHotspot.file().getName(), SimpleTextAttributes.GRAY_ATTRIBUTES);
     }
   }
 

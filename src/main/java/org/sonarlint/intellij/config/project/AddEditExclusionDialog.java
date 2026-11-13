@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NonNls;
 
 import static org.sonarlint.intellij.config.project.ExclusionItem.Type.DIRECTORY;
@@ -66,20 +66,20 @@ public class AddEditExclusionDialog extends DialogWrapper {
   public AddEditExclusionDialog(Project project) {
     super(project, false);
     this.project = project;
-    setTitle("Add CodeScan File Exclusion");
+    setTitle("Add SonarQube for IDE File Exclusion");
     init();
 
     FileChooserDescriptor fileChooser = new FileChooserDescriptor(true, false, false,
       true, false, false);
     fileChooser.setRoots(ProjectRootManager.getInstance(project).getContentRoots());
     fileTextField.addBrowseFolderListener("Select File to Exclude",
-      "Select the file which will be excluded from CodeScan analysis",
+      "Select the file which will be excluded from SonarQube for IDE analysis",
       project, fileChooser);
 
     FileChooserDescriptor directoryChooser = FileChooserDescriptorFactory.createSingleFolderDescriptor();
     directoryChooser.setRoots(ProjectRootManager.getInstance(project).getContentRoots());
     directoryTextField.addBrowseFolderListener("Select Directory to Exclude",
-      "Select the directory which will be excluded from CodeScan analysis",
+      "Select the directory which will be excluded from SonarQube for IDE analysis",
       project, directoryChooser);
 
     DocumentListener docListener = new DocumentAdapter() {
@@ -140,22 +140,22 @@ public class AddEditExclusionDialog extends DialogWrapper {
   }
 
   public void setExclusion(@Nullable ExclusionItem item) {
-    setTitle("Edit CodeScan File Exclusion");
+    setTitle("Edit SonarQube for IDE File Exclusion");
 
     if (item != null) {
       switch (item.type()) {
-        case DIRECTORY:
+        case DIRECTORY -> {
           directoryTextField.setText(item.item());
           directoryRadioButton.setSelected(true);
-          break;
-        case FILE:
+        }
+        case FILE -> {
           fileTextField.setText(item.item());
           fileRadioButton.setSelected(true);
-          break;
-        case GLOB:
+        }
+        case GLOB -> {
           globTextField.setText(item.item());
           globRadioButton.setSelected(true);
-          break;
+        }
       }
       updateControls();
     }

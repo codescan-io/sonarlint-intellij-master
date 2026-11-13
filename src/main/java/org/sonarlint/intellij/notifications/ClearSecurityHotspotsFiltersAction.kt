@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -33,7 +33,7 @@ class ClearSecurityHotspotsFiltersAction(private val securityHotspotKey: String)
             SonarLintActions.getInstance().includeResolvedHotspotAction().setSelected(e, true)
             if (!SonarLintUtils.getService(it, SonarLintToolWindow::class.java).trySelectSecurityHotspot(securityHotspotKey)) {
                 SonarLintProjectNotifications.get(it)
-                    .notifyUnableToOpenSecurityHotspot("The Security Hotspot could not be opened by SonarLint.")
+                    .notifyUnableToOpenFinding("The Security Hotspot could not be opened by SonarQube for IDE")
             }
         }
         notification.expire()

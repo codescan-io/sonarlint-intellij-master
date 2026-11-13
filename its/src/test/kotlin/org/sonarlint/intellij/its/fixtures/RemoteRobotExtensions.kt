@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -21,13 +21,29 @@ package org.sonarlint.intellij.its.fixtures
 
 import com.intellij.remoterobot.RemoteRobot
 
-fun RemoteRobot.ideMajorVersion() = callJs<Int>("com.intellij.openapi.application.ApplicationInfo.getInstance().getBuild().getBaselineVersion()")
-
 /** com.intellij.util.PlatformUtils.isCLion() should not be used as it is marked as internal */
 fun RemoteRobot.isCLion() = callJs<Boolean>("new String(com.intellij.openapi.application.ApplicationInfo.getInstance().getFullApplicationName()).toLowerCase().includes('clion')")
 
 /** com.intellij.util.PlatformUtils.isGoIde() should not be used as it is marked as internal */
 fun RemoteRobot.isGoLand() = callJs<Boolean>("new String(com.intellij.openapi.application.ApplicationInfo.getInstance().getFullApplicationName()).toLowerCase().includes('goland')")
+
+fun RemoteRobot.isPhpStorm() =
+    callJs<Boolean>("new String(com.intellij.openapi.application.ApplicationInfo.getInstance().getFullApplicationName()).toLowerCase().includes('phpstorm')")
+
+fun RemoteRobot.isPyCharm() =
+    callJs<Boolean>("new String(com.intellij.openapi.application.ApplicationInfo.getInstance().getFullApplicationName()).toLowerCase().includes('pycharm')")
+
+fun RemoteRobot.isRider() =
+    callJs<Boolean>("new String(com.intellij.openapi.application.ApplicationInfo.getInstance().getFullApplicationName()).toLowerCase().includes('rider')")
+
+fun RemoteRobot.isIdea() =
+    callJs<Boolean>("new String(com.intellij.openapi.application.ApplicationInfo.getInstance().getFullApplicationName()).toLowerCase().includes('idea')")
+
+fun RemoteRobot.isBuildUltimate() =
+    callJs<Boolean>("new String(com.intellij.openapi.application.ApplicationInfo.getInstance().getBuild()).toLowerCase().includes('iu')")
+
+fun RemoteRobot.isBuildCommunity() =
+    callJs<Boolean>("new String(com.intellij.openapi.application.ApplicationInfo.getInstance().getBuild()).toLowerCase().includes('ic')")
 
 /**
  *  Check if the Go plugin is available, currently bundled in GoLand and as a plugin from the marketplace for IntelliJ
@@ -37,3 +53,5 @@ fun RemoteRobot.isGoLand() = callJs<Boolean>("new String(com.intellij.openapi.ap
  */
 fun RemoteRobot.isGoPlugin() = callJs<Boolean>("com.intellij.ide.plugins.PluginManager.isPluginInstalled(com.intellij.openapi.extensions.PluginId.getId('org.jetbrains.plugins.go'))")
 fun RemoteRobot.isSQLPlugin() = callJs<Boolean>("com.intellij.ide.plugins.PluginManager.isPluginInstalled(com.intellij.openapi.extensions.PluginId.getId('com.intellij.database'))")
+fun RemoteRobot.isJavaScriptPlugin() =
+    callJs<Boolean>("com.intellij.ide.plugins.PluginManager.isPluginInstalled(com.intellij.openapi.extensions.PluginId.getId('JavaScript'))")

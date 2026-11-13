@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -20,8 +20,37 @@
 package org.sonarlint.intellij.documentation
 
 object SonarLintDocumentation {
-    private const val BASE_DOCS_URL = "https://github.com/SonarSource/sonarlint-intellij/wiki"
-    const val CONNECTED_MODE_LINK = "${BASE_DOCS_URL}/Bind-to-SonarQube-or-SonarCloud"
-    const val SECURITY_HOTSPOTS_LINK = "${BASE_DOCS_URL}/Security-Hotspots"
-    const val TAINT_VULNERABILITIES_LINK = "${BASE_DOCS_URL}/Taint-Vulnerabilities"
+
+    object Intellij {
+        const val BASE_DOCS_URL = "https://docs.sonarsource.com/sonarqube-for-ide/intellij"
+        const val CONNECTED_MODE_LINK = "$BASE_DOCS_URL/team-features/connected-mode"
+        const val CONNECTED_MODE_SETUP_LINK = "$BASE_DOCS_URL/team-features/connected-mode-setup"
+        const val SECURITY_HOTSPOTS_LINK = "$BASE_DOCS_URL/using-sonarlint/security-hotspots"
+        const val TAINT_VULNERABILITIES_LINK = "$BASE_DOCS_URL/using-sonarlint/taint-vulnerabilities"
+        const val CLEAN_CODE_LINK = "$BASE_DOCS_URL/concepts/clean-code/introduction"
+        const val SUPPORT_POLICY_LINK = "$CONNECTED_MODE_SETUP_LINK/#sonarlint-sonarqube-version-support-policy"
+        const val FOCUS_ON_NEW_CODE_LINK = "$BASE_DOCS_URL/using-sonarlint/investigating-issues/#focusing-on-new-code"
+        const val CONNECTED_MODE_BENEFITS_LINK = "$CONNECTED_MODE_LINK/#benefits"
+        const val SHARING_CONNECTED_MODE_CONFIGURATION_LINK = "$CONNECTED_MODE_SETUP_LINK/#reuse-the-binding-configuration"
+        const val TROUBLESHOOTING_CONNECTED_MODE_SETUP_LINK = "$BASE_DOCS_URL/troubleshooting/#troubleshooting-connected-mode-setup"
+        const val RULE_SECTION_LINK = "$BASE_DOCS_URL/using-sonarlint/rules/#rule-selection"
+        const val FILE_EXCLUSION_LINK = "$BASE_DOCS_URL/using-sonarlint/file-exclusions"
+    }
+
+    object SonarQube {
+        const val SMART_NOTIFICATIONS = "https://docs.sonarqube.org/latest/user-guide/sonarlint-connected-mode/"
+    }
+
+    object SonarCloud {
+        const val SMART_NOTIFICATIONS = "https://docs.sonarsource.com/sonarcloud/improving/sonarlint/#smart-notifications/"
+    }
+
+    object Marketing {
+        private const val BASE_MARKETING_URL = "https://www.sonarsource.com"
+        const val COMPARE_SERVER_PRODUCTS_LINK = "$BASE_MARKETING_URL/open-source-editions"
+        const val SONARQUBE_EDITIONS_DOWNLOADS_LINK = "$BASE_MARKETING_URL/products/sonarqube/downloads"
+        const val SONARCLOUD_PRODUCT_LINK = "$BASE_MARKETING_URL/products/sonarcloud"
+        const val SONARCLOUD_PRODUCT_SIGNUP_LINK = "$BASE_MARKETING_URL/products/sonarcloud/signup/"
+    }
+
 }

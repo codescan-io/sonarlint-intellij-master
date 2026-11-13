@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -39,6 +39,8 @@ import org.sonarlint.intellij.ui.nodes.AbstractNode;
 import org.sonarlint.intellij.ui.nodes.FlowNode;
 import org.sonarlint.intellij.ui.nodes.FlowSecondaryLocationNode;
 import org.sonarlint.intellij.ui.nodes.PrimaryLocationNode;
+
+import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 public class FlowsTree extends Tree {
   private final Project project;
@@ -82,21 +84,20 @@ public class FlowsTree extends Tree {
   }
 
   public void expandAll() {
-    for (var i = 0; i < getRowCount(); i++) {
-      expandRow(i);
-    }
+    runOnUiThread(project, () -> {
+      for (var i = 0; i < getRowCount(); i++) {
+        expandRow(i);
+      }
+    });
   }
 
   private void highlightInEditor(DefaultMutableTreeNode node) {
     var highlighter = SonarLintUtils.getService(project, EditorDecorator.class);
-    if (node instanceof FlowNode) {
-      var flowNode = (FlowNode) node;
+    if (node instanceof FlowNode flowNode) {
       highlighter.highlightFlow(flowNode.getFlow());
-    } else if (node instanceof FlowSecondaryLocationNode) {
-      var locationNode = (FlowSecondaryLocationNode) node;
+    } else if (node instanceof FlowSecondaryLocationNode locationNode) {
       highlighter.highlightSecondaryLocation(locationNode.getSecondaryLocation(), locationNode.getAssociatedFlow());
-    } else if (node instanceof PrimaryLocationNode) {
-      var primaryLocationNode = (PrimaryLocationNode) node;
+    } else if (node instanceof PrimaryLocationNode primaryLocationNode) {
       highlighter.highlightPrimaryLocation(primaryLocationNode.rangeMarker(), primaryLocationNode.message(), primaryLocationNode.getAssociatedFlow());
     }
   }
@@ -106,11 +107,9 @@ public class FlowsTree extends Tree {
       return;
     }
     RangeMarker rangeMarker;
-    if (node instanceof FlowNode) {
-      var flowNode = (FlowNode) node;
+    if (node instanceof FlowNode flowNode) {
       rangeMarker = flowNode.getFlow().getLocations().stream().findFirst().map(Location::getRange).orElse(null);
-    } else if (node instanceof PrimaryLocationNode) {
-      var locationNode = (PrimaryLocationNode) node;
+    } else if (node instanceof PrimaryLocationNode locationNode) {
       rangeMarker = locationNode.rangeMarker();
     } else {
       rangeMarker = null;

@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -26,7 +26,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.sonarlint.intellij.config.global.ServerConnection;
-import org.sonarlint.intellij.documentation.SonarLintDocumentation;
+
+import static org.sonarlint.intellij.documentation.SonarLintDocumentation.Intellij.CONNECTED_MODE_LINK;
 
 public class ServerConnectionWizard {
   private final WizardModel model;
@@ -93,7 +94,7 @@ public class ServerConnectionWizard {
 
     @Override
     protected void doHelpAction() {
-      BrowserUtil.browse(SonarLintDocumentation.CONNECTED_MODE_LINK);
+      BrowserUtil.browse(CONNECTED_MODE_LINK);
     }
 
     @Override

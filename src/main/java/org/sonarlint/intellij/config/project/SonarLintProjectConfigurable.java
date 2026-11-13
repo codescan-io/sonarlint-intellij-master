@@ -1,6 +1,6 @@
 /*
- * CodeScan for IntelliJ IDEA
- * Copyright (C) 2015-2023 SonarSource SA
+ * SonarLint for IntelliJ IDEA
+ * Copyright (C) 2015-2024 SonarSource
  * sonarlint@sonarsource.com
  *
  * This program is free software; you can redistribute it and/or
@@ -31,6 +31,7 @@ import javax.annotation.Nullable;
 import javax.swing.JComponent;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.concurrency.Promise;
+import org.jetbrains.concurrency.Promises;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
 import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable;
@@ -43,6 +44,8 @@ import org.sonarlint.intellij.trigger.TriggerType;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.computeOnPooledThread;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 /**
  * Coordinates creation of models and visual components from persisted settings.
@@ -57,7 +60,7 @@ public class SonarLintProjectConfigurable implements Configurable, Configurable.
 
   public SonarLintProjectConfigurable(Project project) {
     this.project = project;
-    this.busConnection = ApplicationManager.getApplication().getMessageBus().connect(project);
+    this.busConnection = ApplicationManager.getApplication().getMessageBus().connect();
     this.busConnection.subscribe(GlobalConfigurationListener.TOPIC, new GlobalConfigurationListener.Adapter() {
       @Override
       public void changed(List<ServerConnection> newServerList) {
@@ -94,11 +97,13 @@ public class SonarLintProjectConfigurable implements Configurable, Configurable.
       var projectSettings = getSettingsFor(project);
       boolean exclusionsModified = panel.areExclusionsModified(projectSettings);
       panel.save(project, projectSettings);
-      project.getMessageBus().syncPublisher(ProjectConfigurationListener.TOPIC).changed(projectSettings);
+      runOnPooledThread(project, () -> {
+        project.getMessageBus().syncPublisher(ProjectConfigurationListener.TOPIC).changed(projectSettings);
 
-      if (exclusionsModified) {
-        getService(project, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.CONFIG_CHANGE);
-      }
+        if (exclusionsModified) {
+          getService(project, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.CONFIG_CHANGE);
+        }
+      });
     }
   }
 
@@ -119,21 +124,22 @@ public class SonarLintProjectConfigurable implements Configurable, Configurable.
 
   private static Promise<List<ServerConnection>> getServersFromApplicationConfigurable() {
     return DataManager.getInstance().getDataContextFromFocusAsync()
-      .then(dataContext -> {
+      .thenAsync(dataContext -> {
         var allSettings = Settings.KEY.getData(dataContext);
         if (allSettings != null) {
-          final var globalConfigurable = allSettings.find(SonarLintGlobalConfigurable.class);
+          final var globalConfigurable = computeOnPooledThread("Find Global Configurable Task",
+            () -> allSettings.find(SonarLintGlobalConfigurable.class));
           if (globalConfigurable != null) {
-            return globalConfigurable.getCurrentConnections();
+            return Promises.resolvedPromise(globalConfigurable.getCurrentConnections());
           }
         }
-        return null;
+        return Promises.resolvedPromise(null);
       });
   }
 
   @Override
   public void disposeUIResources() {
-    SonarLintProjectNotifications.get(project).reset();
+    SonarLintProjectNotifications.Companion.get(project).reset();
     busConnection.disconnect();
     if (panel != null) {
       panel.dispose();
