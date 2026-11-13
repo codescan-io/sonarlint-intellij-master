@@ -48,6 +48,7 @@ import org.sonarlint.intellij.AbstractSonarLintHeavyTests
 import org.sonarlint.intellij.common.util.CodeScanServerCheck
 import org.sonarlint.intellij.common.util.SonarLintUtils
 import org.sonarlint.intellij.config.global.ServerConnection
+import org.sonarlint.intellij.config.global.ServerConnectionMgmtPanel
 import org.sonarlint.intellij.config.global.wizard.WizardModel
 import org.sonarlint.intellij.core.BackendService
 import org.sonarlint.intellij.java.JavaAnalysisConfigurator
@@ -58,6 +59,11 @@ import org.sonarsource.sonarlint.core.rpc.protocol.backend.binding.BindingRpcSer
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.branch.SonarProjectBranchRpcService
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.config.ConfigurationRpcService
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.ConnectionRpcService
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.check.CheckSmartNotificationsSupportedParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.GetOrganizationParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.ListUserOrganizationsParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.projects.GetAllProjectsParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.validate.ValidateConnectionParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.HotspotRpcService
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.initialize.InitializeParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.IssueRpcService
@@ -227,6 +233,64 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
         assertThat(params.sonarCloudConnections).extracting("connectionId", "serverUrl").containsExactly(tuple("self-hosted", selfHosted))
         assertThat(connection.links().formattingSyntaxDoc()).startsWith(selfHosted)
         assertThat(server.allServeEvents).allSatisfy { assertThat(it.request.absoluteUrl).startsWith(selfHosted) }
+    }
+
+    @Test
+    fun wizardCallsForASelfHostedServerGoToThatServer() {
+        server.stubFor(get(HEALTH_PATH).willReturn(okJson("""{"status":"UP"}""")))
+        val selfHosted = server.baseUrl()
+        val model = offUiThread { WizardModel().useServer(selfHosted) }.setName("self-hosted").setToken("token").setOrganizationKey("org")
+
+        val connection = model.createConnection()
+        assertThat(connection.hostUrl).isEqualTo(selfHosted)
+        assertThat(model.createConnectionWithoutOrganization().hostUrl).isEqualTo(selfHosted)
+
+        val rpcServer = mockRpcServer()
+        val service = BackendService(launcherFor(rpcServer))
+        service.validateConnection(connection)
+        service.checkSmartNotificationsSupported(connection)
+        service.getAllProjects(connection)
+        service.listUserOrganizations(connection)
+        service.getOrganization(connection, "org")
+
+        // The backend must send each of these calls to the connection's own address, not the global cloud address
+        val connections = rpcServer.connectionService
+        val validate = argumentCaptor<ValidateConnectionParams>()
+        verify(connections, timeout(30_000)).validateConnection(validate.capture())
+        assertThat(validate.firstValue.transientConnection.right.cloudServerUrl).isEqualTo(selfHosted)
+        val notifications = argumentCaptor<CheckSmartNotificationsSupportedParams>()
+        verify(connections, timeout(30_000)).checkSmartNotificationsSupported(notifications.capture())
+        assertThat(notifications.firstValue.transientConnection.right.cloudServerUrl).isEqualTo(selfHosted)
+        val projects = argumentCaptor<GetAllProjectsParams>()
+        verify(connections, timeout(30_000)).getAllProjects(projects.capture())
+        assertThat(projects.firstValue.transientConnection.right.cloudServerUrl).isEqualTo(selfHosted)
+        val organizations = argumentCaptor<ListUserOrganizationsParams>()
+        verify(connections, timeout(30_000)).listUserOrganizations(organizations.capture())
+        assertThat(organizations.firstValue.serverUrl).isEqualTo(selfHosted)
+        val organization = argumentCaptor<GetOrganizationParams>()
+        verify(connections, timeout(30_000)).getOrganization(organization.capture())
+        assertThat(organization.firstValue.serverUrl).isEqualTo(selfHosted)
+    }
+
+    @Test
+    fun editingASelfHostedConnectionKeepsItsAddress() {
+        server.stubFor(get(HEALTH_PATH).willReturn(okJson("""{"status":"UP"}""")))
+        val selfHosted = server.baseUrl()
+        val existing = ServerConnection.newBuilder().setName("self-hosted").setHostUrl(selfHosted).setToken("token").setOrganizationKey("org").build()
+
+        val model = offUiThread { WizardModel(existing) }
+        assertThat(model.serverType).isEqualTo(WizardModel.ServerType.SONARCLOUD)
+        assertThat(model.serverUrl).isEqualTo(selfHosted)
+        assertThat(model.usesDefaultCloudServer()).isFalse()
+        assertThat(model.createConnection().hostUrl).isEqualTo(selfHosted)
+        // the connection list shows the address too, so the user can tell the server apart from the default cloud
+        assertThat(ServerConnectionMgmtPanel.shownAddress(existing)).isEqualTo(selfHosted)
+
+        val cloud = ServerConnection.newBuilder().setName("cloud").setHostUrl(CODESCAN_CLOUD_URL).setToken("token").setOrganizationKey("org").build()
+        assertThat(WizardModel(cloud).usesDefaultCloudServer()).isTrue()
+        assertThat(WizardModel(cloud).createConnection().hostUrl).isEqualTo(CODESCAN_CLOUD_URL)
+        assertThat(ServerConnectionMgmtPanel.shownAddress(cloud)).isNull()
+        assertThat(WizardModel().usesDefaultCloudServer()).isTrue()
     }
 
     @Test

@@ -61,8 +61,9 @@ public class WizardModel {
       serverType = ServerType.SONARCLOUD;
     } else {
       serverType = ServerType.SONARQUBE;
-      serverUrl = connectionToEdit.getHostUrl();
     }
+    // CodeScan: a cloud connection keeps its address too, because a self-hosted CodeScan server is a cloud connection
+    serverUrl = connectionToEdit.getHostUrl();
     this.proxyEnabled = connectionToEdit.enableProxy();
     this.token = connectionToEdit.getToken();
     this.login = connectionToEdit.getLogin();
@@ -87,6 +88,15 @@ public class WizardModel {
 
   public boolean isSonarCloud() {
     return ServerType.SONARCLOUD.equals(serverType);
+  }
+
+  /**
+   * Whether the server step selects the cloud choice rather than showing a server address.
+   * CodeScan: a cloud connection on another address than the default cloud (a self-hosted CodeScan server) shows its address.
+   */
+  public boolean usesDefaultCloudServer() {
+    return serverType == null
+      || (serverType == ServerType.SONARCLOUD && (serverUrl == null || SonarLintUtils.equalsIgnoringTrailingSlash(serverUrl, SONARCLOUD_URL)));
   }
 
   /**
@@ -265,8 +275,8 @@ public class WizardModel {
       .setName(name);
 
     if (serverType == ServerType.SONARCLOUD) {
-      builder.setHostUrl(SONARCLOUD_URL);
-
+      // CodeScan: a cloud connection keeps its own address; the default cloud address is only the fallback
+      builder.setHostUrl(SonarLintUtils.isBlank(serverUrl) ? SONARCLOUD_URL : serverUrl);
     } else {
       builder.setHostUrl(serverUrl);
     }

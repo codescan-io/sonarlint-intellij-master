@@ -466,7 +466,7 @@ class BackendService : Disposable {
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token!!)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
         val params: GetAllProjectsParams = if (server.isSonarCloud) {
-            GetAllProjectsParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials))
+            GetAllProjectsParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials, server.hostUrl))
         } else {
             GetAllProjectsParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))
         }
@@ -515,7 +515,9 @@ class BackendService : Disposable {
         return SonarCloudConnectionConfigurationDto(
             createdConnection.name,
             createdConnection.organizationKey!!,
-            createdConnection.isDisableNotifications
+            createdConnection.isDisableNotifications,
+            // CodeScan: each cloud connection has its own address, for self-hosted CodeScan servers (core row C2)
+            createdConnection.hostUrl
         )
     }
 
@@ -763,7 +765,7 @@ class BackendService : Disposable {
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token!!)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
         val params: CheckSmartNotificationsSupportedParams = if (server.isSonarCloud) {
-            CheckSmartNotificationsSupportedParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials))
+            CheckSmartNotificationsSupportedParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials, server.hostUrl))
         } else {
             CheckSmartNotificationsSupportedParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))
         }
@@ -774,7 +776,7 @@ class BackendService : Disposable {
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token!!)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
         val params: ValidateConnectionParams = if (server.isSonarCloud) {
-            ValidateConnectionParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials))
+            ValidateConnectionParams(TransientSonarCloudConnectionDto(server.organizationKey, credentials, server.hostUrl))
         } else {
             ValidateConnectionParams(TransientSonarQubeConnectionDto(server.hostUrl, credentials))
         }
@@ -784,14 +786,14 @@ class BackendService : Disposable {
     fun listUserOrganizations(server: ServerConnection): CompletableFuture<ListUserOrganizationsResponse> {
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token!!)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
-        val params = ListUserOrganizationsParams(credentials)
+        val params = ListUserOrganizationsParams(credentials, server.hostUrl)
         return requestFromBackend { it.connectionService.listUserOrganizations(params) }
     }
 
     fun getOrganization(server: ServerConnection, organizationKey: String): CompletableFuture<GetOrganizationResponse> {
         val credentials: Either<TokenDto, UsernamePasswordDto> = server.token?.let { Either.forLeft(TokenDto(server.token!!)) }
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
-        val params = GetOrganizationParams(credentials, organizationKey)
+        val params = GetOrganizationParams(credentials, organizationKey, server.hostUrl)
         return requestFromBackend { it.connectionService.getOrganization(params) }
     }
 

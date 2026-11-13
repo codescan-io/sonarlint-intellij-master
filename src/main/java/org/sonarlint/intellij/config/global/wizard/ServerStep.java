@@ -153,7 +153,7 @@ public class ServerStep extends AbstractWizardStepEx {
     var sqsIcon = SonarLintIcons.ICON_SONARQUBE_SERVER;
     var sqcIcon = SonarLintIcons.ICON_SONARQUBE_CLOUD;
 
-    if (model.getServerType() == WizardModel.ServerType.SONARCLOUD || model.getServerType() == null) {
+    if (model.usesDefaultCloudServer()) {
       radioSonarCloud.setSelected(true);
       if (editing) {
         sqsIcon = SonarLintIcons.toDisabled(sqsIcon);

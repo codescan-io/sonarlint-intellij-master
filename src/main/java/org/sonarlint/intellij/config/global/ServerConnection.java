@@ -183,7 +183,7 @@ public class ServerConnection {
   }
 
   public ServerLinks links() {
-    return isSonarCloud() ? SonarCloudLinks.INSTANCE : new SonarQubeLinks(hostUrl);
+    return isSonarCloud() ? new SonarCloudLinks(hostUrl) : new SonarQubeLinks(hostUrl);
   }
 
   public static class Builder {

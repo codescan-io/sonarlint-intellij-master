@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
@@ -62,6 +63,8 @@ import org.sonarlint.intellij.config.global.wizard.ServerConnectionWizard;
 import org.sonarlint.intellij.core.ProjectBindingManager;
 import org.sonarlint.intellij.messages.GlobalConfigurationListener;
 
+import static org.sonarlint.intellij.common.util.SonarLintUtils.SONARCLOUD_URL;
+import static org.sonarlint.intellij.common.util.SonarLintUtils.equalsIgnoringTrailingSlash;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 import static org.sonarlint.intellij.telemetry.LinkTelemetry.CONNECTED_MODE_DOCS;
@@ -132,11 +135,22 @@ public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGl
           setIcon(SonarLintIcons.ICON_SONARQUBE_SERVER_16);
         }
         append(server.getName(), SimpleTextAttributes.REGULAR_ATTRIBUTES);
-        if (!server.isSonarCloud()) {
-          append("    (" + server.getHostUrl() + ")", SimpleTextAttributes.GRAYED_ATTRIBUTES, false);
+        var address = shownAddress(server);
+        if (address != null) {
+          append("    (" + address + ")", SimpleTextAttributes.GRAYED_ATTRIBUTES, false);
         }
       }
     });
+  }
+
+  /**
+   * The server address shown next to the connection name in the list, if any.
+   * CodeScan: hidden only for the default cloud address, so a self-hosted CodeScan server (a cloud connection) shows its address.
+   */
+  @CheckForNull
+  public static String shownAddress(ServerConnection server) {
+    var hostUrl = server.getHostUrl();
+    return hostUrl == null || equalsIgnoringTrailingSlash(hostUrl, SONARCLOUD_URL) ? null : hostUrl;
   }
 
   private static JPanel initConnectionTitle() {

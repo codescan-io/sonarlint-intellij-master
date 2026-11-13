@@ -19,15 +19,17 @@
  */
 package org.sonarlint.intellij.core.server
 
-import org.sonarlint.intellij.common.util.SonarLintUtils.SONARCLOUD_URL
 import org.sonarlint.intellij.common.util.SonarLintUtils.withTrailingSlash
 
 sealed interface ServerLinks {
     fun formattingSyntaxDoc(): String
 }
 
-object SonarCloudLinks : ServerLinks {
-    override fun formattingSyntaxDoc() = "$SONARCLOUD_URL/markdown/help"
+// CodeScan: built from the connection's own address, because a cloud connection can be a self-hosted CodeScan server
+class SonarCloudLinks(sonarCloudUrl: String) : ServerLinks {
+    override fun formattingSyntaxDoc() = "${baseUrl}markdown/help"
+
+    private val baseUrl: String = withTrailingSlash(sonarCloudUrl)
 }
 
 class SonarQubeLinks(sonarQubeUrl: String) : ServerLinks {
