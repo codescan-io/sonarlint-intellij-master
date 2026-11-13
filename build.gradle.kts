@@ -42,12 +42,12 @@ description = "SonarLint for IntelliJ IDEA"
 
 val intellijBuildVersion: String by project
 
-// The environment variables ARTIFACTORY_PRIVATE_USERNAME and ARTIFACTORY_PRIVATE_PASSWORD are used on CI env
-// On local box, please add artifactoryUsername and artifactoryPassword to ~/.gradle/gradle.properties
-val artifactoryUsername = System.getenv("ARTIFACTORY_PRIVATE_USERNAME")
-    ?: (if (project.hasProperty("artifactoryUsername")) project.property("artifactoryUsername").toString() else "")
-val artifactoryPassword = System.getenv("ARTIFACTORY_PRIVATE_PASSWORD")
-    ?: (if (project.hasProperty("artifactoryPassword")) project.property("artifactoryPassword").toString() else "")
+// CodeScan libraries come from AWS CodeArtifact. Run `eval "$(./scripts/codeartifact-bootstrap.sh)"` first to set
+// CODEARTIFACT_MAVEN_URL and CODEARTIFACT_AUTH_TOKEN, or put codeartifactAuthToken in ~/.gradle/gradle.properties.
+val codeartifactMavenUrl = System.getenv("CODEARTIFACT_MAVEN_URL")
+    ?: "https://autorabit-artifacts-domain-261140574810.d.codeartifact.us-east-1.amazonaws.com/maven/codescan-libs-release/"
+val codeartifactAuthToken = System.getenv("CODEARTIFACT_AUTH_TOKEN")
+    ?: (if (project.hasProperty("codeartifactAuthToken")) project.property("codeartifactAuthToken").toString() else "")
 
 val ideaHome: String? = System.getenv("IDEA_HOME")
 
@@ -63,12 +63,21 @@ allprojects {
     configurations.archives.get().isCanBeResolved = true
 
     repositories {
-        maven("https://repox.jfrog.io/repox/sonarsource") {
-            if (artifactoryUsername.isNotEmpty() && artifactoryPassword.isNotEmpty()) {
-                credentials {
-                    username = artifactoryUsername
-                    password = artifactoryPassword
-                }
+        // The CodeScan build of sonarlint-core is installed locally (`./mvnw install` in sonarlint-core)
+        mavenLocal {
+            content {
+                includeVersionByRegex("org\\.sonarsource\\.sonarlint\\.core", ".*", ".*-CODESCAN")
+            }
+        }
+        maven(codeartifactMavenUrl) {
+            name = "codeartifact"
+            credentials {
+                username = "aws"
+                password = codeartifactAuthToken
+            }
+            content {
+                includeGroup("com.villagechief.codescan.thirdparty")
+                includeVersionByRegex(".*", ".*", ".*-CODESCAN")
             }
         }
         mavenCentral {
