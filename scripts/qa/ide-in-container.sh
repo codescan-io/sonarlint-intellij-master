@@ -10,6 +10,7 @@
 #           loop does not cover), or it stopped without an IDE SHUTDOWN line in idea.log, or it had to be killed
 #           because it was still running 90 s after SIGTERM (logs are still collected)
 #       5 = the CodeScan analysis did not show a result for Hello.java (see "analysis check" below)
+#       7 = the IDE started but the CodeScan plugin was not loaded (no CodeScan in "Loaded custom plugins")
 set -u
 
 RUN_MINUTES="${RUN_MINUTES:-5}"
@@ -48,13 +49,16 @@ collect() {
   cp -a "$IDE_HOME/log" "$OUT/" 2>/dev/null
   cp "$IDE_HOME/vmoptions" "$OUT/vmoptions.txt" 2>/dev/null
 }
-fail() {
+# fail_with <exit code> <message>: stops the IDE, collects the logs and exits.
+fail_with() {
+  local code="$1"; shift
   log "FAILED: $*"
   shot "failure"
   [ -n "$IDE_PID" ] && kill -KILL "$IDE_PID" 2>/dev/null
   collect
-  exit 3
+  exit "$code"
 }
+fail() { fail_with 3 "$@"; }
 
 log "unpacking IDE"
 tar -xzf "$IDE_TARBALL" -C "$IDE" --strip-components=1 || fail "cannot unpack IDE tarball"
@@ -156,7 +160,7 @@ until grep -q 'Project frame set to' "$IDEA_LOG" 2>/dev/null; do
 done
 log "project window open after ~${waited}s"
 grep -m1 'Loaded custom plugins' "$IDEA_LOG" | sed 's/.* - //' | tee -a "$OUT/run.log"
-grep -q 'Loaded custom plugins.*CodeScan' "$IDEA_LOG" || fail "CodeScan plugin was not loaded"
+grep -q 'Loaded custom plugins.*CodeScan' "$IDEA_LOG" || fail_with 7 "CodeScan plugin was not loaded"
 
 T0=$(date +%s)
 
@@ -215,6 +219,18 @@ shot "04-analyze-apex"
 log "opening Settings > CodeScan"
 keys ctrl+alt+s; nap 8; xdotool type --delay 80 "CodeScan"; nap 8
 shot "05-settings"
+# Positive control for the log check: building this page in the Settings dialog runs
+# SonarLintProjectConfigurable:125 on the UI thread, a known CodeScan slow operation. The search above leaves
+# Tools > CodeScan selected; Down moves the selection to its child page, Project Settings.
+log "opening Settings > Tools > CodeScan > Project Settings"
+xdotool key --delay 300 Down; nap 10
+shot "05b-project-settings"
+if screen_has "05b-project-settings" 'Bind project'; then
+  log "Project Settings page is on screen"
+else
+  log "WARNING: the CodeScan Project Settings page was not seen on screen, so the known slow operation may not have run; see $SHOTS/05b-project-settings.png"
+fi
+rm -f "$SHOTS/ocr-tmp.png"
 xdotool key Escape; nap 3
 
 END=$((T0 + $(awk -v m="$RUN_MINUTES" -v s="$SLEEP_SCALE" 'BEGIN { printf "%d", m * 60 * s + 0.999 }')))
@@ -226,7 +242,7 @@ while [ "$(date +%s)" -lt "$END" ]; do
 done
 shot "06-before-exit"
 
-# A crash in the scripted steps (about 160 s) is not seen by the loop above when RUN_MINUTES is short,
+# A crash in the scripted steps (about 170 s) is not seen by the loop above when RUN_MINUTES is short,
 # so the IDE is checked again before it is stopped.
 STOPPED_NORMALLY=0
 KILLED=0

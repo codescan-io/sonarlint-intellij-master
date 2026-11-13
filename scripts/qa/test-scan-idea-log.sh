@@ -413,16 +413,180 @@ expect_split "freeze D named" "$FZ" 1 0 0
 run_scan --freeze-dumps "$DUMPS" "$(freeze_log 15:00:19 threadDumps-freeze-20261113-150014-IU-261.1-9sec)"
 expect_split "freeze E named" "$FZ" 0 1 0
 
-# UI thread waiting or blocked, no CodeScan frame on it: the other threads decide.
+# UI thread waiting or blocked, no CodeScan frame on it, and no lock owner named: a CodeScan thread anywhere
+# makes it unknown, none makes it other. A running CodeScan thread alone never makes it CodeScan.
 named() { run_scan --freeze-dumps "$DUMPS" "$(freeze_log 21:00:09 "threadDumps-freeze-20261113-$1-IU-261.1-9sec")"; }
-named 210000; expect_split "waiting, CodeScan thread RUNNABLE" "$FZ" 1 0 0
+named 210000; expect_split "waiting, no owner, CodeScan thread RUNNABLE" "$FZ" 0 0 1
 named 210100; expect_split "timed waiting, CodeScan thread waiting" "$FZ" 0 0 1
 named 210200; expect_split "blocked, no CodeScan thread" "$FZ" 0 1 0
-named 210300; expect_split "blocked, CodeScan thread RUNNABLE" "$FZ" 1 0 0
+named 210300; expect_split "blocked, no owner, CodeScan thread RUNNABLE" "$FZ" 0 0 1
 named 210400; expect_split "UI block without frames" "$FZ" 0 0 1
 named 210500; expect_split "UI thread RUNNABLE elsewhere, CodeScan thread RUNNABLE" "$FZ" 0 1 0
 named 210600; expect_split "blocked, core library thread blocked too" "$FZ" 0 0 1
-named 210700; expect_split "waiting (parking), CodeScan thread RUNNABLE" "$FZ" 1 0 0
+named 210700; expect_split "waiting (parking), no owner, CodeScan thread RUNNABLE" "$FZ" 0 0 1
+
+# Lock owners. make_raw <folder>: the thread dump is read from stdin.
+make_raw() { mkdir -p "$DUMPS/$1"; cat > "$DUMPS/$1/threadDump-20261113-000000.txt"; }
+fz_named() { run_scan --freeze-dumps "$DUMPS" "$(freeze_log 22:00:09 "$1")"; }
+# The CodeScan polling thread that runs every few ms (EditorChangeTrigger$EventWatcher). It is often caught RUNNABLE.
+POLL_THREAD='"sonarlint-auto-trigger-codescan" prio=0 tid=0x0 nid=0x0 runnable
+     java.lang.Thread.State: RUNNABLE
+
+	at java.base@25.0.4/java.lang.Thread.sleep(Thread.java:509)
+	at org.sonarlint.intellij.trigger.EditorChangeTrigger$EventWatcher.checkTimers(EditorChangeTrigger.java:153)
+	at org.sonarlint.intellij.trigger.EditorChangeTrigger$EventWatcher.run(EditorChangeTrigger.java:125)
+'
+# Case A, cut down from a real IntelliJ 2026.1 dump: the UI thread waits for its next event
+# (" on ...ConditionObject@..." with no owner) and the CodeScan polling thread happens to be RUNNABLE.
+make_raw "threadDumps-freeze-20261113-220000-IU-261.1-10sec" <<EOF
+"AWT-EventQueue-0" prio=0 tid=0x0 nid=0x0 waiting on condition
+     java.lang.Thread.State: WAITING
+ on java.util.concurrent.locks.AbstractQueuedSynchronizer\$ConditionObject@5d4befa5
+	at java.base@25.0.4/jdk.internal.misc.Unsafe.park(Native Method)
+	at java.desktop/java.awt.EventQueue.getNextEvent(EventQueue.java:561)
+	at com.intellij.ide.IdeEventQueue.getNextEvent(IdeEventQueue.kt:448)
+
+$POLL_THREAD
+"Reference Handler" prio=0 tid=0x0 nid=0x0 runnable
+     java.lang.Thread.State: RUNNABLE
+	at java.base@25.0.4/java.lang.ref.Reference.waitForReferencePendingList(Native Method)
+EOF
+fz_named threadDumps-freeze-20261113-220000-IU-261.1-10sec
+expect_split "case A: UI thread idle, CodeScan polling thread RUNNABLE" "$FZ" 0 0 1
+expect_out "case A" "CodeScan total: 0"
+expect_code "case A" 0
+
+# IntelliJ's own format names the owner: " on <lock>@<hash> owned by \"<thread>\" Id=<n>".
+# The owner has a CodeScan frame: CodeScan.
+make_raw "threadDumps-freeze-20261113-220100-IU-261.1-10sec" <<'EOF'
+"AWT-EventQueue-0" prio=0 tid=0x0 nid=0x0 blocked
+     java.lang.Thread.State: BLOCKED
+ on java.lang.Object@1a2b owned by "SonarLint analysis" Id=77
+	at com.intellij.openapi.editor.impl.EditorImpl.paint(EditorImpl.java:1)
+
+"Netty worker" prio=0 tid=0x0 nid=0x0 runnable
+     java.lang.Thread.State: RUNNABLE
+	at java.base@25/sun.nio.ch.KQueue.poll(Native Method)
+
+"SonarLint analysis" prio=0 tid=0x0 nid=0x0 waiting on condition
+     java.lang.Thread.State: TIMED_WAITING
+	at java.base@25/java.lang.Thread.sleep(Thread.java:1)
+	at org.sonarlint.intellij.analysis.Analysis.run(Analysis.java:1)
+EOF
+fz_named threadDumps-freeze-20261113-220100-IU-261.1-10sec
+expect_split "lock owned by a CodeScan thread (IntelliJ format)" "$FZ" 1 0 0
+expect_code "lock owned by a CodeScan thread (IntelliJ format)" 1
+
+# The owner has no CodeScan frame: other, even though the CodeScan polling thread is RUNNABLE.
+make_raw "threadDumps-freeze-20261113-220200-IU-261.1-10sec" <<EOF
+"AWT-EventQueue-0" prio=0 tid=0x0 nid=0x0 waiting on condition
+     java.lang.Thread.State: WAITING
+ on java.util.concurrent.locks.ReentrantReadWriteLock\$NonfairSync@578c6b38 owned by "DefaultDispatcher-worker-17" Id=64
+	at java.base@25.0.4/jdk.internal.misc.Unsafe.park(Native Method)
+	at com.intellij.openapi.application.impl.ApplicationImpl.runWriteAction(ApplicationImpl.java:1)
+
+$POLL_THREAD
+"DefaultDispatcher-worker-17" prio=0 tid=0x0 nid=0x0 runnable
+     java.lang.Thread.State: RUNNABLE
+	at com.intellij.psi.impl.PsiManagerImpl.findFile(PsiManagerImpl.java:3)
+EOF
+fz_named threadDumps-freeze-20261113-220200-IU-261.1-10sec
+expect_split "lock owned by another thread (IntelliJ format)" "$FZ" 0 1 0
+expect_code "lock owned by another thread (IntelliJ format)" 0
+
+# jstack format: "- waiting to lock <0x..>" on the UI thread, "- locked <0x..>" on the owner.
+make_raw "threadDumps-freeze-20261113-220300-IU-261.1-10sec" <<'EOF'
+"AWT-EventQueue-0" #48 prio=6 os_prio=31 tid=0x1 nid=0x2 waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at com.intellij.Foo.bar(Foo.java:1)
+	- waiting to lock <0x00000007aa> (a java.lang.Object)
+	at com.intellij.Foo.baz(Foo.java:2)
+
+"Other" #50 prio=5 tid=0x3 nid=0x4 runnable
+   java.lang.Thread.State: RUNNABLE
+	at com.intellij.Other.run(Other.java:1)
+	- locked <0x00000007bb> (a java.lang.Object)
+
+"SonarLint worker" #51 prio=5 tid=0x5 nid=0x6 waiting on condition
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+	at java.lang.Thread.sleep(Native Method)
+	at org.sonarlint.intellij.Worker.run(Worker.java:9)
+	- locked <0x00000007aa> (a java.lang.Object)
+EOF
+fz_named threadDumps-freeze-20261113-220300-IU-261.1-10sec
+expect_split "lock owned by a CodeScan thread (jstack format)" "$FZ" 1 0 0
+
+# jstack format, the owner is another thread; "parking to wait for" is matched to "Locked ownable synchronizers".
+make_raw "threadDumps-freeze-20261113-220400-IU-261.1-10sec" <<EOF
+"AWT-EventQueue-0" #48 prio=6 tid=0x1 nid=0x2 waiting on condition
+   java.lang.Thread.State: WAITING (parking)
+	at jdk.internal.misc.Unsafe.park(Native Method)
+	- parking to wait for  <0x00000007cc> (a java.util.concurrent.locks.ReentrantLock\$NonfairSync)
+	at com.intellij.Foo.bar(Foo.java:1)
+
+$POLL_THREAD
+"Other" #50 prio=5 tid=0x3 nid=0x4 runnable
+   java.lang.Thread.State: RUNNABLE
+	at com.intellij.Other.run(Other.java:1)
+
+   Locked ownable synchronizers:
+	- <0x00000007cc> (a java.util.concurrent.locks.ReentrantLock\$NonfairSync)
+EOF
+fz_named threadDumps-freeze-20261113-220400-IU-261.1-10sec
+expect_split "lock owned by another thread (jstack format, parking)" "$FZ" 0 1 0
+
+# An owner is named but its thread is not in the dump: no owner found, so the CodeScan thread makes it unknown ...
+make_raw "threadDumps-freeze-20261113-220500-IU-261.1-10sec" <<EOF
+"AWT-EventQueue-0" prio=0 tid=0x0 nid=0x0 blocked
+     java.lang.Thread.State: BLOCKED
+ on java.lang.Object@1a2b owned by "Gone thread" Id=9
+	at com.intellij.Foo.bar(Foo.java:1)
+
+$POLL_THREAD
+EOF
+fz_named threadDumps-freeze-20261113-220500-IU-261.1-10sec
+expect_split "owner not in the dump, CodeScan thread present" "$FZ" 0 0 1
+# ... and other when no thread has a CodeScan frame.
+make_raw "threadDumps-freeze-20261113-220600-IU-261.1-10sec" <<'EOF'
+"AWT-EventQueue-0" prio=0 tid=0x0 nid=0x0 blocked
+     java.lang.Thread.State: BLOCKED
+	at com.intellij.Foo.bar(Foo.java:1)
+	- waiting to lock <0x00000007dd> (a java.lang.Object)
+
+"Other" prio=0 tid=0x0 nid=0x0 runnable
+     java.lang.Thread.State: RUNNABLE
+	at com.intellij.Other.run(Other.java:1)
+EOF
+fz_named threadDumps-freeze-20261113-220600-IU-261.1-10sec
+expect_split "no owner found, no CodeScan thread" "$FZ" 0 1 0
+
+# Case B: the coroutine dump after the threads ("---------- Coroutine dump ...") is not part of the last
+# thread, so its suspended CodeScan coroutine does not count. No CodeScan thread, no owner: other.
+make_raw "threadDumps-freeze-20261113-220700-IU-261.1-10sec" <<'EOF'
+"AWT-EventQueue-0" prio=0 tid=0x0 nid=0x0 waiting on condition
+     java.lang.Thread.State: WAITING
+ on java.lang.Object@1
+	at java.base@25/jdk.internal.misc.Unsafe.park(Native Method)
+	at com.other.Plugin.lock(Plugin.java:1)
+
+"Netty worker" prio=0 tid=0x0 nid=0x0 runnable
+     java.lang.Thread.State: RUNNABLE
+ (in native)
+	at java.base@25/sun.nio.ch.KQueue.poll(Native Method)
+
+
+---------- Coroutine dump (stripped) ----------
+
+- BlockingCoroutine{Active}@bf64270 [BlockingEventLoop]
+	- "org.sonarlint.intellij.SomeService":StandaloneCoroutine{Active}, state: SUSPENDED [Kernel]
+		at org.sonarlint.intellij.SomeService$1.invokeSuspend(SomeService.kt:35)
+"looks like a thread" prio=0 tid=0x0 nid=0x0 runnable
+     java.lang.Thread.State: RUNNABLE
+	at org.sonarlint.intellij.Fake.run(Fake.java:1)
+EOF
+fz_named threadDumps-freeze-20261113-220700-IU-261.1-10sec
+expect_split "case B: coroutine dump is not read" "$FZ" 0 1 0
+expect_code "case B" 0
 
 # Empty folder, folder with only a report, thread dump without a UI thread: unknown, with the folder named.
 run_scan --freeze-dumps "$DUMPS" "$(freeze_log 13:00:18 threadDumps-freeze-20261113-130016-IU-261.1-9sec)"
@@ -585,6 +749,23 @@ f="$TMP/dup-same-logger.log"
 } > "$f"
 run_scan "$f"
 expect_out "dup same logger" "Total: 2"
+# Two different problems (read access, then a slow operation) from the same CodeScan frame are two hits.
+f="$TMP/dup-other-pattern.log"
+{
+  echo "2026-06-01 10:00:00,100 [  1] SEVERE - #c.i.o.a.i.ApplicationImpl - Read access is allowed from inside read-action only"
+  echo "java.lang.Throwable: Read access is allowed from inside read-action only"
+  echo "	at com.intellij.openapi.application.impl.ApplicationImpl.assertReadAccessAllowed(ApplicationImpl.java:1)"
+  echo "	at org.sonarlint.intellij.finding.LiveFinding.isValid(LiveFinding.java:91)"
+  echo "2026-06-01 10:00:00,140 [  1] SEVERE - #c.i.u.SlowOperations - Slow operations are prohibited on EDT. See SlowOperations.assertSlowOperationsAreAllowed javadoc."
+  echo "java.lang.Throwable: Slow operations are prohibited on EDT."
+  echo "	at com.intellij.util.SlowOperations.assertSlowOperationsAreAllowed(SlowOperations.java:1)"
+  echo "	at org.sonarlint.intellij.finding.LiveFinding.isValid(LiveFinding.java:91)"
+} > "$f"
+run_scan "$f"
+expect_out "dup other pattern" "Total: 2"
+expect_out "dup other pattern" "Merged duplicates: 0"
+expect_split "dup other pattern" "Read access is allowed from inside read-action" 1 0 0
+expect_split "dup other pattern" "Slow operations are prohibited on EDT" 1 0 0
 f="$TMP/dup-other-day.log"
 {
   echo "2026-11-12 10:00:00,100 [  12345] SEVERE - #c.i.A - Read access is allowed from inside read-action only"
@@ -625,6 +806,37 @@ run_scan "$f"
 expect_out "blame tail pair" "Total: 1"
 expect_out "blame tail pair" "Merged duplicates: 1"
 expect_out "blame tail pair" "Blame follow-up lines folded: 2"
+
+# A blame line after a hit that is not CodeScan: IntelliJ blames CodeScan for it, so that hit becomes CodeScan.
+f="$TMP/blame-relabel.log"
+{
+  echo "2026-06-01 10:00:00,100 [  1] SEVERE - #c.i.o.a.i.ApplicationImpl - Access is allowed from Event Dispatch Thread only"
+  echo "java.lang.Throwable: Access is allowed from Event Dispatch Thread only"
+  echo "	at com.intellij.typescript.Foo.bar(Foo.java:1)"
+  echo "2026-06-01 10:00:00,160 [  1] SEVERE - #c.i.d.PluginManager - Plugin to blame: CodeScan version: 7.3.1"
+} > "$f"
+run_scan "$f"
+expect_code "blame relabels other hit" 1
+expect_out "blame relabels other hit" "Total: 1"
+expect_out "blame relabels other hit" "CodeScan total: 1"
+expect_split "blame relabels other hit" "Access is allowed from Event Dispatch Thread" 1 0 0
+expect_split "blame relabels other hit" "ERROR with org.sonarlint in its stack trace" 0 0 0
+expect_out "blame relabels other hit" "Relabelled CodeScan by a blame line: 1"
+expect_out "blame relabels other hit" "1 x [Access is allowed from Event Dispatch Thread] CodeScan"
+expect_no_out "blame relabels other hit" "x [Access is allowed from Event Dispatch Thread] other"
+# The same with the "[Plugin: com.code-scan.intellij]" form, after an unknown hit (no stack).
+f="$TMP/blame-relabel-bracket.log"
+{
+  echo "2026-06-01 10:00:00,100 [  1]  WARN - #c.i.o.a.i.ApplicationImpl - Suppressed a frequent exception logged for the 3rd time: Read access is allowed from inside read-action only"
+  echo "2026-06-01 10:00:00,130 [  1] SEVERE - #c.i.d.PluginManager - Cannot report [Plugin: com.code-scan.intellij]"
+} > "$f"
+run_scan "$f"
+expect_split "blame bracket relabels unknown hit" "Read access is allowed from inside read-action" 1 0 0
+expect_out "blame bracket relabels unknown hit" "Total: 1"
+expect_out "blame bracket relabels unknown hit" "Relabelled CodeScan by a blame line: 1"
+# A blame line after a CodeScan hit changes nothing.
+run_scan "$TMP/blame-tail.log"
+expect_out "blame after CodeScan hit" "Relabelled CodeScan by a blame line: 0"
 
 f="$TMP/blame-tail-late.log"
 {

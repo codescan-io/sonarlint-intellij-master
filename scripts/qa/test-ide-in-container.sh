@@ -73,7 +73,8 @@ cat > "$IDE_SRC/bin/idea" <<'STUB'
 #!/usr/bin/env bash
 # Stub IDE launcher. Env: STUB_NO_START=1 exit at once; STUB_CRASH_AFTER=<screenshot name> die when that
 # screenshot exists; STUB_SHUTDOWN=0 do not write the IDE SHUTDOWN line on SIGTERM; STUB_IGNORE_TERM=1 keep running on SIGTERM;
-# STUB_HANG_ON_TERM=1 write the IDE SHUTDOWN line on SIGTERM but then keep running (a shutdown that hangs).
+# STUB_HANG_ON_TERM=1 write the IDE SHUTDOWN line on SIGTERM but then keep running (a shutdown that hangs);
+# STUB_NO_CODESCAN=1 start without CodeScan among the loaded plugins.
 log="$(sed -n 's/^idea.log.path=//p' "$IDEA_PROPERTIES")/idea.log"
 stamp() { date '+%Y-%m-%d %H:%M:%S,000'; }
 if [ "${1:-}" = "--line" ]; then
@@ -82,7 +83,11 @@ if [ "${1:-}" = "--line" ]; then
 fi
 [ "${STUB_NO_START:-0}" = 1 ] && exit 1
 echo "$(stamp) [  1000]   INFO - #c.i.Stub - Project frame set to stub" >> "$log"
-echo "$(stamp) [  1000]   INFO - #c.i.Stub - Loaded custom plugins: CodeScan (7.3.2)" >> "$log"
+if [ "${STUB_NO_CODESCAN:-0}" = 1 ]; then
+  echo "$(stamp) [  1000]   INFO - #c.i.Stub - Loaded custom plugins: Other (1.0)" >> "$log"
+else
+  echo "$(stamp) [  1000]   INFO - #c.i.Stub - Loaded custom plugins: CodeScan (7.3.2)" >> "$log"
+fi
 if [ "${STUB_IGNORE_TERM:-0}" = 1 ]; then
   trap '' TERM
 elif [ "${STUB_HANG_ON_TERM:-0}" = 1 ]; then
@@ -147,7 +152,8 @@ expect_code "crash in the scripted steps, 2 min" 4
 run_ic 0 STUB_CRASH_AFTER=03-analyze-java
 expect_code "crash in the scripted steps, 0 min" 4
 
-run_ic 5 STUB_CRASH_AFTER=05-settings
+# 30 minutes at 2% is 36 s, so the wait loop is reached even on a slow machine; the crash ends the run early.
+run_ic 30 STUB_CRASH_AFTER=05b-project-settings
 expect_code "crash in the wait loop" 4
 expect_out "crash in the wait loop" "IDE exited early"
 expect_file "crash in the wait loop" "log/idea.log"
@@ -185,6 +191,27 @@ expect_code "one issue on screen" 0
 run_ic 5 STUB_NO_START=1
 expect_code "IDE does not start" 3
 expect_out "IDE does not start" "IDE process exited during start"
+
+# The IDE starts but CodeScan is not among the loaded plugins: its own exit code.
+run_ic 5 STUB_NO_CODESCAN=1
+expect_code "CodeScan not loaded" 7
+expect_out "CodeScan not loaded" "CodeScan plugin was not loaded"
+expect_file "CodeScan not loaded" "log/idea.log"
+if grep -q '^#  *7 = .*CodeScan plugin was not loaded' "$IC"; then ok "exit 7 is in the help"; else not_ok "exit 7 is in the help" "missing"; fi
+
+# Positive control: checks the CodeScan Project Settings page is on screen (known source of the
+# SonarLintProjectConfigurable:125 slow operation).
+run_ic 5 STUB_OCR_TEXT="Found 4 issues in 1 file
+Bind project to CodeScan / CodeScanCloud"
+expect_code "Project Settings seen" 0
+expect_out "Project Settings seen" "opening Settings > Tools > CodeScan > Project Settings"
+expect_out "Project Settings seen" "Project Settings page is on screen"
+expect_file "Project Settings seen" "screens/05b-project-settings.png"
+run_ic 5
+expect_code "Project Settings not seen" 0
+expect_out "Project Settings not seen" "WARNING: the CodeScan Project Settings page was not seen"
+run_ic 1 STUB_CRASH_AFTER=05b-project-settings
+expect_code "crash on the Project Settings page" 4
 
 echo
 echo "passed: $PASS, failed: $FAIL"

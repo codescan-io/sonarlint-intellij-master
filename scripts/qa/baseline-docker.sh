@@ -14,9 +14,11 @@
 #        4 = the IDE did not run and stop normally: it exited or crashed before it was stopped, or it stopped
 #            without the IDE SHUTDOWN line in idea.log, or it was still running 90 s after SIGTERM and was killed
 #        5 = the CodeScan analysis showed no result for Hello.java (read from a screenshot)
+#        With 4 and 5 the log check still runs and scan.txt is saved, but the exit code stays 4 or 5.
+#        7 = the CodeScan plugin was not loaded by the IDE
 #        6 = the log check itself failed (scan-idea-log.sh exited 2 for some log: unreadable file or bad
 #            arguments). The result is incomplete, so this wins over 1; scan.txt shows what was found.
-# --minutes must be at least 4: the scripted steps (open 2 files, 2 analyses, Settings) take about 3 minutes,
+# --minutes must be at least 4: the scripted steps (open 2 files, 2 analyses, Settings, Project Settings) take about 3 minutes,
 # and a shorter run time would end before the IDE had run long enough to show a crash.
 set -u
 
@@ -113,15 +115,19 @@ docker run --rm --name "$NAME" --cpus "${QA_DOCKER_CPUS:-6}" --memory "${QA_DOCK
 # Upper bound on the whole container run: the IDE run itself plus start-up and shutdown.
 wait_bounded $! $(( (MINUTES + 15) * 60 )) 'docker kill "$NAME" >/dev/null 2>&1'
 RC=$?
-# The container's own codes 4 and 5 are passed on as they are; any other failure is 3.
+# The container's own codes 4, 5 and 7 are passed on as they are; any other failure is 3.
+# After 4 or 5 the IDE did run, so its log is still checked below; RUN_RC keeps the code to exit with.
+RUN_RC=0
 case "$RC" in
   0) ;;
-  4) echo "error: the IDE did not run and stop normally (it exited early, or stopped without the IDE SHUTDOWN line, or had to be killed); see $OUT/run.log and $OUT/screens" >&2; exit 4 ;;
-  5) echo "error: the CodeScan analysis did not run; see $OUT/run.log and $OUT/screens" >&2; exit 5 ;;
+  4) echo "error: the IDE did not run and stop normally (it exited early, or stopped without the IDE SHUTDOWN line, or had to be killed); see $OUT/run.log and $OUT/screens" >&2; RUN_RC=4 ;;
+  5) echo "error: the CodeScan analysis did not run; see $OUT/run.log and $OUT/screens" >&2; RUN_RC=5 ;;
+  7) echo "error: the CodeScan plugin was not loaded by the IDE; see $OUT/run.log and $OUT/log/idea.log" >&2; exit 7 ;;
   *) echo "error: the IDE run failed (exit $RC); see $OUT/run.log and $OUT/screens" >&2; exit 3 ;;
 esac
 if [ ! -s "$OUT/log/idea.log" ]; then
   echo "error: the IDE run left no idea.log; see $OUT/run.log and $OUT/screens" >&2
+  [ "$RUN_RC" -ne 0 ] && exit "$RUN_RC"
   exit 3
 fi
 
@@ -145,5 +151,9 @@ for LOG in "$OUT"/log/idea*.log; do
 done
 awk '/^##### /{print; s=0; next} /^Summary:/{s=1} s' "$OUT/scan.txt"
 echo "full log check: $OUT/scan.txt"
+if [ "$RUN_RC" -ne 0 ]; then
+  echo "error: the run is not complete (exit $RUN_RC, see above); the log check is shown for information" >&2
+  exit "$RUN_RC"
+fi
 [ "$SCAN_FAILED" -eq 1 ] && exit 6
 exit "$RC"

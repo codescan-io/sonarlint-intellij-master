@@ -144,6 +144,7 @@ expect_out "help" "5 = the CodeScan analysis showed no result"
 expect_out "help" "6 = the log check itself failed"
 # Exit 4 has three causes in ide-in-container.sh; the help and the error must not name only the first one.
 expect_out "help" "4 = the IDE did not run and stop normally"
+expect_out "help" "7 = the CodeScan plugin was not loaded"
 
 # Exit codes of the container run are passed on: 4 and 5 as they are, anything else that fails as 3.
 run_ok_args clean 4
@@ -151,6 +152,23 @@ expect_code "container exit 4" 4
 expect_out "container exit 4" "the IDE did not run and stop normally (it exited early, or stopped without the IDE SHUTDOWN line, or had to be killed)"
 run_ok_args clean 5
 expect_code "container exit 5" 5
+# On 4 and 5 the IDE ran, so its log is still checked and scan.txt saved, but the exit code stays 4 or 5.
+run_ok_args rotated 4
+expect_code "container exit 4 with a CodeScan error" 4
+expect_out "container exit 4 with a CodeScan error" "CodeScan total: 1"
+if [ -s "$TMP/out/scan.txt" ]; then ok "container exit 4: scan.txt saved"; else not_ok "container exit 4: scan.txt saved" "missing"; fi
+run_ok_args freeze-cs 5
+expect_code "container exit 5 with a CodeScan freeze" 5
+expect_out "container exit 5 with a CodeScan freeze" "CodeScan total: 1"
+if [ -s "$TMP/out/scan.txt" ]; then ok "container exit 5: scan.txt saved"; else not_ok "container exit 5: scan.txt saved" "missing"; fi
+run_ok_args unreadable 4
+expect_code "container exit 4, scanner fails" 4
+expect_out "container exit 4, scanner fails" "log check failed"
+run_ok_args none 4
+expect_code "container exit 4, no idea.log" 4
+run_ok_args clean 7
+expect_code "container exit 7" 7
+expect_out "container exit 7" "CodeScan plugin was not loaded"
 run_ok_args clean 3
 expect_code "container exit 3" 3
 run_ok_args clean 1
