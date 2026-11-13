@@ -146,8 +146,7 @@ intellijPlatform {
             VerifyPluginTask.FailureLevel.MISSING_DEPENDENCIES,
             VerifyPluginTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
         )
-        failureLevel = VerifyPluginTask.FailureLevel.values()
-            .filter { it !in tolerated && it != VerifyPluginTask.FailureLevel.ALL && it != VerifyPluginTask.FailureLevel.NONE }
+        failureLevel = EnumSet.complementOf(tolerated).toList()
 
         val ideTypes = listOf(IntelliJPlatformType.IntellijIdeaCommunity, IntelliJPlatformType.IntellijIdeaUltimate)
 

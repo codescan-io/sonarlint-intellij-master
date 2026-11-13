@@ -20,6 +20,7 @@
 package org.sonarlint.intellij.its.tests.domain
 
 import com.intellij.remoterobot.utils.waitFor
+import java.time.Duration
 import org.assertj.core.api.Assertions.assertThat
 import org.sonarlint.intellij.its.BaseUiTest.Companion.remoteRobot
 import org.sonarlint.intellij.its.fixtures.dialog
@@ -37,8 +38,6 @@ class SecurityHotspotTabTests {
                 idea {
                     toolWindow("CodeScan") {
                         ensureOpen()
-                    }
-                    toolWindow {
                         tabTitleContains("Security Hotspots") { select() }
                         content("SecurityHotspotTree") {
                             findText(securityHotspotMessage).rightClick()
@@ -82,8 +81,6 @@ class SecurityHotspotTabTests {
                 idea {
                     toolWindow("CodeScan") {
                         ensureOpen()
-                    }
-                    toolWindow {
                         tabTitleContains("Security Hotspots") { select() }
                         content("SecurityHotspotsPanel") {
                             expectedMessages.forEach { assertThat(hasText(it)).isTrue() }
@@ -98,8 +95,6 @@ class SecurityHotspotTabTests {
                 idea {
                     toolWindow("CodeScan") {
                         ensureOpen()
-                    }
-                    toolWindow {
                         tabTitleContains("Security Hotspots") { select() }
                         content("SecurityHotspotTree") {
                             expectedMessages.forEach { assertThat(hasText(it)).isTrue() }
@@ -114,8 +109,6 @@ class SecurityHotspotTabTests {
                 idea {
                     toolWindow("CodeScan") {
                         ensureOpen()
-                    }
-                    toolWindow {
                         tabTitleContains("Security Hotspots") { select() }
                         content("SecurityHotspotsPanel") {
                             toolBarButton("Configure CodeScan").click()
@@ -135,8 +128,6 @@ class SecurityHotspotTabTests {
                 idea {
                     toolWindow("CodeScan") {
                         ensureOpen()
-                    }
-                    toolWindow {
                         content("SecurityHotspotsPanel") {
                             waitFor(Duration.ofMinutes(1), errorMessage = "Unable to find '$expectedMessage' in: ${findAllText()}") {
                                 hasText(expectedMessage)

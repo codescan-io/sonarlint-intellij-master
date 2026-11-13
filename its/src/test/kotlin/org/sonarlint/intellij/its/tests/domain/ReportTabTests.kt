@@ -33,8 +33,6 @@ class ReportTabTests {
                     analyzeFile()
                     toolWindow("CodeScan") {
                         ensureOpen()
-                    }
-                    toolWindow {
                         content("ReportPanel") {
                             expectedMessages.forEach { assertThat(hasText(it)).isTrue() }
                         }

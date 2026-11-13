@@ -23,6 +23,7 @@ import com.intellij.remoterobot.utils.waitFor
 import com.sonar.orchestrator.container.Edition
 import com.sonar.orchestrator.junit5.OrchestratorExtension
 import com.sonar.orchestrator.locator.FileLocation
+import java.time.Duration
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -65,8 +66,6 @@ class PLSQLTest : BaseUiTest() {
             idea {
                 toolWindow("CodeScan") {
                     ensureOpen()
-                }
-                toolWindow {
                     tabTitleContains("Current File") { select() }
                     // the synchronization can take a while to happen
                     waitFor(duration = Duration.ofMinutes(1)) {

@@ -55,7 +55,6 @@ class StandaloneIdeaTests : BaseUiTest() {
             "No older issues",
         )
         verifyCurrentFileTabContainsMessages("Remove this empty class, write its code or make it an \"interface\".")
-        resetFocusOnNewCode()
     }
 
     @Test
@@ -64,11 +63,11 @@ class StandaloneIdeaTests : BaseUiTest() {
         excludeFile("src/main/java/foo/Foo.java")
         openFile("src/main/java/foo/Foo.java", "Foo.java")
         verifyCurrentFileTabContainsMessages("No analysis done on the current opened file")
-        removeFileExclusion("src/main/java/foo/Bar.java")
+        removeFileExclusion("src/main/java/foo/Foo.java")
     }
 
     @Test
-    fun should_analyze_ansible() = uiTest {
+    fun chart() = uiTest {
         openExistingProject("DuplicatedEnvsChart")
         openFile("templates/memory_limit_pod2.yml", "memory_limit_pod2.yml")
         verifyCurrentFileTabContainsMessages("Bind this resource's automounted service account to RBAC or disable automounting.")
