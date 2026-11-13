@@ -191,6 +191,9 @@ tasks.test {
     // skips the sandbox copy of the plugin, loads build/resources/main instead and cannot find the backend in sloop/.
     // Remove it once intellijBuildVersion is 2023.1 or newer (plan Task 6).
     systemProperty("idea.ignore.plugin.compatibility", "true")
+    // On macOS the temp folder /var/folders/... is a link to /private/var/folders/..., and JavaAnalysisConfiguratorTests compares
+    // the paths it sets up with their real paths. Use the real path of the same folder; on Linux nothing changes.
+    systemProperty("java.io.tmpdir", File(System.getProperty("java.io.tmpdir")).canonicalPath)
 }
 
 val runIdeDirectory: String by project
