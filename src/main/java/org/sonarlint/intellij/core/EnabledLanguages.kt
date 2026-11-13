@@ -54,16 +54,8 @@ object EnabledLanguages {
         Language.KUBERNETES,
         Language.TERRAFORM,
     )
-    private val EMBEDDED_PLUGINS_TO_USE_IN_CONNECTED_MODE = listOf(
-        EmbeddedPlugin(Language.HTML, "HTML", "sonar-html-plugin-*.jar"),
-        EmbeddedPlugin(Language.JS, "JavaScript/TypeScript", "sonar-javascript-plugin-*.jar"),
-        EmbeddedPlugin(Language.KOTLIN, "Kotlin", "sonar-kotlin-plugin-*.jar"),
-        EmbeddedPlugin(Language.RUBY, "Ruby", "sonar-ruby-plugin-*.jar"),
-        EmbeddedPlugin(Language.XML, "XML", "sonar-xml-plugin-*.jar"),
-        EmbeddedPlugin(Language.SECRETS, "Secrets detection", "sonar-text-plugin-*.jar"),
-        EmbeddedPlugin(Language.GO, "Go", "sonar-go-plugin-*.jar"),
-        EmbeddedPlugin(org.sonarsource.sonarlint.core.commons.api.SonarLanguage.valueOf(Language.CLOUDFORMATION.name).pluginKey, "IaC", "sonar-iac-plugin-*.jar"),
-    )
+    // CodeScan: in connected mode only the analyzers the server provides are used, so the rules match the server's quality profile
+    private val EMBEDDED_PLUGINS_TO_USE_IN_CONNECTED_MODE = emptyList<EmbeddedPlugin>()
 
     @JvmStatic
     fun getEmbeddedPluginsForConnectedMode(): Map<String, Path> {

@@ -31,11 +31,13 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
 import java.net.URI
+import java.nio.file.Files
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.Callable
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import kotlin.io.path.createTempDirectory
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.entry
 import org.assertj.core.api.Assertions.tuple
@@ -51,6 +53,7 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.timeout
 import org.sonarlint.intellij.AbstractSonarLintHeavyTests
 import org.sonarlint.intellij.SonarLintIntelliJClient
+import org.sonarlint.intellij.SonarLintPlugin
 import org.sonarlint.intellij.analysis.AnalysisState
 import org.sonarlint.intellij.analysis.SonarLintAnalyzer
 import org.sonarlint.intellij.common.analysis.AnalysisConfigurator
@@ -167,6 +170,26 @@ class CodeScanConnectionTests : AbstractSonarLintHeavyTests() {
 
         assertThat(params.extraEnabledLanguagesInConnectedMode).contains(Language.APEX, Language.SF_META, Language.VF)
         assertThat(params.enabledLanguagesInStandaloneMode).doesNotContain(Language.APEX, Language.SF_META, Language.VF)
+    }
+
+    @Test
+    fun connectedModeUsesOnlyTheServerAnalyzers() {
+        val pluginHome = createTempDirectory("codescan-plugin")
+        val bundled = Files.createDirectories(pluginHome.resolve("plugins"))
+        listOf("sonar-html-plugin-1.0.jar", "sonar-javascript-plugin-1.0.jar", "sonar-xml-plugin-1.0.jar").forEach { Files.createFile(bundled.resolve(it)) }
+        val plugin = mock(SonarLintPlugin::class.java)
+        `when`(plugin.path).thenReturn(pluginHome)
+        `when`(plugin.version).thenReturn("1.0")
+        ApplicationManager.getApplication().replaceService(SonarLintPlugin::class.java, plugin, testRootDisposable)
+
+        try {
+            val params = startBackendAndCaptureInitializeParams()
+
+            assertThat(params.embeddedPluginPaths).hasSize(3)
+            assertThat(params.connectedModeEmbeddedPluginPathsByKey).isEmpty()
+        } finally {
+            pluginHome.toFile().deleteRecursively()
+        }
     }
 
     @Test
