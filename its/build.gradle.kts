@@ -12,6 +12,8 @@ apply(from = "${rootProject.projectDir}/gradle/module-conventions.gradle")
 val intellijBuildVersion: String by project
 val ijVersion: String by project
 val runIdeDirectory: String by project
+// The port of the WireMock copy of CodeScan: the tests start it there and the UI-test IDE uses it as its CodeScan URL.
+val wiremockPort: String = providers.gradleProperty("wiremockPort").getOrElse("18089")
 group = "org.sonarsource.sonarlint.intellij.its"
 description = "ITs for SonarLint IntelliJ"
 
@@ -54,6 +56,8 @@ tasks {
             }
         }
         testLogging.showStandardStreams = true
+        systemProperty("its.wiremock.port", wiremockPort)
+        finalizedBy("checkIdeLog")
     }
     // This project is a test helper, not a shipped plugin, and has no IDE list for the plugin verifier.
     // Without this, a root-level `./gradlew verifyPlugin` fails with "No IDE resolved for verification".
@@ -112,8 +116,11 @@ val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
             listOf(
                 "-Xmx1G",
                 "-Drobot-server.port=8082",
-                "-Dsonarlint.internal.sonarcloud.url=https://sc-staging.io",
-                "-Dsonarlint.internal.sonarcloud.websocket.url=wss://events-api.sc-staging.io/",
+                // Any slow operation on the UI thread is logged as an error, which checkIdeLog then reports.
+                "-Dide.slow.operations.assertion=true",
+                "-Didea.is.internal=true",
+                // CodeScan is the WireMock copy the tests start (no WebSocket: CodeScan has none).
+                "-Dsonarlint.internal.sonarcloud.url=http://localhost:$wiremockPort",
                 "-Dsonarlint.telemetry.disabled=true",
                 "-Dsonarlint.logs.verbose=true",
                 "-Didea.trust.all.projects=true",
@@ -142,6 +149,24 @@ val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
             localPlugin(rootProject.dependencies.project(":"))
         }
     }
+}
+
+// The UI tests fail if the IDE they drove logged a slow operation on the UI thread, wrong-thread access, a freeze or a
+// CodeScan error (scripts/qa/scan-ide-logs.sh). It also runs when the tests fail. -PideLogDir=<folder> checks another
+// IDE log folder instead of the runIdeForUiTests sandbox one.
+val checkIdeLog by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Checks the UI-test IDE's idea.log for slow operations on the UI thread and CodeScan errors."
+    val logDir = providers.gradleProperty("ideLogDir").map { file(it) }
+        .orElse(runIdeForUiTests.flatMap { it.task }.flatMap { it.sandboxLogDirectory }.map { it.asFile })
+    val script = rootProject.file("scripts/qa/scan-ide-logs.sh")
+    val report = layout.buildDirectory.file("reports/ide-log-check/scan.txt")
+    executable = "bash"
+    argumentProviders += CommandLineArgumentProvider {
+        listOf(script.path, logDir.get().path, report.get().asFile.path)
+    }
+    // The IDE keeps writing its log while it runs, so an earlier result never counts.
+    outputs.upToDateWhen { false }
 }
 
 intellijPlatform {
