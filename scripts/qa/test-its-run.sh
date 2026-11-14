@@ -57,7 +57,7 @@ STUB
 
 # STUB_PREPARE_RC = exit code of the preparation run
 # STUB_IDE  = up (starts and its robot answers) | silent (starts, robot never answers) | exit (stops at once)
-# STUB_TEST = pass | fail | hang
+# STUB_TEST = pass | fail | hang | no-results (passes but writes no results, as when Gradle reuses an earlier run)
 cat > "$TMP/src/gradlew" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STUB_DIR/gradle-calls"
@@ -74,9 +74,11 @@ for a in "$@"; do
       # The fake IDE: its command line holds the sandbox log folder, as the real one's does.
       exec bash -c 'trap "rm -f \"$1\"; exit 143" TERM; while :; do sleep 1; done' ide "$STUB_DIR/robot-up" "$logdir" ;;
     :its:test)
-      mkdir -p its/build/test-results/test
-      echo '<testsuite/>' > its/build/test-results/test/TEST-x.xml
-      case "${STUB_TEST:-pass}" in pass) exit 0 ;; fail) exit 1 ;; hang) sleep 30; exit 0 ;; esac ;;
+      if [ "${STUB_TEST:-pass}" != no-results ]; then
+        mkdir -p its/build/test-results/test
+        echo '<testsuite/>' > its/build/test-results/test/TEST-x.xml
+      fi
+      case "${STUB_TEST:-pass}" in pass|no-results) exit 0 ;; fail) exit 1 ;; hang) sleep 30; exit 0 ;; esac ;;
   esac
 done
 exit 0
@@ -105,6 +107,15 @@ expect_file_has "pass" "$TMP/out-pass/test-results/TEST-x.xml" "testsuite"
 expect_file_has "pass: --tests" "$STUB_DIR/gradle-calls" ":its:test --tests *StandaloneIdeaTests*"
 expect_file_has "pass: plugin" "$STUB_DIR/gradle-calls" "-PslPluginDirectory=$TMP/plugin"
 expect_ide_stopped "pass"
+# Every Gradle run ends its own Java processes (no daemon, no Kotlin compile daemon): left running, they hold memory
+# the IDE needs in a container with a memory limit.
+for want in --no-daemon -Pkotlin.compiler.execution.strategy=in-process; do
+  if grep -v -F -e "$want" "$STUB_DIR/gradle-calls" | grep -q .; then
+    not_ok "pass: every Gradle run has $want" "$(grep -v -F -e "$want" "$STUB_DIR/gradle-calls")"
+  else
+    ok "pass: every Gradle run has $want"
+  fi
+done
 
 # 2. A failed test: exit 5, results still collected.
 STUB_TEST=fail run fail
@@ -146,7 +157,16 @@ expect_out "port in use" "something already answers"
 expect_no_file "port in use: no Gradle run" "$STUB_DIR/gradle-calls"
 rm -f "$STUB_DIR/robot-up"
 
-# 8. Bad usage.
+# 8. Results left in the source tree by an earlier run do not count, when :its:test writes none (Gradle found the
+#    task up to date, or took its result from the build cache).
+mkdir -p "$TMP/src/its/build/test-results/test" "$TMP/src/its/build/reports/ide-log-check"
+echo '<testsuite name="old"/>' > "$TMP/src/its/build/test-results/test/TEST-old.xml"
+echo 'old log check' > "$TMP/src/its/build/reports/ide-log-check/scan.txt"
+STUB_TEST=no-results run stale
+expect_no_file "earlier results" "$TMP/out-stale/test-results/TEST-old.xml"
+expect_no_file "earlier log check" "$TMP/out-stale/gradle-log-check.txt"
+
+# 9. Bad usage.
 OUT="$(bash "$IR" 2>&1)"; CODE=$?
 expect_code "no arguments" 2
 OUT="$(bash "$IR" --src "$TMP/src" --plugin-dir "$TMP/plugin" --ij-version 2023.1.7 --out "$TMP/out-x" 2>&1)"; CODE=$?

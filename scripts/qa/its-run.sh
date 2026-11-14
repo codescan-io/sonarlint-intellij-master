@@ -49,7 +49,9 @@ STOP_TIMEOUT_SEC="${STOP_TIMEOUT_SEC:-90}"
 ROBOT_URL="http://127.0.0.1:8082/"
 # The IntelliJ Platform Gradle plugin names the sandbox after the IDE (IC-2023.1.7); the log folder after the task.
 LOG_DIR="$SRC/its/build/idea-sandbox/$IJ_VERSION/log_runIdeForUiTests"
-GRADLE_ARGS="--console=plain -PijVersion=$IJ_VERSION -PslPluginDirectory=$PLUGIN_DIR"
+# No Gradle daemon and no Kotlin compile daemon: each Gradle run ends its own Java processes. Left running, the
+# preparation's daemons held memory the IDE needs (IntelliJ 2026.1.5 was killed, exit 137, in a 6 GB container).
+GRADLE_ARGS="--console=plain --no-daemon -Pkotlin.compiler.execution.strategy=in-process -PijVersion=$IJ_VERSION -PslPluginDirectory=$PLUGIN_DIR"
 IDE_GRADLE_PID=""
 
 # Runs a command in the background with its output in $2 and waits at most $1 seconds. Returns its exit code,
@@ -135,8 +137,8 @@ echo "preparing: compile the UI tests and the $IJ_VERSION sandbox (log: $OUT/gra
 run_bounded "$PREPARE_TIMEOUT_SEC" "$OUT/gradle-prepare.log" ./gradlew $GRADLE_ARGS :its:testClasses :its:prepareSandbox_runIdeForUiTests \
   || { echo "error: preparation failed; see $OUT/gradle-prepare.log" >&2; exit 3; }
 
-# An idea.log left from an earlier run in this sandbox must not count for this one.
-rm -rf "$LOG_DIR"
+# An idea.log, test results or a log check left from an earlier run in this tree must not count for this one.
+rm -rf "$LOG_DIR" "$SRC/its/build/test-results/test" "$SRC/its/build/reports/tests/test" "$SRC/its/build/reports/ide-log-check"
 echo "starting the $IJ_VERSION IDE (log: $OUT/gradle-ide.log)"
 # shellcheck disable=SC2086
 ./gradlew $GRADLE_ARGS :its:runIdeForUiTests > "$OUT/gradle-ide.log" 2>&1 &

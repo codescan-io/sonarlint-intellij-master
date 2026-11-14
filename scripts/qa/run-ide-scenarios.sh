@@ -22,7 +22,11 @@
 #        2 = bad usage
 #        3 = the run did not happen (Docker not running, plugin build failed, the IDE did not start, no idea.log)
 #        4 = the log check itself failed for some log (scan-ide-logs.sh exit 3 or 4); the result is incomplete
-#        5 = some UI tests failed or did not run to the end (the log check is still done and printed)
+#        5 = some UI tests failed or did not run to the end, no UI test ran (all skipped), or, without --tests, one of
+#            the test classes this loop is for ($REQUIRED_CLASSES below) did not run. The log check is still done
+#            and printed.
+# The log check fails the run only for CodeScan hits. Hits from the IDE or another plugin ("other") and hits whose
+# source it cannot tell ("unknown") are counted on the "Log check:" line; read scan.txt for them.
 # Works with macOS bash 3.2 and Linux bash.
 set -u
 
@@ -154,26 +158,43 @@ case "$RC" in
      [ -s "$OUT/log/idea.log" ] || exit 3 ;;
 esac
 
-# UI test results from the JUnit XML files: totals, then the name of every failed and skipped test.
+# The test classes a full run (no --tests) must have run at least one test of. A skipped test did not run: JUnit
+# skips a whole class when, for example, an @EnabledIf condition is false, and that must not pass as a clean run.
+REQUIRED_CLASSES="CodeScanScenarioTests ConnectedAnalysisTests StandaloneIdeaTests"
+
+# UI test results from the JUnit XML files: totals, then the name of every failed and skipped test. Fails when a test
+# failed, when no test ran, or when a required class did not run.
 summarize_tests() {
-  local f
+  local required=""
+  [ -n "$TESTS" ] || required="$REQUIRED_CLASSES"
   set -- "$OUT"/test-results/*.xml
   [ -f "$1" ] || { echo "UI tests: no results (the tests did not run)"; return 1; }
-  awk '
+  awk -v required="$required" '
+    # A test that was not skipped ran (passed or failed).
+    function close_case() {
+      if (current != "") { ran[cur_cls]++; nran++ }
+      current = ""
+    }
     /<testcase / {
+      close_case()
       name = $0; sub(/.* name="/, "", name); sub(/".*/, "", name)
       cls = $0; sub(/.* classname="/, "", cls); sub(/".*/, "", cls); sub(/.*\./, "", cls)
-      current = cls " > " name; total++
-      if ($0 ~ /\/>[ \t]*$/) current = ""
+      current = cls " > " name; cur_cls = cls; total++
+      if ($0 ~ /\/>[ \t]*$/) close_case()
     }
-    /<failure|<error/ && current != "" { failed[++nf] = current; current = "" }
+    /<failure|<error/ && current != "" { failed[++nf] = current; close_case() }
     /<skipped/ && current != "" { skipped[++ns] = current; current = "" }
-    /<\/testcase>/ { current = "" }
+    /<\/testcase>/ { close_case() }
     END {
-      printf "UI tests: %d run, %d passed, %d failed, %d skipped\n", total, total - nf - ns, nf, ns
+      close_case()
+      printf "UI tests: %d in total, %d passed, %d failed, %d skipped\n", total, total - nf - ns, nf, ns
       for (i = 1; i <= nf; i++) print "  FAILED  " failed[i]
       for (i = 1; i <= ns; i++) print "  skipped " skipped[i]
-      exit (nf > 0 || total == 0) ? 1 : 0
+      bad = (nf > 0)
+      if (nran == 0) { print "  error: no UI test ran"; bad = 1 }
+      n = split(required, req, " ")
+      for (i = 1; i <= n; i++) if (!(req[i] in ran)) { print "  error: " req[i] " did not run"; bad = 1 }
+      exit bad
     }
   ' "$@"
 }
@@ -185,6 +206,14 @@ SCAN_RC=3
 if [ -d "$OUT/log" ]; then
   bash "$HERE/scan-ide-logs.sh" "$OUT/log" "$OUT/scan.txt"
   SCAN_RC=$?
+  # One line with every count, summed over all patterns and logs, so that hits which do not fail the run are seen.
+  [ -f "$OUT/scan.txt" ] && awk '
+    /^    CodeScan: [0-9]+  other: [0-9]+  unknown: [0-9]+/ { c += $2; o += $4; u += $6 }
+    END {
+      printf "Log check: %d CodeScan, %d other (the IDE or another plugin), %d unknown (cannot tell; read scan.txt)\n", c, o, u
+      if (u > 0) print "warning: the log check cannot tell where " u " hit(s) came from; read " FILENAME
+    }
+  ' "$OUT/scan.txt"
 else
   echo "error: the run left no IDE log folder" >&2
 fi

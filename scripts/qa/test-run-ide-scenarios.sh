@@ -40,8 +40,11 @@ expect_no_file() {
 }
 
 # The stub. "docker run" records its arguments in $STUB_ARGS and fakes the container's results in the /out mount:
-# STUB_LOG   = clean | slow-op (a slow operation on the UI thread with a CodeScan frame) | no-idea-log | none
-# STUB_TESTS = pass (2 passed) | fail (1 passed, 1 failed) | skip (1 passed, 1 skipped) | none
+# STUB_LOG   = clean | slow-op (a slow operation on the UI thread with a CodeScan frame) | ide-slow-op (one with no
+#              CodeScan frame) | no-idea-log | none
+# STUB_TESTS = pass (4 passed) | fail (3 passed, 1 failed) | skip (3 passed, 1 skipped) | all-skipped (4 skipped)
+#              | scenario-skipped (3 passed; CodeScanScenarioTests skipped) | none
+#              StandaloneIdeaTests has 2 tests; CodeScanScenarioTests and ConnectedAnalysisTests have 1 each.
 # STUB_RC    = the exit code of "docker run" (its-run.sh's: 0, 3 or 5)
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/docker" <<'STUB'
@@ -67,31 +70,47 @@ case "${1:-}" in
           printf '\tat com.intellij.util.SlowOperations.assertSlowOperationsAreAllowed(SlowOperations.java:114)\n'
           printf '\tat org.sonarlint.intellij.config.project.SonarLintProjectConfigurable.reset(SonarLintProjectConfigurable.java:125)\n'
         } > "$out/log/idea.log" ;;
+      ide-slow-op)
+        mkdir -p "$out/log"
+        {
+          echo "$TS  ERROR - #c.i.u.SlowOperations - Slow operations are prohibited on EDT. See SlowOperations.assertSlowOperationsAreAllowed javadoc."
+          printf '\tat com.intellij.util.SlowOperations.assertSlowOperationsAreAllowed(SlowOperations.java:114)\n'
+          printf '\tat com.intellij.openapi.vfs.newvfs.persistent.FSRecords.update(FSRecords.java:382)\n'
+        } > "$out/log/idea.log" ;;
       no-idea-log) mkdir -p "$out/log"; echo x > "$out/log/other.txt" ;;
       none) : ;;
     esac
-    case "${STUB_TESTS:-pass}" in
-      none) : ;;
-      *)
-        mkdir -p "$out/test-results"
-        {
-          echo '<?xml version="1.0" encoding="UTF-8"?>'
-          echo '<testsuite name="org.sonarlint.intellij.its.tests.StandaloneIdeaTests" tests="2">'
-          echo '  <testcase name="javaIssues()" classname="org.sonarlint.intellij.its.tests.StandaloneIdeaTests" time="1.0"/>'
-          case "${STUB_TESTS:-pass}" in
-            pass) echo '  <testcase name="jsIssues()" classname="org.sonarlint.intellij.its.tests.StandaloneIdeaTests" time="1.0"/>' ;;
-            fail)
-              echo '  <testcase name="jsIssues()" classname="org.sonarlint.intellij.its.tests.StandaloneIdeaTests" time="1.0">'
-              echo '    <failure message="boom" type="java.lang.AssertionError">boom</failure>'
-              echo '  </testcase>' ;;
-            skip)
-              echo '  <testcase name="jsIssues()" classname="org.sonarlint.intellij.its.tests.StandaloneIdeaTests" time="0.0">'
-              echo '    <skipped/>'
-              echo '  </testcase>' ;;
+    # One JUnit XML file per test class: suite <class> <test> <passed|failed|skipped> [<test> <result> ...]
+    suite() {
+      local class="org.sonarlint.intellij.its.tests.$1"
+      shift
+      {
+        echo '<?xml version="1.0" encoding="UTF-8"?>'
+        echo "<testsuite name=\"$class\">"
+        while [ $# -gt 0 ]; do
+          case "$2" in
+            passed) echo "  <testcase name=\"$1\" classname=\"$class\" time=\"1.0\"/>" ;;
+            failed) printf '  <testcase name="%s" classname="%s" time="1.0">\n    <failure message="boom" type="java.lang.AssertionError">boom</failure>\n  </testcase>\n' "$1" "$class" ;;
+            skipped) printf '  <testcase name="%s" classname="%s" time="0.0">\n    <skipped/>\n  </testcase>\n' "$1" "$class" ;;
           esac
-          echo '</testsuite>'
-        } > "$out/test-results/TEST-org.sonarlint.intellij.its.tests.StandaloneIdeaTests.xml" ;;
-    esac
+          shift 2
+        done
+        echo '</testsuite>'
+      } > "$out/test-results/TEST-$class.xml"
+    }
+    if [ "${STUB_TESTS:-pass}" != none ]; then
+      mkdir -p "$out/test-results"
+      first=passed; second=passed; scenario=passed; connected=passed
+      case "${STUB_TESTS:-pass}" in
+        fail) second=failed ;;
+        skip) second=skipped ;;
+        all-skipped) first=skipped; second=skipped; scenario=skipped; connected=skipped ;;
+        scenario-skipped) scenario=skipped ;;
+      esac
+      suite StandaloneIdeaTests "javaIssues()" "$first" "jsIssues()" "$second"
+      suite CodeScanScenarioTests "openProjectDuringIndexing()" "$scenario"
+      suite ConnectedAnalysisTests "should_bind_to_codescan_then_sync_then_unbind()" "$connected"
+    fi
     exit "${STUB_RC:-0}" ;;
 esac
 exit 0
@@ -123,7 +142,7 @@ args_have() {
 # 1. UI tests pass, clean log: exit 0, and the summary says so.
 run clean 2023.1.7
 expect_code "clean" 0
-expect_out "clean" "UI tests: 2 run, 2 passed, 0 failed, 0 skipped"
+expect_out "clean" "UI tests: 4 in total, 4 passed, 0 failed, 0 skipped"
 expect_out "clean" "CodeScan total: 0"
 expect_file "clean" "$TMP/out-clean/tests.txt" "tests.txt written"
 expect_file "clean" "$TMP/out-clean/scan.txt" "scan.txt written"
@@ -143,10 +162,15 @@ expect_code "slow-op" 1
 expect_out "slow-op" "CodeScan total: 1"
 expect_out "slow-op" "SonarLintProjectConfigurable.reset(SonarLintProjectConfigurable.java:125)"
 
+# 3b. Hits with no CodeScan frame (the IDE's own) do not fail the run, but their count is printed with the result.
+STUB_LOG=ide-slow-op run ide-slow 2023.1.7
+expect_code "IDE-only slow-op" 0
+expect_out "IDE-only slow-op" "Log check: 0 CodeScan, 1 other (the IDE or another plugin), 0 unknown"
+
 # 4. A failed UI test: exit 5, named in the summary; the log check still runs.
 STUB_TESTS=fail STUB_RC=5 run fail 2023.1.7
 expect_code "failed test" 5
-expect_out "failed test" "UI tests: 2 run, 1 passed, 1 failed, 0 skipped"
+expect_out "failed test" "UI tests: 4 in total, 3 passed, 1 failed, 0 skipped"
 expect_out "failed test" "FAILED  StandaloneIdeaTests > jsIssues()"
 expect_out "failed test" "CodeScan total: 0"
 
@@ -154,6 +178,16 @@ expect_out "failed test" "CodeScan total: 0"
 STUB_TESTS=skip run skip 2023.1.7
 expect_code "skipped test" 0
 expect_out "skipped test" "skipped StandaloneIdeaTests > jsIssues()"
+# ... but a run in which every test was skipped is not a pass.
+STUB_TESTS=all-skipped run all-skipped 2023.1.7
+expect_code "every test skipped" 5
+expect_out "every test skipped" "no UI test ran"
+# ... nor one in which a test class the loop is for did not run (needed unless --tests picks the tests).
+STUB_TESTS=scenario-skipped run scenario-skipped 2023.1.7
+expect_code "scenario skipped" 5
+expect_out "scenario skipped" "CodeScanScenarioTests did not run"
+STUB_TESTS=scenario-skipped run scenario-skipped-filter 2023.1.7 --tests '*StandaloneIdeaTests*'
+expect_code "scenario skipped, --tests given" 0
 
 # 6. The run did not happen (the IDE did not start, no log): exit 3.
 STUB_LOG=none STUB_TESTS=none STUB_RC=3 run no-run 2023.1.7

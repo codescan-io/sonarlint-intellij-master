@@ -58,6 +58,9 @@ tasks {
         }
         testLogging.showStandardStreams = true
         systemProperty("its.wiremock.port", wiremockPort)
+        // Each run drives a live IDE: an earlier result, from this build or from the build cache, never counts.
+        outputs.upToDateWhen { false }
+        outputs.doNotCacheIf("it drives a live IDE") { true }
         finalizedBy("checkIdeLog")
     }
     // This project is a test helper, not a shipped plugin, and has no IDE list for the plugin verifier.
