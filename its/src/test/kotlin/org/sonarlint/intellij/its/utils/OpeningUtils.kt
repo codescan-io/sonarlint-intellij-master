@@ -49,7 +49,7 @@ class OpeningUtils {
                             com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() => openDescriptor.navigateInEditor(component.project, true));
                         }
                         else {
-                            throw "Cannot open file '" + $filePath +"': not found";
+                            throw "Cannot open file '$filePath': not found";
                         }
         """, true
                     )
