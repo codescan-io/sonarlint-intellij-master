@@ -67,8 +67,9 @@ class CodeScanStagingTests : BaseUiTest() {
         private val ISSUE_SUMMARY = Regex("Found (\\d+) (?:new |older )?issues? in \\d+ files?")
 
         // The first binding downloads the server's analyzers before any analysis. On staging (November 2026) the CodeScan
-        // analyzer alone is 275 MB served at about 250 KB/s: 18 minutes with curl.
-        private val ISSUES_TIMEOUT: Duration = Duration.ofMinutes(30)
+        // analyzer alone is 275 MB served at about 250 KB/s: 18 minutes with curl, and the whole first sync took over
+        // 30 minutes inside the IDE, so the wait is 60 minutes.
+        private val ISSUES_TIMEOUT: Duration = Duration.ofMinutes(60)
         // A user who sees no issue reopens the file; the test does the same this often, and says so in its output.
         private val REOPEN_AFTER: Duration = Duration.ofSeconds(90)
 
