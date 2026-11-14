@@ -131,10 +131,14 @@ class OpeningUtils {
                         }
                     }
                 }
-                idea {
-                    // corresponding system property has been introduced around middle of 2020
-                    // removable at some point when raising minimal version
-                    closeTipOfTheDay()
+                // closeTipOfTheDay waits for indexing to end, so a caller that does not want to wait skips it; the UI-test
+                // IDE does not show tips anyway (ide.show.tips.on.startup.default.value=false in its/build.gradle.kts).
+                if (waitForIndexing) {
+                    idea {
+                        // corresponding system property has been introduced around middle of 2020
+                        // removable at some point when raising minimal version
+                        closeTipOfTheDay()
+                    }
                 }
             }
         }

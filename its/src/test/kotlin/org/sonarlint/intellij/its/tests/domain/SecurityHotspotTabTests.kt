@@ -76,6 +76,24 @@ class SecurityHotspotTabTests {
             }
         }
 
+        // The tab first says "Security Hotspots are currently not supported", then, once the plugin has asked its
+        // backend, the reason or the result. Waits for a shown text that contains [fragment].
+        fun waitForSecurityHotspotTabMessage(fragment: String, timeout: Duration = Duration.ofMinutes(1)) {
+            with(remoteRobot) {
+                idea {
+                    toolWindow("CodeScan") {
+                        ensureOpen()
+                        tabTitleContains("Security Hotspots") { select() }
+                        content("SecurityHotspotsPanel") {
+                            waitFor(timeout, Duration.ofSeconds(2), "the Security Hotspots tab never showed '$fragment'") {
+                                findAllText().any { it.text.contains(fragment) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         fun verifySecurityHotspotTabContainsMessages(vararg expectedMessages: String) {
             with(remoteRobot) {
                 idea {

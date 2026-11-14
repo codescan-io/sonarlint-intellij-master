@@ -158,6 +158,8 @@ val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
 // The UI tests fail if the IDE they drove logged a slow operation on the UI thread, wrong-thread access, a freeze or a
 // CodeScan error (scripts/qa/scan-ide-logs.sh). It also runs when the tests fail. -PideLogDir=<folder> checks another
 // IDE log folder instead of the runIdeForUiTests sandbox one.
+// Run after :its:test, it reads the log while the IDE is still running, so it misses what the IDE logs while closing.
+// scripts/qa/run-ide-scenarios.sh checks the log again after the IDE has stopped.
 val checkIdeLog by tasks.registering(Exec::class) {
     group = "verification"
     description = "Checks the UI-test IDE's idea.log for slow operations on the UI thread and CodeScan errors."

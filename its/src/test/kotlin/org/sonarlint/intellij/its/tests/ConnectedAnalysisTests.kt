@@ -30,6 +30,7 @@ import org.junit.jupiter.api.condition.EnabledIf
 import org.sonarlint.intellij.its.BaseUiTest
 import org.sonarlint.intellij.its.tests.domain.CurrentFileTabTests.Companion.enableConnectedModeFromCurrentFilePanel
 import org.sonarlint.intellij.its.tests.domain.CurrentFileTabTests.Companion.isProjectBoundInSettings
+import org.sonarlint.intellij.its.tests.domain.SecurityHotspotTabTests.Companion.waitForSecurityHotspotTabMessage
 import org.sonarlint.intellij.its.utils.CodeScanWireMock
 import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.openExistingProject
 import org.sonarlint.intellij.its.utils.SettingsUtils.Companion.addCodeScanConnection
@@ -66,6 +67,7 @@ class ConnectedAnalysisTests : BaseUiTest() {
     @Test
     fun should_bind_to_codescan_then_sync_then_unbind() = uiTest {
         openExistingProject("codescan-sample")
+        waitForSecurityHotspotTabMessage("is not bound")
 
         // CodeScan has no Taint Vulnerabilities tab (SonarLintUtils.isTaintVulnerabilitiesEnabled), so bind from the Current File tab.
         enableConnectedModeFromCurrentFilePanel(CodeScanWireMock.PROJECT_KEY, true, CONNECTION)
@@ -73,9 +75,12 @@ class ConnectedAnalysisTests : BaseUiTest() {
             CodeScanWireMock.wasCalled("/api/qualityprofiles/search.protobuf", "project", CodeScanWireMock.PROJECT_KEY)
         }
         assertThat(isProjectBoundInSettings()).isTrue()
+        // To the backend CodeScan is SonarCloud, where Security Hotspots are found locally once the project is bound.
+        waitForSecurityHotspotTabMessage("No Security Hotspots found")
 
         enableConnectedModeFromCurrentFilePanel(CodeScanWireMock.PROJECT_KEY, false, CONNECTION)
         assertThat(isProjectBoundInSettings()).isFalse()
+        waitForSecurityHotspotTabMessage("is not bound")
     }
 
 }

@@ -23,6 +23,7 @@ import com.intellij.remoterobot.utils.keyboard
 import com.intellij.remoterobot.utils.waitFor
 import java.awt.event.KeyEvent
 import java.time.Duration
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIf
@@ -43,10 +44,22 @@ class CodeScanScenarioTests : BaseUiTest() {
     @Test
     fun openProjectDuringIndexing() = uiTest {
         openExistingProject("codescan-sample", waitForIndexing = false)
-        openFile("src/main/java/sample/Greeter.java", "Greeter.java", waitForBackgroundTasks = false)
+        waitFor(Duration.ofSeconds(60), Duration.ofSeconds(1), "the project never opened") {
+            remoteRobot.idea().callJs<Boolean>("component.project != null", true)
+        }
+        // A small project can finish indexing before the file is open, so the IDE is held in indexing ("dumb") mode
+        // until the file is saved.
+        setIndexingHold(true)
+        try {
+            waitFor(Duration.ofSeconds(10), Duration.ofMillis(500), "the IDE did not enter indexing mode") { isIndexing() }
+            openFile("src/main/java/sample/Greeter.java", "Greeter.java", waitForBackgroundTasks = false)
 
-        typeLineBelowMarker("Greeter.java", "int typed = 0;")
-        saveAll()
+            typeLineBelowMarker("Greeter.java", "int typed = 0;")
+            saveAll()
+            assertThat(isIndexing()).describedAs("the IDE was still indexing when the file was opened, typed in and saved").isTrue()
+        } finally {
+            setIndexingHold(false)
+        }
 
         // Greeter.java has 2 issues (unused local, System.out); the typed line adds a second unused local.
         waitForCurrentFileTabMessage("Found 3 issues in 1 file", Duration.ofMinutes(5))
@@ -85,6 +98,31 @@ class CodeScanScenarioTests : BaseUiTest() {
                 }
             }
         }
+    }
+
+    private fun isIndexing(): Boolean = remoteRobot.idea().callJs(
+        "component.project != null && com.intellij.openapi.project.DumbService.isDumb(component.project)", true
+    )
+
+    // Turns the IDE's internal "Toggle Dumb Mode" action (id DumbMode; needs idea.is.internal=true, set in
+    // its/build.gradle.kts) on or off. While on, the IDE stays in indexing mode. The action's own menu entry is greyed
+    // out during real indexing, so it is called directly. Its state is a project flag named after the action class.
+    private fun setIndexingHold(hold: Boolean) {
+        remoteRobot.idea().runJs(
+            """
+            const project = component.project;
+            const action = com.intellij.openapi.actionSystem.ActionManager.getInstance().getAction("DumbMode");
+            if (action == null) {
+                throw "the IDE has no DumbMode action: is idea.is.internal=true set?";
+            }
+            const key = com.intellij.openapi.util.Key.findKeyByName("ToggleDumbModeAction");
+            const held = key != null && java.lang.Boolean.TRUE.equals(project.getUserData(key));
+            if (held != $hold) {
+                const context = com.intellij.openapi.actionSystem.impl.SimpleDataContext.getProjectContext(project);
+                action.actionPerformed(com.intellij.openapi.actionSystem.AnActionEvent.createFromDataContext("CodeScanUiTest", null, context));
+            }
+            """, true
+        )
     }
 
     private fun saveAll() {
