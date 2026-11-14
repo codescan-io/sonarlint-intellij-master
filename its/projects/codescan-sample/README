@@ -1,5 +1,5 @@
-Sample project for the CodeScan UI tests (its/src/test/kotlin/org/sonarlint/intellij/its/tests/CodeScanScenarioTests.kt
-and ConnectedAnalysisTests.kt).
+Sample project for the CodeScan UI tests (its/src/test/kotlin/org/sonarlint/intellij/its/tests/CodeScanScenarioTests.kt,
+ConnectedAnalysisTests.kt and CodeScanStagingTests.kt, which binds it to a project on a live CodeScan server).
 
 The pom.xml only makes src/main/java a Java source folder.
 
@@ -8,4 +8,5 @@ Known issues with the analyzers bundled in the plugin (no server):
   The scenario types "int typed = 0;" below the marker comment, which adds a second java:S1481: 3 issues.
 - web/greeter.js: a sparse array ("Unexpected comma in middle of array."). JavaScript analysis needs Node.js.
 - force-app/main/default/classes/GreeterService.cls: Apex. The plugin has no Apex analyzer of its own; Apex issues come
-  only from a CodeScan server in connected mode (public field, System.debug).
+  only from a CodeScan server in connected mode (public field, System.debug). CodeScanStagingTests checks that at least
+  one shows up.

@@ -108,6 +108,7 @@ import org.sonarlint.intellij.sharing.SonarLintSharedFolderUtils.Companion.findS
 import org.sonarlint.intellij.trigger.TriggerType
 import org.sonarlint.intellij.ui.UiUtils.Companion.runOnUiThread
 import org.sonarlint.intellij.util.GlobalLogOutput
+import org.sonarlint.intellij.util.IpAllowlistBlock
 import org.sonarlint.intellij.util.ProjectUtils.tryFindFile
 import org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile
 import org.sonarlint.intellij.util.SonarLintAppUtils.getRelativePathForAnalysis
@@ -157,6 +158,7 @@ import org.sonarsource.sonarlint.core.rpc.protocol.common.UsernamePasswordDto
 
 
 object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
+    private val BLOCKED_ORGANIZATION = Regex("organization '([^']+)'")
 
     private const val SONAR_SCANNER_CONFIG_FILENAME = "sonar-project.properties"
     private const val SKIP_AUTO_SHARE_CONFIGURATION_DIALOG_PROPERTY = "SonarLint.AutoShareConfiguration"
@@ -231,6 +233,7 @@ object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
     }
 
     override fun log(params: LogParams) {
+        notifyIfIpAllowlistBlock(params)
         // CodeScan: the backend prints the analysis settings, which hold the connection token (see CodeScanAnalysisConfigurator)
         val message = CodeScanAnalysisConfigurator.maskSecrets(params.toString())
         val configScopeId = params.configScopeId
@@ -248,6 +251,33 @@ object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
         globalLogOutput.log(message, mapLevel(params.level))
     }
 
+
+    // CodeScan: synchronization failures are only logged by the backend, so an IP allowlist block is recognized here
+    private fun notifyIfIpAllowlistBlock(params: LogParams) {
+        try {
+            val blockMessage = IpAllowlistBlock.find(params.message).or { IpAllowlistBlock.find(params.stackTrace) }.orElse(null) ?: return
+            val scopedProject = params.configScopeId?.let { BackendService.findModule(it)?.project ?: BackendService.findProject(it) }
+            val projects = if (scopedProject != null) listOf(scopedProject) else projectsBoundToBlockedOrganization(blockMessage)
+            projects.filter { !it.isDisposed }.forEach { get(it).notifyIpAllowlistBlocked(blockMessage) }
+        } catch (e: Exception) {
+            GlobalLogOutput.get().logError("Could not show the IP allowlist notification", e)
+        }
+    }
+
+    // A log line without a project comes from a connection-wide task: tell the projects that use this organization,
+    // and those whose connection has no organization key, as they cannot be told apart
+    private fun projectsBoundToBlockedOrganization(blockMessage: String): List<Project> {
+        val organization = BLOCKED_ORGANIZATION.find(blockMessage)?.groupValues?.get(1)
+        return ProjectManager.getInstance().openProjects.filter { project ->
+            val settings = getSettingsFor(project)
+            if (project.isDisposed || !settings.isBound) {
+                return@filter false
+            }
+            val connectionOrganization = getGlobalSettings().getServerConnectionByName(settings.connectionName)
+                .map { it.organizationKey }.orElse(null)
+            organization == null || connectionOrganization.isNullOrEmpty() || connectionOrganization == organization
+        }
+    }
 
     private fun mapLevel(level: LogLevel): ClientLogOutput.Level {
         return when (level) {

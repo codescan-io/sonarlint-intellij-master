@@ -38,6 +38,7 @@ import javax.swing.ListSelectionModel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.tasks.GetOrganizationTask;
+import org.sonarlint.intellij.util.IpAllowlistBlock;
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.OrganizationDto;
 
 import static javax.swing.JList.VERTICAL;
@@ -82,7 +83,7 @@ public class OrganizationStep extends AbstractWizardStepEx {
           orgList.ensureIndexIsVisible(0);
           break;
         } else if (task.getException() != null) {
-          Messages.showErrorDialog("Failed to fetch organization from server: " + task.getException().getMessage(), "Connection Failure");
+          Messages.showErrorDialog(fetchOrganizationFailure(task.getException()), "Connection Failure");
         } else {
           Messages.showErrorDialog(String.format("Organization '%s' not found. Please enter the key of an existing organization.", organizationKey), "Organization Not Found");
         }
@@ -185,5 +186,9 @@ public class OrganizationStep extends AbstractWizardStepEx {
         append("(" + value.getKey() + ")", SimpleTextAttributes.GRAY_ATTRIBUTES, false);
       }
     }
+  }
+
+  static String fetchOrganizationFailure(Exception e) {
+    return IpAllowlistBlock.explain(e, "Failed to fetch organization from server.", "Failed to fetch organization from server: " + e.getMessage());
   }
 }

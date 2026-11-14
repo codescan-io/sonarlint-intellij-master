@@ -58,6 +58,7 @@ import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.core.ModuleBindingManager
 import org.sonarlint.intellij.core.ProjectBindingManager
 import org.sonarlint.intellij.tasks.ServerDownloadProjectTask
+import org.sonarlint.intellij.util.IpAllowlistBlock
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.projects.SonarProjectDto
 
 class ModuleBindingPanel(private val project: Project, currentConnectionSupplier: () -> ServerConnection?) {
@@ -190,8 +191,7 @@ class ModuleBindingPanel(private val project: Project, currentConnectionSupplier
             ProgressManager.getInstance().run(downloadTask)
             downloadTask.result
         } catch (e: Exception) {
-            val msg = if (e.message != null) e.message else "Failed to download list of projects"
-            Messages.showErrorDialog(rootPanel, msg, "Error Downloading Project List")
+            Messages.showErrorDialog(rootPanel, projectListFailure(e), "Error Downloading Project List")
             null
         }
     }
@@ -272,4 +272,10 @@ class ModuleBindingPanel(private val project: Project, currentConnectionSupplier
         val module: Module,
         var sonarProjectKey: String? = null,
     )
+
+    companion object {
+        @JvmStatic
+        fun projectListFailure(e: Exception): String =
+            IpAllowlistBlock.explain(e, "Failed to download list of projects.", e.message ?: "Failed to download list of projects")
+    }
 }

@@ -63,6 +63,7 @@ expect_no_file() {
 #              | scenario-skipped (3 passed; CodeScanScenarioTests skipped) | none
 #              StandaloneIdeaTests has 2 tests; CodeScanScenarioTests and ConnectedAnalysisTests have 1 each.
 # STUB_RC    = the exit code of "docker run" (its-run.sh's: 0, 3 or 5)
+# STUB_LEAK=1: the container writes CODESCAN_TOKEN into log/leak.txt.
 # STUB_RUN_WAIT=1: "docker run" waits (at most 60 s) until "docker kill" is called, then exits 137.
 # "docker kill" records its arguments in $STUB_KILLS.
 mkdir -p "$TMP/bin"
@@ -134,6 +135,7 @@ case "${1:-}" in
       suite CodeScanScenarioTests "openProjectDuringIndexing()" "$scenario"
       suite ConnectedAnalysisTests "should_bind_to_codescan_then_sync_then_unbind()" "$connected"
     fi
+    [ "${STUB_LEAK:-0}" = 1 ] && mkdir -p "$out/log" && printf 'token: %s\n' "${CODESCAN_TOKEN:-}" > "$out/log/leak.txt"
     if [ "${STUB_RUN_WAIT:-0}" = 1 ]; then
       for _ in $(seq 60); do [ -s "$STUB_KILLS" ] && exit 137; sleep 1; done
     fi
@@ -255,6 +257,30 @@ CODEARTIFACT_AUTH_TOKEN=secret-value-123 run tests-filter 2023.1.7 --tests '*Sta
 args_have "--tests" "*StandaloneIdeaTests*"
 if grep -q -e 'CODEARTIFACT' -e 'secret-value-123' "$STUB_ARGS"; then not_ok "no token" "docker args mention CodeArtifact"; else ok "no token: docker args do not mention CodeArtifact"; fi
 expect_no_out "no token" "secret-value-123"
+
+# 10b. --staging: needs CODESCAN_TOKEN; picks the staging test; hands the settings to the container by name only.
+CODESCAN_TOKEN= run staging-no-token 2023.1.7 --staging
+expect_code "--staging without a token" 2
+CODESCAN_TOKEN=staging-secret-456 run staging 2023.1.7 --staging
+expect_code "--staging" 0
+args_have "--staging" "*CodeScanStagingTests*"
+args_have "--staging" "CODESCAN_TOKEN"
+args_have "--staging" "CODESCAN_ORG"
+if grep -q 'staging-secret-456' "$STUB_ARGS"; then not_ok "--staging: token value not in docker args" "found"; else ok "--staging: token value not in docker args"; fi
+expect_out "--staging" "Token check: 0 result file(s) hold the CodeScan token"
+expect_no_out "--staging" "staging-secret-456"
+CODESCAN_TOKEN=staging-secret-456 run staging-filter 2023.1.7 --staging --tests '*ConnectedAnalysisTests*'
+args_have "--staging with --tests" "*ConnectedAnalysisTests*"
+# ... without --staging the token stays out of the container even when it is set here.
+CODESCAN_TOKEN=staging-secret-456 run no-staging 2023.1.7
+if grep -q 'CODESCAN' "$STUB_ARGS"; then not_ok "no --staging: no CodeScan settings for docker" "found"; else ok "no --staging: no CodeScan settings for docker"; fi
+expect_no_out "no --staging" "Token check"
+# ... and a result file that holds the token is deleted: exit 7.
+CODESCAN_TOKEN=staging-secret-456 STUB_LEAK=1 run staging-leak 2023.1.7 --staging
+expect_code "token in a result file" 7
+expect_out "token in a result file" "Token check: 1 result file(s) hold the CodeScan token"
+expect_no_file "token in a result file" "$TMP/out-staging-leak/log/leak.txt" "leak.txt deleted"
+expect_no_out "token in a result file" "staging-secret-456"
 
 # 11. The container starts with this machine's unpacked Gradle, also when an earlier failed download left a
 #     half-made folder (lock file only) in the container's Gradle home.
