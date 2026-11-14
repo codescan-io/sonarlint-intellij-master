@@ -33,6 +33,7 @@ import org.sonarlint.intellij.its.tests.domain.CurrentFileTabTests.Companion.isP
 import org.sonarlint.intellij.its.tests.domain.SecurityHotspotTabTests.Companion.waitForSecurityHotspotTabMessage
 import org.sonarlint.intellij.its.utils.CodeScanWireMock
 import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.openExistingProject
+import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.openFile
 import org.sonarlint.intellij.its.utils.SettingsUtils.Companion.addCodeScanConnection
 import org.sonarlint.intellij.its.utils.SettingsUtils.Companion.clearConnections
 
@@ -67,6 +68,9 @@ class ConnectedAnalysisTests : BaseUiTest() {
     @Test
     fun should_bind_to_codescan_then_sync_then_unbind() = uiTest {
         openExistingProject("codescan-sample")
+        // Open a file first: with no file opened since the project opened, the tab keeps its first card, "CodeScan service
+        // encountered an issue and has stopped working" (SecurityHotspotsPanel; seen on 2023.1.7).
+        openFile("src/main/java/sample/Greeter.java", "Greeter.java")
         waitForSecurityHotspotTabMessage("is not bound")
 
         // CodeScan has no Taint Vulnerabilities tab (SonarLintUtils.isTaintVulnerabilitiesEnabled), so bind from the Current File tab.
