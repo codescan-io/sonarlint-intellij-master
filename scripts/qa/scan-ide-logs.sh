@@ -8,6 +8,9 @@
 #        2 = bad usage, or the folder does not exist
 #        3 = the folder has no idea.log (the IDE did not run, or wrote its log elsewhere)
 #        4 = the check failed for some log (unreadable file); the result is incomplete, so this beats 1
+#        6 = no CodeScan hits, but some hits whose source the log check cannot tell ("unknown", for example a slow
+#            operation logged with no stack trace). They might be CodeScan's, so they must not pass as a clean log;
+#            read the report. 1 beats 6. Hits from the IDE or another plugin ("other") do not change the exit code.
 # Works with macOS bash 3.2 and Linux bash.
 set -u
 
@@ -45,5 +48,12 @@ fi
 
 awk '/^##### /{print; s=0; next} /^Distinct stack tops/{s=1} s' "$REPORT"
 echo "full log check: $REPORT"
+# Every pattern's split line reads "    CodeScan: <n>  other: <n>  unknown: <n>"; summed over all patterns and logs.
+UNKNOWN="$(awk '/^    CodeScan: [0-9]+  other: [0-9]+  unknown: [0-9]+/ { u += $6 } END { print u + 0 }' "$REPORT")"
 [ "$SCAN_FAILED" -eq 1 ] && exit 4
-exit "$RC"
+[ "$RC" -eq 1 ] && exit 1
+if [ "$UNKNOWN" -gt 0 ]; then
+  echo "error: $UNKNOWN hit(s) whose source the log check cannot tell (unknown); they might be CodeScan's: read $REPORT" >&2
+  exit 6
+fi
+exit 0

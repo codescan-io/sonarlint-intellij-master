@@ -110,6 +110,36 @@ else
   expect_out "unreadable" "log check failed for"
 fi
 
+# 8. A hit whose source cannot be told (no stack trace) and no CodeScan hit: exit 6, so it does not pass as clean.
+unknown_slow_op() {
+  echo "$TS  ERROR - #c.i.u.SlowOperations - Slow operations are prohibited on EDT. See SlowOperations.assertSlowOperationsAreAllowed javadoc."
+}
+d="$TMP/unknown"; mkdir -p "$d"
+{ clean_line; unknown_slow_op; } > "$d/idea.log"
+run_scan "$d" "$TMP/unknown.txt"
+expect_code "unknown only" 6
+expect_out "unknown only" "1 hit(s) whose source the log check cannot tell"
+# ... also when it is in a rotated log only.
+d="$TMP/unknown-rotated"; mkdir -p "$d"
+clean_line > "$d/idea.log"
+unknown_slow_op > "$d/idea.1.log"
+run_scan "$d" "$TMP/unknown-rotated.txt"
+expect_code "unknown in idea.1.log" 6
+# A CodeScan hit comes first.
+d="$TMP/unknown-and-codescan"; mkdir -p "$d"
+{ unknown_slow_op; clean_line; slow_op_codescan; } > "$d/idea.log"
+run_scan "$d" "$TMP/unknown-and-codescan.txt"
+expect_code "unknown and CodeScan" 1
+# A hit from the IDE or another plugin (a stack trace with no CodeScan frame) does not change the exit code.
+d="$TMP/other"; mkdir -p "$d"
+{
+  unknown_slow_op
+  printf '\tat com.intellij.util.SlowOperations.assertSlowOperationsAreAllowed(SlowOperations.java:114)\n'
+  printf '\tat com.intellij.openapi.vcs.impl.LineStatusTrackerManager.onEverythingChanged(LineStatusTrackerManager.kt:10)\n'
+} > "$d/idea.log"
+run_scan "$d" "$TMP/other.txt"
+expect_code "other only" 0
+
 run_scan
 expect_code "no arguments" 2
 run_scan "$TMP/does-not-exist" "$TMP/x.txt"

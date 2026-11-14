@@ -9,7 +9,11 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RIS="${RIS:-$HERE/run-ide-scenarios.sh}"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/run-ide-scenarios-test.XXXXXX")"
-trap 'chmod -R u+rwx "$TMP" 2>/dev/null; rm -rf "$TMP"' EXIT
+cleanup() {
+  for f in "$TMP"/*.pid; do [ -f "$f" ] && kill -KILL "$(cat "$f")" 2>/dev/null; done
+  chmod -R u+rwx "$TMP" 2>/dev/null; rm -rf "$TMP"
+}
+trap cleanup EXIT
 
 PASS=0
 FAIL=0
@@ -32,6 +36,18 @@ expect_out() {
 expect_no_out() {
   if printf '%s\n' "$OUT" | grep -F -q -- "$2"; then not_ok "$1: output has no '$2'" "found"; else ok "$1: output has no '$2'"; fi
 }
+# The process whose ID is in file $2 no longer runs.
+expect_stopped() {
+  local pid
+  pid="$(cat "$2" 2>/dev/null)"
+  if [ -z "$pid" ]; then not_ok "$1: stopped" "no process ID in $2"
+  elif kill -0 "$pid" 2>/dev/null; then not_ok "$1: stopped" "process $pid still runs"; kill -KILL "$pid" 2>/dev/null
+  else ok "$1: stopped"; fi
+}
+wait_for_file() {
+  local deadline=$(( $(date +%s) + $2 ))
+  until [ -s "$1" ]; do [ "$(date +%s)" -lt "$deadline" ] || return 1; sleep 1; done
+}
 expect_file() {
   if [ -e "$2" ]; then ok "$1: $3"; else not_ok "$1: $3" "missing: $2"; fi
 }
@@ -41,16 +57,20 @@ expect_no_file() {
 
 # The stub. "docker run" records its arguments in $STUB_ARGS and fakes the container's results in the /out mount:
 # STUB_LOG   = clean | slow-op (a slow operation on the UI thread with a CodeScan frame) | ide-slow-op (one with no
-#              CodeScan frame) | no-idea-log | none
+#              CodeScan frame) | unknown-slow-op (one with no stack trace, so its source cannot be told) | no-idea-log
+#              | none
 # STUB_TESTS = pass (4 passed) | fail (3 passed, 1 failed) | skip (3 passed, 1 skipped) | all-skipped (4 skipped)
 #              | scenario-skipped (3 passed; CodeScanScenarioTests skipped) | none
 #              StandaloneIdeaTests has 2 tests; CodeScanScenarioTests and ConnectedAnalysisTests have 1 each.
 # STUB_RC    = the exit code of "docker run" (its-run.sh's: 0, 3 or 5)
+# STUB_RUN_WAIT=1: "docker run" waits (at most 60 s) until "docker kill" is called, then exits 137.
+# "docker kill" records its arguments in $STUB_KILLS.
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/docker" <<'STUB'
 #!/usr/bin/env bash
 case "${1:-}" in
-  info|build|kill) exit 0 ;;
+  info|build) exit 0 ;;
+  kill) shift; printf '%s\n' "$*" >> "$STUB_KILLS"; exit 0 ;;
   run)
     printf '%s\n' "$@" > "$STUB_ARGS"
     out=""
@@ -77,6 +97,9 @@ case "${1:-}" in
           printf '\tat com.intellij.util.SlowOperations.assertSlowOperationsAreAllowed(SlowOperations.java:114)\n'
           printf '\tat com.intellij.openapi.vfs.newvfs.persistent.FSRecords.update(FSRecords.java:382)\n'
         } > "$out/log/idea.log" ;;
+      unknown-slow-op)
+        mkdir -p "$out/log"
+        echo "$TS  ERROR - #c.i.u.SlowOperations - Slow operations are prohibited on EDT. See SlowOperations.assertSlowOperationsAreAllowed javadoc." > "$out/log/idea.log" ;;
       no-idea-log) mkdir -p "$out/log"; echo x > "$out/log/other.txt" ;;
       none) : ;;
     esac
@@ -111,6 +134,9 @@ case "${1:-}" in
       suite CodeScanScenarioTests "openProjectDuringIndexing()" "$scenario"
       suite ConnectedAnalysisTests "should_bind_to_codescan_then_sync_then_unbind()" "$connected"
     fi
+    if [ "${STUB_RUN_WAIT:-0}" = 1 ]; then
+      for _ in $(seq 60); do [ -s "$STUB_KILLS" ] && exit 137; sleep 1; done
+    fi
     exit "${STUB_RC:-0}" ;;
 esac
 exit 0
@@ -127,6 +153,7 @@ mkdir -p "$HOST_GRADLE/wrapper/dists/$DIST/hash1/gradle-x/bin"
 touch "$HOST_GRADLE/wrapper/dists/$DIST/hash1/$DIST.zip.ok" "$HOST_GRADLE/wrapper/dists/$DIST/hash1/$DIST.zip.lck"
 
 export STUB_ARGS="$TMP/docker-args.txt"
+export STUB_KILLS="$TMP/docker-kills.txt"
 run() {
   local name=$1
   shift
@@ -169,6 +196,17 @@ expect_out "slow-op" "SonarLintProjectConfigurable.reset(SonarLintProjectConfigu
 STUB_LOG=ide-slow-op run ide-slow 2023.1.7
 expect_code "IDE-only slow-op" 0
 expect_out "IDE-only slow-op" "Log check: 0 CodeScan, 1 other (the IDE or another plugin), 0 unknown"
+
+# 3c. A hit whose source the log check cannot tell (no stack trace) does not pass silently: exit 6, also when
+#     Gradle's own log check (which fails on it too) made its-run.sh exit 5.
+STUB_LOG=unknown-slow-op STUB_RC=5 run unknown 2026.1.5
+expect_code "unknown hit" 6
+expect_out "unknown hit" "Log check: 0 CodeScan, 0 other (the IDE or another plugin), 1 unknown"
+STUB_LOG=unknown-slow-op run unknown-gradle-passed 2026.1.5
+expect_code "unknown hit, Gradle passed" 6
+# ... but a failed UI test still comes first.
+STUB_LOG=unknown-slow-op STUB_TESTS=fail STUB_RC=5 run unknown-and-fail 2026.1.5
+expect_code "unknown hit and a failed test" 5
 
 # 4. A failed UI test: exit 5, named in the summary; the log check still runs.
 STUB_TESTS=fail STUB_RC=5 run fail 2023.1.7
@@ -233,7 +271,69 @@ CODE=$?
 expect_code "no Gradle on this machine" 0
 expect_no_file "no Gradle on this machine" "$TMP/cache-no-host/gradle-home/wrapper" "nothing copied"
 
-# 12. Bad usage.
+# 11b. --indexing-project: mounted read-only into the container and passed on to its-run.sh; INDEXING_FILES is passed
+#      on; a missing folder gives a warning and no mount.
+mkdir -p "$TMP/indexing-src"
+INDEXING_SRC="$(cd "$TMP/indexing-src" && pwd)"
+INDEXING_FILES=12 run indexing 2023.1.7 --indexing-project "$TMP/indexing-src"
+expect_code "indexing project" 0
+args_have "indexing project: read-only mount" "$INDEXING_SRC:/indexing-project:ro"
+args_have "indexing project: file count" "INDEXING_FILES"
+args_have "indexing project: folder handed to the container command" "$INDEXING_SRC"
+if grep -F -q -- '--indexing-project /indexing-project' "$STUB_ARGS"; then ok "indexing project: its-run.sh option"; else not_ok "indexing project: its-run.sh option" "missing"; fi
+run indexing-missing 2023.1.7 --indexing-project "$TMP/no-such-folder"
+expect_code "indexing project missing" 0
+expect_out "indexing project missing" "warning: --indexing-project folder not found: $TMP/no-such-folder"
+if grep -q ':/indexing-project:ro$' "$STUB_ARGS"; then not_ok "indexing project missing: no mount" "mounted"; else ok "indexing project missing: no mount"; fi
+
+# 12. Stopped by SIGHUP (the terminal closed) or SIGTERM while the container runs: the container is stopped, exit 3.
+for SIG in HUP TERM; do
+  rm -f "$STUB_ARGS" "$STUB_KILLS"
+  PATH="$TMP/bin:$PATH" QA_CACHE_DIR="$TMP/cache-$SIG" GRADLE_USER_HOME="$HOST_GRADLE" STUB_RUN_WAIT=1 \
+    bash "$RIS" 2023.1.7 --plugin "$TMP/plugin.zip" --out "$TMP/out-$SIG" > "$TMP/$SIG.txt" 2>&1 &
+  RIS_PID=$!
+  wait_for_file "$STUB_ARGS" 20
+  kill -"$SIG" "$RIS_PID"
+  wait "$RIS_PID"; CODE=$?
+  OUT="$(cat "$TMP/$SIG.txt")"
+  expect_code "$SIG during the container run" 3
+  if grep -q '^codescan-qa-its-' "$STUB_KILLS" 2>/dev/null; then ok "$SIG during the container run: container stopped"; else not_ok "$SIG during the container run: container stopped" "no docker kill"; fi
+done
+
+# 13. The plugin build (no --plugin): stopped at BUILD_TIMEOUT_SEC, or by a signal, together with the build process
+#     Gradle detached from "./gradlew" (setsid). A copy of the scripts in a fake source tree whose gradlew plays it.
+FAKE="$TMP/fake-root"
+mkdir -p "$FAKE/scripts/qa" "$FAKE/gradle/wrapper"
+cp "$(dirname "$RIS")"/*.sh "$(dirname "$RIS")/Dockerfile" "$FAKE/scripts/qa/"
+cp "$HERE/../../gradle/wrapper/gradle-wrapper.properties" "$FAKE/gradle/wrapper/"
+cat > "$FAKE/gradlew" <<'STUB'
+#!/usr/bin/env bash
+perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' sleep 4244 &
+echo $! > "$BUILD_PID_FILE"
+wait
+STUB
+chmod +x "$FAKE/gradlew"
+export BUILD_PID_FILE="$TMP/build-java.pid"
+rm -f "$BUILD_PID_FILE"
+start=$(date +%s)
+OUT="$(PATH="$TMP/bin:$PATH" QA_CACHE_DIR="$TMP/cache-build" BUILD_TIMEOUT_SEC=3 \
+  bash "$FAKE/scripts/qa/run-ide-scenarios.sh" 2023.1.7 --out "$TMP/out-build-timeout" 2>&1)"
+CODE=$?
+expect_code "build time limit" 3
+expect_stopped "build time limit: the detached build process" "$BUILD_PID_FILE"
+if [ $(( $(date +%s) - start )) -lt 25 ]; then ok "build time limit: ended within 25 s"; else not_ok "build time limit: ended within 25 s" "took longer"; fi
+rm -f "$BUILD_PID_FILE"
+PATH="$TMP/bin:$PATH" QA_CACHE_DIR="$TMP/cache-build" bash "$FAKE/scripts/qa/run-ide-scenarios.sh" 2023.1.7 \
+  --out "$TMP/out-build-hup" > "$TMP/build-hup.txt" 2>&1 &
+RIS_PID=$!
+wait_for_file "$BUILD_PID_FILE" 20
+kill -HUP "$RIS_PID"
+wait "$RIS_PID"; CODE=$?
+OUT="$(cat "$TMP/build-hup.txt")"
+expect_code "HUP during the build" 3
+expect_stopped "HUP during the build: the detached build process" "$BUILD_PID_FILE"
+
+# 14. Bad usage.
 OUT="$(PATH="$TMP/bin:$PATH" bash "$RIS" 2>&1)"; CODE=$?
 expect_code "no version" 2
 # A fake home, so that a broken check can never empty folders in the real one.
