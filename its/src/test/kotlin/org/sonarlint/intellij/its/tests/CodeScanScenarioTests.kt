@@ -107,6 +107,8 @@ class CodeScanScenarioTests : BaseUiTest() {
     // Turns the IDE's internal "Toggle Dumb Mode" action (id DumbMode; needs idea.is.internal=true, set in
     // its/build.gradle.kts) on or off. While on, the IDE stays in indexing mode. The action's own menu entry is greyed
     // out during real indexing, so it is called directly. Its state is a project flag named after the action class.
+    // The action changes the IDE's model, which needs the IDE's own invokeAndWait: from the robot's UI-thread runner,
+    // 2026.1.5 logs "Write-unsafe context!".
     private fun setIndexingHold(hold: Boolean) {
         remoteRobot.idea().runJs(
             """
@@ -115,13 +117,17 @@ class CodeScanScenarioTests : BaseUiTest() {
             if (action == null) {
                 throw "the IDE has no DumbMode action: is idea.is.internal=true set?";
             }
-            const key = com.intellij.openapi.util.Key.findKeyByName("ToggleDumbModeAction");
-            const held = key != null && java.lang.Boolean.TRUE.equals(project.getUserData(key));
-            if (held != $hold) {
-                const context = com.intellij.openapi.actionSystem.impl.SimpleDataContext.getProjectContext(project);
-                action.actionPerformed(com.intellij.openapi.actionSystem.AnActionEvent.createFromDataContext("CodeScanUiTest", null, context));
-            }
-            """, true
+            com.intellij.openapi.application.ApplicationManager.getApplication().invokeAndWait(new java.lang.Runnable({
+                run: function () {
+                    const key = com.intellij.openapi.util.Key.findKeyByName("ToggleDumbModeAction");
+                    const held = key != null && java.lang.Boolean.TRUE.equals(project.getUserData(key));
+                    if (held != $hold) {
+                        const context = com.intellij.openapi.actionSystem.impl.SimpleDataContext.getProjectContext(project);
+                        action.actionPerformed(com.intellij.openapi.actionSystem.AnActionEvent.createFromDataContext("CodeScanUiTest", null, context));
+                    }
+                }
+            }), com.intellij.openapi.application.ModalityState.defaultModalityState());
+            """, false
         )
     }
 
