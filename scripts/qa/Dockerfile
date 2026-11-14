@@ -1,6 +1,7 @@
 # Linux desktop for running a real IntelliJ IDEA on a virtual screen (Xvfb).
-# The IDE itself is not baked in: it is unpacked at run time from a mounted tarball,
-# so one image serves every IDE version. The IDE brings its own JDK.
+# The IDE itself is not baked in: it is unpacked at run time from a mounted tarball (baseline-docker.sh) or downloaded
+# by Gradle (run-ide-scenarios.sh), so one image serves every IDE version. The IDE brings its own runtime; the JDK 17
+# here runs Gradle and the UI tests.
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -9,7 +10,7 @@ RUN apt-get -o Acquire::http::Timeout=60 -o Acquire::Retries=3 update \
       xvfb fluxbox xdotool x11-apps x11-utils imagemagick tesseract-ocr \
       fontconfig fonts-dejavu-core libfreetype6 \
       libxext6 libxrender1 libxtst6 libxi6 libxrandr2 libasound2t64 \
-      git unzip procps ca-certificates \
+      git unzip procps ca-certificates curl openjdk-17-jdk-headless \
       libnss3 libnspr4 libgbm1 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
       libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libpango-1.0-0 libcairo2 libdbus-1-3 libxshmfence1 \
  && rm -rf /var/lib/apt/lists/*
