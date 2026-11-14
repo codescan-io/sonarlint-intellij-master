@@ -35,6 +35,7 @@ import javax.swing.JComponent;
 import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.actions.SonarLintToolWindow;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.finding.hotspot.SecurityHotspotsRefreshTrigger;
 import org.sonarlint.intellij.ui.vulnerabilities.TaintVulnerabilitiesPanel;
 
 import static org.sonarlint.intellij.actions.SonarLintToolWindow.buildTabName;
@@ -150,6 +151,9 @@ public class SonarLintToolWindowFactory implements ToolWindowFactory {
     securityHotspotsContent.setCloseable(false);
     contentManager.addDataProvider(hotspotsPanel);
     contentManager.addContent(securityHotspotsContent);
+    // CodeScan: the tab is built the first time the tool window opens, after the project-open refresh found no tab to fill.
+    // Ask again, or the new panel keeps its first card: the "service stopped working" error.
+    getService(project, SecurityHotspotsRefreshTrigger.class).triggerRefresh(null);
   }
 
   private static void addLogTab(Project project, ToolWindow toolWindow) {
