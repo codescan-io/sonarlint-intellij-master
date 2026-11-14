@@ -45,9 +45,9 @@ class SharedConfigurationTests {
             with(remoteRobot) {
                 idea {
                     notificationByActionName("Use configuration").click()
-                    dialog("Connect to This SonarQube Server Instance?") {
+                    dialog("Connect to This CodeScan Server?") {
                         jBPasswordField().text = token
-                        buttonContainsText("Connect to This SonarQube Server Instance").click()
+                        buttonContainsText("Connect to This CodeScan Server").click()
                     }
                 }
             }

@@ -40,6 +40,7 @@ dependencies {
     testImplementation(libs.its.sonar.scala)
     testImplementation(libs.its.sonar.ws)
     testImplementation(libs.bundles.its.remote)
+    testImplementation(libs.wiremock)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
     testImplementation(libs.junit.four)
@@ -181,5 +182,6 @@ intellijPlatform {
 
 license {
     // exclude file from resources (workaround for https://github.com/hierynomus/license-gradle-plugin/issues/145)
-    excludes(listOf("**/*.jar", "**/*.png", "**/README", "**.xml"))
+    // The CodeScan recordings are WireMock JSON copied unchanged from sonarlint-core; JSON has no comment syntax for a header.
+    excludes(listOf("**/*.jar", "**/*.png", "**/README", "**.xml", "**/codescan-wiremock/*.json"))
 }

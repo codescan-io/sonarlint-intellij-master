@@ -153,6 +153,35 @@ class SettingsUtils {
             }
         }
 
+        fun addCodeScanConnection(token: String, connectionName: String, organization: String) {
+            sonarLintGlobalSettings {
+                addConnectionButton().clickWhenEnabled()
+                dialog("New Connection: Server Details") {
+                    keyboard { enterText(connectionName) }
+                    button("Next").click()
+                }
+                dialog("New Connection: Authentication") {
+                    jPasswordField().text = token
+                    button("Next").click()
+                }
+                dialog("New Connection: Organization") {
+                    jList(JListFixture.byType()) {
+                        clickItem(organization, false)
+                    }
+                    button("Next").click()
+                }
+                optionalStep {
+                    dialog("New Connection: Configure Notifications", Duration.ofSeconds(5)) {
+                        button("Next").click()
+                    }
+                }
+                dialog("New Connection: Configuration completed") {
+                    pressCreate()
+                }
+                pressOk()
+            }
+        }
+
         fun clickPowerSaveMode() {
             optionalIdeaFrame()?.apply {
                 actionMenu("File") {

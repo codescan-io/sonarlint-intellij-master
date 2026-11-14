@@ -38,6 +38,7 @@ import org.sonarlint.intellij.its.fixtures.isRider
 import org.sonarlint.intellij.its.fixtures.isSQLPlugin
 import org.sonarlint.intellij.its.fixtures.tool.window.TabContentFixture
 import org.sonarlint.intellij.its.fixtures.tool.window.toolWindow
+import org.sonarlint.intellij.its.utils.IdeErrors
 import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.closeProject
 import org.sonarlint.intellij.its.utils.StepsLogger
 import org.sonarlint.intellij.its.utils.ThreadDumpOnFailure
@@ -60,6 +61,10 @@ open class BaseUiTest {
 
         @JvmStatic
         fun isIdeaCommunity() = remoteRobot.isIdea() && remoteRobot.isBuildCommunity()
+
+        // IntelliJ IDEA of either edition: from 2025.3 JetBrains ships only the unified (IU) build.
+        @JvmStatic
+        fun isIdea() = remoteRobot.isIdea()
 
         @JvmStatic
         fun isIdeaUltimate() = remoteRobot.isIdea() && remoteRobot.isBuildUltimate()
@@ -111,9 +116,9 @@ open class BaseUiTest {
             closeAllDialogs()
             optionalStep {
                 sonarlintLogPanel {
-                    println("SonarQube for IDE log outputs:")
+                    println("CodeScan log outputs:")
                     println(console().text)
-                    toolBarButton("Clear SonarQube for IDE Console").click()
+                    toolBarButton("Clear CodeScan Console").click()
                 }
             }
             if (remoteRobot.isCLion()) {
@@ -131,7 +136,7 @@ open class BaseUiTest {
 
     private fun failTestIfUncaughtExceptions() {
         val uncaughtExceptions = getUncaughtExceptions()
-        val shouldFailTest = uncaughtExceptions.any { e -> e.contains("sonarlint", true) || e.contains("sonarsource", true) }
+        val shouldFailTest = uncaughtExceptions.any { IdeErrors.failsTest(it) }
         uncaughtExceptions.forEach { e -> println("Uncaught error during the test: $e") }
         clearExceptions()
         if (shouldFailTest) {

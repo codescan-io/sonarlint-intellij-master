@@ -33,7 +33,7 @@ import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.openFile
 import org.sonarlint.intellij.its.utils.SettingsUtils.Companion.toggleRule
 
 @Tag("Standalone")
-@EnabledIf("isIdeaCommunity")
+@EnabledIf("isIdea")
 class StandaloneIdeaTests : BaseUiTest() {
 
     @Test

@@ -24,6 +24,7 @@ import com.sonar.orchestrator.container.Edition
 import com.sonar.orchestrator.junit5.OrchestratorExtension
 import com.sonar.orchestrator.locator.FileLocation
 import java.time.Duration
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -43,6 +44,7 @@ import org.sonarlint.intellij.its.utils.SettingsUtils.Companion.clearConnections
 
 const val PLSQL_PROJECT_KEY = "sample-plsql"
 
+@Disabled("Needs SonarQube Developer edition with a SonarSource licence (Orchestrator) for the PL/SQL analyzer.")
 @EnabledIf("isSQLPlugin")
 class PLSQLTest : BaseUiTest() {
 

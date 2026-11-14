@@ -46,11 +46,11 @@ class CurrentFileTabTests {
         }
 
         fun changeStatusOnSonarQubeAndPressChange(status: String) {
-            changeStatusAndPressChange("Mark Issue as Resolved on SonarQube Server", status)
+            changeStatusAndPressChange("Mark Issue as Resolved on CodeScan", status)
         }
 
         fun changeStatusOnSonarCloudAndPressChange(status: String) {
-            changeStatusAndPressChange("Mark Issue as Resolved on SonarQube Cloud", status)
+            changeStatusAndPressChange("Mark Issue as Resolved on CodeScan", status)
         }
 
         private fun changeStatusAndPressChange(windowTitle: String, status: String) {
@@ -100,6 +100,22 @@ class CurrentFileTabTests {
                     }
                     actionMenuItem("Mark Issue as\u2026") {
                         click()
+                    }
+                }
+            }
+        }
+
+        fun waitForCurrentFileTabMessage(expectedMessage: String, timeout: Duration) {
+            with(remoteRobot) {
+                idea {
+                    toolWindow("CodeScan") {
+                        ensureOpen()
+                        tabTitleContains("Current File") { select() }
+                        content("CurrentFilePanel") {
+                            waitFor(duration = timeout, interval = Duration.ofSeconds(2), errorMessage = "No '$expectedMessage' in the Current File tab") {
+                                hasText(expectedMessage)
+                            }
+                        }
                     }
                 }
             }
