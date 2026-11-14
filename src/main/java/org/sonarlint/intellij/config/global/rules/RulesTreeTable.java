@@ -84,7 +84,7 @@ public class RulesTreeTable extends TreeTable {
     registerKeyboardAction(e -> {
       final var path = getTree().getPathForRow(getTree().getLeadSelectionRow());
       if (path != null) {
-        treeTableModel.swapAndRefresh(path);
+        treeTableModel.swapAndRefresh(path.getLastPathComponent());
       }
       updateUI();
     }, KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), JComponent.WHEN_FOCUSED);
