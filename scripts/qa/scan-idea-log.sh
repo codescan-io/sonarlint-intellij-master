@@ -9,8 +9,14 @@
 #              an org.sonarlint. frame, or the entry names the plugin ("[Plugin: com.code-scan.intellij]" or
 #              "Plugin to blame: CodeScan"). For a freeze see --freeze-dumps.
 #   other    - there is a stack trace and it has no CodeScan frame (another plugin or the IDE).
-#   unknown  - there is no stack trace to judge (for example "Suppressed a frequent exception"
-#              repeats, or a freeze with no dump).
+#   unknown  - there is no stack trace to judge (for example an entry logged without one, a freeze with no
+#              dump, or a repeat that cannot be matched, see below).
+# "Suppressed a frequent exception logged for the <n>th time: ..." has no stack either. IntelliJ (IdeaLogger in
+# 2023.1.7 and 2026.1.5) counts repeats by a hash of the whole stack trace and writes the first one in full, so the
+# repeat has the stack of an earlier full entry of the same IDE run. It takes the group of the earlier full entries
+# of its pattern from the same logger in this log when they all have one group ("Repeats matched to an earlier full
+# entry"); with none, or with both groups, it stays unknown. This never hides a CodeScan problem: if the repeat is
+# CodeScan's, so is its full entry, which is a CodeScan hit of its own (in idea.1.log if the log was rotated).
 # The 2 "ERROR from / with org.sonarlint" patterns are CodeScan by definition. The second one also counts an
 # ERROR entry that names the plugin without an org.sonarlint frame.
 #
@@ -198,7 +204,7 @@ BEGIN {
   errLevelRe = hdr "(SEVERE|ERROR) - "
   lines = 0
   tops = 0
-  merged = 0; blameFolded = 0; relabelled = 0; lastNh = 0; hitDay = ""; hitMs = 0
+  merged = 0; blameFolded = 0; relabelled = 0; repeatsMatched = 0; lastNh = 0; hitDay = ""; hitMs = 0
   while ((getline row < mapfile) > 0) {
     split(row, part, "\t")
     dumpClass[part[1]] = part[2]
@@ -267,6 +273,22 @@ function entryClass(   j, hasStack, hasPlugin) {
   return (hasStack ? "other" : "unknown")
 }
 
+function hasStack(   j) {
+  for (j = 2; j <= lines; j++) if (buf[j] ~ /^[ \t]+at /) return 1
+  return 0
+}
+
+# Full entries are counted per pattern and logger (fullCs, fullOt) for matching repeats to them.
+function fullKey(i) { return i SUBSEP loggerOf(buf[1]) }
+
+# The group every earlier full entry of pattern i from the logger of this entry has, or "" (none, or both groups).
+function repeatClass(i,   k) {
+  k = fullKey(i)
+  if (fullCs[k] > 0 && fullOt[k] == 0) return "CodeScan"
+  if (fullOt[k] > 0 && fullCs[k] == 0) return "other"
+  return ""
+}
+
 function tally(i, class) {
   if (class == "CodeScan") cs[i]++
   else if (class == "other") ot[i]++
@@ -327,6 +349,7 @@ function relabelLast(   h, changed, newKey) {
     if (lastClass[h] == "CodeScan") continue
     if (lastClass[h] == "other") ot[lastPat[h]]--; else un[lastPat[h]]--
     cs[lastPat[h]]++; lastClass[h] = "CodeScan"; changed = 1
+    if (lastFull[h] != "") { fullOt[lastFull[h]]--; fullCs[lastFull[h]]++ }
   }
   if (!changed) return
   relabelled++
@@ -338,17 +361,24 @@ function relabelLast(   h, changed, newKey) {
   print "=== relabelled as CodeScan: the hit at line " lastLine " (IntelliJ blames CodeScan at line " startLine ") ==="
 }
 
-function flush(   i, j, matched, isError, key, last, class, fclass, nh, h, hit, top) {
+function flush(   i, j, matched, isError, key, last, class, fclass, nh, h, hit, top, stack, isRepeat, rclass, note) {
   if (lines == 0) return
   if (isBlameFollowUp()) { blameFolded++; relabelLast(); lines = 0; return }
-  nh = 0; hit = ""
+  nh = 0; hit = ""; note = ""
   class = entryClass()
+  stack = hasStack()
+  isRepeat = (!stack && index(buf[1], "Suppressed a frequent exception logged for the ") > 0)
   for (i = 1; i <= fixedPatterns; i++) {
     matched = 0
     for (j = 1; j <= lines && !matched; j++) if (index(buf[j], pat[i]) > 0) matched = 1
     if (matched) {
       nh++; hitPat[nh] = i; hitClass[nh] = class
       if (i == freezePat) { fclass = freezeClass(); hitClass[nh] = fclass; if (nh == 1) class = fclass }
+      else if (isRepeat && class == "unknown" && (rclass = repeatClass(i)) != "") {
+        hitClass[nh] = rclass
+        if (nh == 1) class = rclass
+        note = note "    (repeat: every earlier full entry of this kind from " loggerOf(buf[1]) " in this log is " rclass ", so this one is too)\n"
+      }
       hit = hit (hit == "" ? "" : ", ") pat[i]
     }
   }
@@ -369,12 +399,21 @@ function flush(   i, j, matched, isError, key, last, class, fclass, nh, h, hit, 
   if (nh > 0 && isDuplicate(hit)) {
     merged++
   } else if (nh > 0) {
-    for (h = 1; h <= nh; h++) { tally(hitPat[h], hitClass[h]); lastPat[h] = hitPat[h]; lastClass[h] = hitClass[h] }
+    for (h = 1; h <= nh; h++) {
+      tally(hitPat[h], hitClass[h]); lastPat[h] = hitPat[h]; lastClass[h] = hitClass[h]; lastFull[h] = ""
+      if (stack && hitPat[h] <= fixedPatterns && hitPat[h] != freezePat) {
+        lastFull[h] = fullKey(hitPat[h])
+        if (hitClass[h] == "CodeScan") fullCs[lastFull[h]]++; else if (hitClass[h] == "other") fullOt[lastFull[h]]++
+      }
+    }
     lastNh = nh
+    if (note != "") repeatsMatched++
     print "=== " hit " (line " startLine ") ==="
+    printf "%s", note
     last = (lines < context + 1 ? lines : context + 1)
     for (i = 1; i <= last; i++) print buf[i]
     top = stackTop()
+    if (note != "") top = "\n      (no stack trace; a repeat, counted with the earlier full entries)"
     key = "[" hit "] " class top
     if (!(key in topCount)) { topOrder[++tops] = key; topCount[key] = 0 }
     topCount[key]++
@@ -405,6 +444,7 @@ END {
   print "  Merged duplicates: " merged " (one exception logged under two loggers within " mergeMs " ms; counted once)"
   print "  Blame follow-up lines folded: " blameFolded " (\"Plugin to blame: CodeScan\" or \"[Plugin: com.code-scan.intellij]\" entry with no stack within " mergeMs " ms after a hit; not a hit of its own)"
   print "  Relabelled CodeScan by a blame line: " relabelled " (of those follow-ups, the ones whose hit was other or unknown)"
+  print "  Repeats matched to an earlier full entry: " repeatsMatched " (\"Suppressed a frequent exception\" with no stack; it takes the group of the earlier full entries of its pattern from the same logger, when they all have one)"
   print "  Total: " total
   if (total > csTotal) print "  Note: " (total - csTotal) " hit(s) are not from CodeScan (other or unknown); see the split under each pattern."
   print "  CodeScan total: " csTotal
