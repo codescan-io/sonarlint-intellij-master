@@ -56,6 +56,17 @@ class CodeScanWireMockTest {
     }
 
     @Test
+    fun `refuses the IP allowlist token with the server's 403 message`() {
+        CodeScanWireMock.start()
+
+        val (code, body) = get("/api/authentication/validate?format=json", CodeScanWireMock.IP_ALLOWLIST_BLOCKED_TOKEN)
+
+        assertThat(code).isEqualTo(403)
+        assertThat(body).isEqualTo("{\"errors\":[{\"msg\":\"${CodeScanWireMock.IP_ALLOWLIST_BLOCK_MESSAGE}\"}]}")
+        assertThat(get("/api/authentication/validate?format=json", CodeScanWireMock.TOKEN).second).isEqualTo("{\"valid\":true}")
+    }
+
+    @Test
     fun `tells which addresses the IDE asked for`() {
         CodeScanWireMock.start()
 

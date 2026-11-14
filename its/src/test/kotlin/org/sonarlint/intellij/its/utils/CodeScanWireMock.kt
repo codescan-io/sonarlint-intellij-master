@@ -42,6 +42,11 @@ object CodeScanWireMock {
     // The recordings accept any token except the word REDACTED, which they answer as invalid.
     const val TOKEN = "ui-test-token"
 
+    // CodeScan refuses this token as if the organization's IP allowlist blocked the caller (72-auth-ip-allowlist-blocked.json).
+    const val IP_ALLOWLIST_BLOCKED_TOKEN = "ip-allowlist-blocked-token"
+    const val IP_ALLOWLIST_BLOCK_MESSAGE =
+        "Access to organization 'salil-nov-24' is blocked by its IP allowlist. Your IP address is 203.0.113.7."
+
     private val port = System.getProperty("its.wiremock.port", "18089").toInt()
     private var server: WireMockServer? = null
 

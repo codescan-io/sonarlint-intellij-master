@@ -30,9 +30,14 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIf
 import org.sonarlint.intellij.its.BaseUiTest
+import org.sonarlint.intellij.its.fixtures.DialogFixture
+import org.sonarlint.intellij.its.fixtures.clickWhenEnabled
+import org.sonarlint.intellij.its.fixtures.dialog
 import org.sonarlint.intellij.its.fixtures.editor
 import org.sonarlint.intellij.its.fixtures.idea
+import org.sonarlint.intellij.its.fixtures.jPasswordField
 import org.sonarlint.intellij.its.tests.domain.CurrentFileTabTests.Companion.waitForCurrentFileTabMessage
+import org.sonarlint.intellij.its.utils.CodeScanWireMock
 import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.openExistingProject
 import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.openFile
 import org.sonarlint.intellij.its.utils.SettingsUtils.Companion.sonarLintGlobalSettings
@@ -184,6 +189,72 @@ class CodeScanScenarioTests : BaseUiTest() {
         return "package generated.$pkg;\n\n/** Generated for the real-indexing UI test. */\npublic class Gen$i {\n" +
             "    public static final int VALUE = $i;\n\n$methods}\n"
     }
+
+    // CSN-74: CodeScan refuses the token check because the organization's IP allowlist blocks the caller (stub
+    // 72-auth-ip-allowlist-blocked.json). The wizard must show the server's message and the advice, not the raw JSON.
+    @Test
+    fun ipAllowlistBlockShowsServerMessageInWizard() = uiTest {
+        markInIdeLog("start", "ipAllowlistBlockShowsServerMessageInWizard")
+        CodeScanWireMock.start()
+        try {
+            sonarLintGlobalSettings {
+                addConnectionButton().clickWhenEnabled()
+                dialog("New Connection: Server Details") {
+                    keyboard { enterText("ip-allowlist-blocked") }
+                    button("Next").click()
+                }
+                dialog("New Connection: Authentication") {
+                    jPasswordField().text = CodeScanWireMock.IP_ALLOWLIST_BLOCKED_TOKEN
+                    button("Next").click()
+                }
+
+                // Found by its text: the error box's title differs between systems (on macOS it is an alert).
+                var errorText = ""
+                waitFor(Duration.ofSeconds(60), Duration.ofSeconds(1), "no dialog showed the IP allowlist block") {
+                    errorText = remoteRobot.findAll<DialogFixture>(DialogFixture.all()).map { dialogText(it) }
+                        .firstOrNull { "is blocked by its IP allowlist" in it } ?: ""
+                    errorText.isNotEmpty()
+                }
+                println("IP allowlist error shown: $errorText")
+                assertThat(errorText)
+                    .contains("Failed to connect to the server.")
+                    .contains(CodeScanWireMock.IP_ALLOWLIST_BLOCK_MESSAGE)
+                    .contains("Ask an administrator of the organization to add your network to the IP allowlist.")
+                    .doesNotContain("{\"errors\"")
+                    .doesNotContain("\"msg\"")
+                    .doesNotContain("HTTP Connection failed")
+            }
+        } finally {
+            // uiTest closes the error box, the wizard and the settings afterwards.
+            CodeScanWireMock.stop()
+            markInIdeLog("end", "ipAllowlistBlockShowsServerMessageInWizard")
+        }
+    }
+
+    // All text in a dialog, as the user reads it: labels and text panes (HTML panes give their plain text).
+    private fun dialogText(dialog: DialogFixture): String = dialog.callJs<String>(
+        """
+        var texts = new java.util.ArrayList();
+        var pending = new java.util.ArrayDeque();
+        pending.push(component);
+        while (!pending.isEmpty()) {
+            var c = pending.pop();
+            if (c instanceof javax.swing.text.JTextComponent && !(c instanceof javax.swing.JPasswordField)) {
+                var document = c.getDocument();
+                texts.add(document.getText(0, document.getLength()));
+            } else if (c instanceof javax.swing.JLabel && c.getText() != null) {
+                texts.add(c.getText());
+            }
+            if (c instanceof java.awt.Container) {
+                var children = c.getComponents();
+                for (var i = 0; i < children.length; i++) {
+                    pending.push(children[i]);
+                }
+            }
+        }
+        java.lang.String.join(" ", texts).replaceAll("\\s+", " ")
+        """, true
+    )
 
     private fun waitForProject() {
         waitFor(Duration.ofSeconds(60), Duration.ofSeconds(1), "the project never opened") {

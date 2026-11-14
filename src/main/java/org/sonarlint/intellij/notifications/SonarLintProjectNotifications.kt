@@ -49,6 +49,7 @@ import org.sonarlint.intellij.notifications.binding.DisableBindingSuggestionsAct
 import org.sonarlint.intellij.promotion.DontAskAgainAction
 import org.sonarlint.intellij.telemetry.LinkTelemetry
 import org.sonarlint.intellij.util.GlobalLogOutput
+import org.sonarlint.intellij.util.IpAllowlistBlock
 import org.sonarsource.sonarlint.core.client.utils.ClientLogOutput
 import org.sonarsource.sonarlint.core.rpc.protocol.client.smartnotification.ShowSmartNotificationParams
 
@@ -59,6 +60,7 @@ class SonarLintProjectNotifications(private val myProject: Project) {
     companion object {
         private const val TITLE_SONARLINT_INVALID_BINDING = "<b>CodeScan - Invalid binding</b>"
         private const val TITLE_SONARLINT_SUGGESTIONS = "<b>CodeScan suggestions</b>"
+        private const val TITLE_IP_ALLOWLIST_BLOCKED = "<b>CodeScan - Blocked by IP allowlist</b>"
 
         fun get(project: Project): SonarLintProjectNotifications {
             return SonarLintUtils.getService(project, SonarLintProjectNotifications::class.java)
@@ -96,11 +98,30 @@ class SonarLintProjectNotifications(private val myProject: Project) {
     private val sonarlintGroup = NotificationGroupManager.getInstance().getNotificationGroup("CodeScan")
 
     private var storageErrorNotificationShown = AtomicBoolean(false)
+    private val ipAllowlistNotificationShown = AtomicBoolean(false)
     private var lastBindingSuggestion: Notification? = null
     private var currentOpenFindingNotification: Notification? = null
 
     fun reset() {
         storageErrorNotificationShown.set(false)
+        ipAllowlistNotificationShown.set(false)
+    }
+
+    fun notifyIpAllowlistBlocked(serverMessage: String) {
+        if (ipAllowlistNotificationShown.getAndSet(true)) {
+            return
+        }
+        bindingProblemGroup.createNotification(
+            TITLE_IP_ALLOWLIST_BLOCKED,
+            // Notification content is HTML and the message comes from the server
+            IpAllowlistBlock.withAdvice(serverMessage).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"),
+            NotificationType.ERROR
+        ).apply {
+            icon = SonarLintIcons.SONARQUBE_FOR_INTELLIJ
+            isImportant = true
+            addAction(ShowLogAction())
+            notify(myProject)
+        }
     }
 
     fun notifyProjectBindingInvalidAndUnbound() {

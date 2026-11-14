@@ -34,12 +34,14 @@ import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.core.ProjectBindingManager;
 import org.sonarlint.intellij.tasks.ConnectionTestTask;
 import org.sonarlint.intellij.util.GlobalLogOutput;
+import org.sonarlint.intellij.util.IpAllowlistBlock;
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.validate.ValidateConnectionResponse;
 
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 
 public class SonarLintProjectSettingsPanel implements Disposable {
+  private static final String CONNECTION_FAILED_HEADLINE = "Failed to connect to the server.";
   private final SonarLintProjectPropertiesPanel propsPanel;
   private final JPanel root;
   private final JPanel rootBindPane;
@@ -115,20 +117,28 @@ public class SonarLintProjectSettingsPanel implements Disposable {
 
   private static void isConnectionValid(ServerConnection connection) throws ConfigurationException {
     var connectionTest = new ConnectionTestTask(connection);
-    var msg = "Failed to connect to the server. Please check the configuration.";
     ValidateConnectionResponse result;
     try {
       result = ProgressManager.getInstance().run(connectionTest);
     } catch (Exception e) {
       GlobalLogOutput.get().logError("Connection test failed", e);
-      if (e.getMessage() != null) {
-        msg = msg + " Error: " + e.getMessage();
-      }
-      throw new ConfigurationException(msg);
+      throw new ConfigurationException(connectionCheckFailure(e));
     }
     if (!result.isSuccess()) {
-      throw new ConfigurationException(result.getMessage());
+      throw new ConfigurationException(connectionCheckFailure(result.getMessage()));
     }
+  }
+
+  static String connectionCheckFailure(Exception e) {
+    var msg = "Failed to connect to the server. Please check the configuration.";
+    if (e.getMessage() != null) {
+      msg = msg + " Error: " + e.getMessage();
+    }
+    return IpAllowlistBlock.explain(e, CONNECTION_FAILED_HEADLINE, msg);
+  }
+
+  static String connectionCheckFailure(String reason) {
+    return IpAllowlistBlock.explain(reason, CONNECTION_FAILED_HEADLINE, reason);
   }
 
   public boolean areExclusionsModified(SonarLintProjectSettings projectSettings) {

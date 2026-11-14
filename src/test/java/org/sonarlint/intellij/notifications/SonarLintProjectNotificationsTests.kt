@@ -289,4 +289,31 @@ class SonarLintProjectNotificationsTests : AbstractSonarLintLightTests() {
         Assertions.assertThat(notifications[0].actions).isEmpty()
     }
 
+    @Test
+    fun should_notify_ip_allowlist_block_once_until_reset() {
+        val message = "Access to organization 'acme' is blocked by its IP allowlist. Your IP address is 203.0.113.9."
+
+        sonarLintProjectNotifications.notifyIpAllowlistBlocked(message)
+        sonarLintProjectNotifications.notifyIpAllowlistBlocked(message)
+
+        Assertions.assertThat(notifications).hasSize(1)
+        Assertions.assertThat(notifications[0].title).isEqualTo("<b>CodeScan - Blocked by IP allowlist</b>")
+        Assertions.assertThat(notifications[0].content)
+            .isEqualTo("$message Ask an administrator of the organization to add your network to the IP allowlist.")
+        Assertions.assertThat(notifications[0].type).isEqualTo(NotificationType.ERROR)
+        Assertions.assertThat(notifications[0].icon).isEqualTo(SonarLintIcons.SONARQUBE_FOR_INTELLIJ)
+
+        sonarLintProjectNotifications.reset()
+        sonarLintProjectNotifications.notifyIpAllowlistBlocked(message)
+
+        Assertions.assertThat(notifications).hasSize(2)
+    }
+
+    @Test
+    fun should_not_let_the_server_message_inject_html_into_the_ip_allowlist_notification() {
+        sonarLintProjectNotifications.notifyIpAllowlistBlocked("Access to organization '<b>x</b>' is blocked by its IP allowlist.")
+
+        Assertions.assertThat(notifications[0].content).startsWith("Access to organization '&lt;b&gt;x&lt;/b&gt;' is blocked")
+    }
+
 }

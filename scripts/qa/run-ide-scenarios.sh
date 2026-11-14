@@ -10,7 +10,8 @@
 #                  and type; keep your hands off until it ends.
 #   --plugin       test this plugin zip instead of building one with ./gradlew buildPlugin (which needs CodeArtifact
 #                  access, see CLAUDE.md). The CodeArtifact token never goes into the container.
-#   --tests        only these UI tests (a Gradle --tests filter such as '*CodeScanScenarioTests*')
+#   --tests        only these UI tests (a Gradle --tests filter such as '*CodeScanScenarioTests*', or
+#                  '*CodeScanScenarioTests.ipAllowlistBlockShowsServerMessageInWizard' for the IP allowlist wizard check)
 #   --out          results folder (default build/qa/<ide-version>; emptied first)
 #   --indexing-project  a larger project for the real-indexing scenario (CodeScanScenarioTests): the test indexes a copy
 #                  of it plus generated Java files, and never writes to the folder (in Docker it is mounted read-only).
