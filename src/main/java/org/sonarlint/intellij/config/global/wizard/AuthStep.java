@@ -51,6 +51,7 @@ import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.core.BackendService;
 import org.sonarlint.intellij.tasks.ConnectionTestTask;
 import org.sonarlint.intellij.util.GlobalLogOutput;
+import org.sonarlint.intellij.util.IpAllowlistBlock;
 import org.sonarlint.intellij.util.ProgressUtils;
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.auth.HelpGenerateUserTokenResponse;
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.validate.ValidateConnectionResponse;
@@ -60,6 +61,8 @@ import static org.sonarlint.intellij.util.ThreadUtilsKt.computeOnPooledThread;
 public class AuthStep extends AbstractWizardStepEx {
   private static final String LOGIN_ITEM = "Login / Password";
   private static final String TOKEN_ITEM = "Token";
+  private static final String CONNECTION_FAILED_HEADLINE = "Failed to connect to the server.";
+  private static final String CONNECTION_FAILED = "Failed to connect to the server. Please check the configuration.";
   private final WizardModel model;
 
   private JPanel panel;
@@ -212,11 +215,8 @@ public class AuthStep extends AbstractWizardStepEx {
     try {
       model.queryOrganizations();
     } catch (Exception e) {
-      var msg = "Failed to query organizations. Please check the configuration and try again.";
-      if (e.getMessage() != null) {
-        msg = msg + " Error: " + e.getMessage();
-      }
-      throw new CommitStepException(msg);
+      throw new CommitStepException(requestFailure("Failed to query organizations. Please check the configuration and try again.",
+        "Failed to query organizations.", e));
     }
   }
 
@@ -224,34 +224,36 @@ public class AuthStep extends AbstractWizardStepEx {
     try {
       model.queryIfNotificationsSupported();
     } catch (Exception e) {
-      var msg = "Failed to contact the server. Please check the configuration and try again.";
-      if (e.getMessage() != null) {
-        msg = msg + " Error: " + e.getMessage();
-      }
-      throw new CommitStepException(msg);
+      throw new CommitStepException(requestFailure("Failed to contact the server. Please check the configuration and try again.",
+        "Failed to contact the server.", e));
     }
   }
 
   private void checkConnection() throws CommitStepException {
     var tmpServer = model.createConnectionWithoutOrganization();
     var test = new ConnectionTestTask(tmpServer);
-    var msg = "Failed to connect to the server. Please check the configuration.";
     ValidateConnectionResponse result;
 
     try {
       result = ProgressManager.getInstance().run(test);
     } catch (Exception e) {
       GlobalLogOutput.get().logError("Connection test failed", e);
-      if (e.getMessage() != null) {
-        msg = msg + " Error: " + e.getMessage();
-      }
-      throw new CommitStepException(msg);
+      throw new CommitStepException(requestFailure(CONNECTION_FAILED, CONNECTION_FAILED_HEADLINE, e));
     }
     if (result == null) {
       throw new CommitStepCancelledException();
     } else if (!result.isSuccess()) {
-      throw new CommitStepException(msg + " Cause: " + result.getMessage());
+      throw new CommitStepException(connectionCheckFailure(result.getMessage()));
     }
+  }
+
+  static String connectionCheckFailure(@Nullable String reason) {
+    return IpAllowlistBlock.explain(reason, CONNECTION_FAILED_HEADLINE, CONNECTION_FAILED + " Cause: " + reason);
+  }
+
+  static String requestFailure(String genericText, String headline, Exception e) {
+    var fallback = e.getMessage() != null ? (genericText + " Error: " + e.getMessage()) : genericText;
+    return IpAllowlistBlock.explain(e, headline, fallback);
   }
 
   @Nullable

@@ -5,6 +5,9 @@ Copied unchanged from sonarlint-core/medium-tests/src/test/resources/codescan-re
 44c07013d). How they were made and cleaned is described in sonarlint-core's CodeScanServerMediumTests. When they change in
 sonarlint-core, copy them here again.
 
+One file is not a recording and is not in sonarlint-core: 72-auth-ip-allowlist-blocked.json (CSN-74) answers the token
+"ip-allowlist-blocked-token" with CodeScan's 403 for an IP allowlist block. Keep it when you copy the recordings again.
+
 - Organization "test-org", project "test-project", branch "main".
-- Any token is accepted, except the word REDACTED, which is answered as invalid. No real token is stored here.
+- Any token is accepted, except the word REDACTED, which is answered as invalid, and ip-allowlist-blocked-token (above). No real token is stored here.
 - The plugin downloads are small stand-in jars, so a project bound to this copy gets no issues from server analyzers.

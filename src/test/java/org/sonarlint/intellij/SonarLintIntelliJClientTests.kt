@@ -20,6 +20,7 @@
 package org.sonarlint.intellij
 
 import java.nio.file.Paths
+import java.time.Instant
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.assertj.core.api.Assertions.tuple
@@ -27,7 +28,10 @@ import org.eclipse.lsp4j.jsonrpc.ResponseErrorException
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.sonarlint.intellij.config.global.ServerConnection
+import org.sonarlint.intellij.notifications.SonarLintProjectNotifications
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.config.binding.BindingSuggestionDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogLevel
+import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogParams
 import org.sonarsource.sonarlint.core.rpc.protocol.client.message.MessageType
 import org.sonarsource.sonarlint.core.rpc.protocol.common.ClientFileDto
 
@@ -39,6 +43,7 @@ class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
     fun prepare() {
         // also important as this starts the notification manager service
         clearNotifications()
+        SonarLintProjectNotifications.get(project).reset()
         client = SonarLintIntelliJClient
     }
 
@@ -207,5 +212,49 @@ class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
                 "Some message"
             )
         )
+    }
+
+    @Test
+    fun it_should_notify_once_when_a_backend_error_shows_an_ip_allowlist_block() {
+        client.log(LogParams(LogLevel.ERROR, "Error during synchronization", projectBackendId, ipAllowlistStackTrace, Instant.now()))
+        client.log(LogParams(LogLevel.ERROR, "Error during synchronization", projectBackendId, ipAllowlistStackTrace, Instant.now()))
+
+        assertThat(projectNotifications).extracting("title", "content").containsExactly(
+            tuple(
+                "<b>CodeScan - Blocked by IP allowlist</b>",
+                "$IP_ALLOWLIST_MESSAGE Ask an administrator of the organization to add your network to the IP allowlist."
+            )
+        )
+    }
+
+    @Test
+    fun it_should_notify_the_projects_bound_to_the_blocked_organization_when_the_error_names_no_project() {
+        connectProjectTo(ServerConnection.newBuilder().setName("conn").setHostUrl("https://app.codescan.io").setOrganizationKey("acme").build(), "projectKey")
+
+        client.log(LogParams(LogLevel.ERROR, "Error during the auto-sync", null, ipAllowlistStackTrace, Instant.now()))
+
+        assertThat(projectNotifications).extracting("title").containsExactly("<b>CodeScan - Blocked by IP allowlist</b>")
+    }
+
+    @Test
+    fun it_should_not_notify_a_project_bound_to_another_organization() {
+        connectProjectTo(ServerConnection.newBuilder().setName("conn").setHostUrl("https://app.codescan.io").setOrganizationKey("other").build(), "projectKey")
+
+        client.log(LogParams(LogLevel.ERROR, "Error during the auto-sync", null, ipAllowlistStackTrace, Instant.now()))
+
+        assertThat(projectNotifications).isEmpty()
+    }
+
+    @Test
+    fun it_should_not_notify_for_other_backend_errors() {
+        client.log(LogParams(LogLevel.ERROR, "Error during synchronization", projectBackendId, "java.lang.IllegalStateException: Error 500\n", Instant.now()))
+
+        assertThat(projectNotifications).isEmpty()
+    }
+
+    companion object {
+        private const val IP_ALLOWLIST_MESSAGE = "Access to organization 'acme' is blocked by its IP allowlist. Your IP address is 203.0.113.9."
+        private val ipAllowlistStackTrace = "java.lang.IllegalStateException: $IP_ALLOWLIST_MESSAGE\n" +
+            "\tat org.sonarsource.sonarlint.core.serverapi.ServerApiHelper.handleError(ServerApiHelper.java:145)\n"
     }
 }
