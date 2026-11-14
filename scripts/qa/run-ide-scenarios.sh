@@ -133,7 +133,10 @@ else
   NAME="codescan-qa-its-$$"
   trap 'docker kill "$NAME" >/dev/null 2>&1; exit 3' INT TERM
   # The sources are copied inside the container, so its build output never lands in this tree.
+  # MALLOC_ARENA_MAX: uncapped, the C library keeps up to 8 memory pools per CPU in each Java process and holds on to
+  # freed memory; the 2026.1.5 IDE held 637 MB that way and was killed (exit 137) in 6 GB.
   docker run --rm --name "$NAME" --cpus "${QA_DOCKER_CPUS:-6}" --memory "${QA_DOCKER_MEMORY:-6g}" --shm-size 1g \
+    -e MALLOC_ARENA_MAX=2 \
     -e PREPARE_TIMEOUT_SEC -e START_TIMEOUT_SEC -e TEST_TIMEOUT_SEC \
     -v "$ROOT:/src:ro" \
     -v "$OUT/plugin:/plugin:ro" \

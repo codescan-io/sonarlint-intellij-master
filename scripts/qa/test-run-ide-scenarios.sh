@@ -147,6 +147,9 @@ expect_out "clean" "CodeScan total: 0"
 expect_file "clean" "$TMP/out-clean/tests.txt" "tests.txt written"
 expect_file "clean" "$TMP/out-clean/scan.txt" "scan.txt written"
 expect_file "clean" "$TMP/out-clean/plugin/CodeScan.txt" "plugin unzipped for the container"
+# The C library's memory pools are capped in the container: uncapped, the 2026.1.5 IDE held 637 MB it had already
+# freed, and it was killed (exit 137) in 6 GB.
+args_have "clean" "MALLOC_ARENA_MAX=2"
 
 # 2. Version names: IC before 2025.3, IU from 2025.3 on, a full Gradle value as it is.
 for pair in 2023.1.7:IC-2023.1.7 2025.2.4:IC-2025.2.4 2025.3:IU-2025.3 2026.1.5:IU-2026.1.5 IC-2024.1.7:IC-2024.1.7; do
