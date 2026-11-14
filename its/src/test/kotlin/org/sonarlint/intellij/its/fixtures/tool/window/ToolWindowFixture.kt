@@ -28,8 +28,8 @@ import com.intellij.remoterobot.fixtures.DefaultXpath
 import com.intellij.remoterobot.fixtures.FixtureName
 import com.intellij.remoterobot.search.locators.byXpath
 import com.intellij.remoterobot.stepsProcessing.step
+import com.intellij.remoterobot.utils.waitFor
 import org.sonarlint.intellij.its.fixtures.findElement
-import org.sonarlint.intellij.its.fixtures.stripeButton
 import java.time.Duration
 
 fun ContainerFixture.toolWindow(
@@ -59,8 +59,29 @@ class ToolWindowFixture(remoteRobot: RemoteRobot, remoteComponent: RemoteCompone
   fun findCard(classType: String) =
     findElement<ComponentFixture>(byXpath("card with type $classType", "//div[@class='$classType']"))
 
+  // Opens the tool window through the IDE, not by clicking its stripe button: the new UI (the default from 2024.2) has
+  // no StripeButton and may put the button under "More".
   fun ensureOpen() {
-    stripeButton(title).open()
+    step("Open tool window $title") {
+      runJs(
+        """
+        const projects = com.intellij.openapi.project.ProjectManager.getInstance().getOpenProjects();
+        if (projects.length == 0) throw "no open project";
+        const toolWindow = com.intellij.openapi.wm.ToolWindowManager.getInstance(projects[0]).getToolWindow("$title");
+        if (toolWindow == null) throw "no tool window $title";
+        if (!toolWindow.isVisible()) toolWindow.show();
+        """, true
+      )
+      waitFor(Duration.ofSeconds(10), Duration.ofMillis(500), "tool window $title did not open") {
+        callJs<Boolean>(
+          """
+          const projects = com.intellij.openapi.project.ProjectManager.getInstance().getOpenProjects();
+          const toolWindow = projects.length == 0 ? null : com.intellij.openapi.wm.ToolWindowManager.getInstance(projects[0]).getToolWindow("$title");
+          toolWindow != null && toolWindow.isVisible()
+          """, true
+        )
+      }
+    }
   }
 
 }

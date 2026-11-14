@@ -46,11 +46,11 @@ class CurrentFileTabTests {
         }
 
         fun changeStatusOnSonarQubeAndPressChange(status: String) {
-            changeStatusAndPressChange("Mark Issue as Resolved on SonarQube Server", status)
+            changeStatusAndPressChange("Mark Issue as Resolved on CodeScan", status)
         }
 
         fun changeStatusOnSonarCloudAndPressChange(status: String) {
-            changeStatusAndPressChange("Mark Issue as Resolved on SonarQube Cloud", status)
+            changeStatusAndPressChange("Mark Issue as Resolved on CodeScan", status)
         }
 
         private fun changeStatusAndPressChange(windowTitle: String, status: String) {
@@ -105,6 +105,22 @@ class CurrentFileTabTests {
             }
         }
 
+        fun waitForCurrentFileTabMessage(expectedMessage: String, timeout: Duration) {
+            with(remoteRobot) {
+                idea {
+                    toolWindow("CodeScan") {
+                        ensureOpen()
+                        tabTitleContains("Current File") { select() }
+                        content("CurrentFilePanel") {
+                            waitFor(duration = timeout, interval = Duration.ofSeconds(2), errorMessage = "No '$expectedMessage' in the Current File tab") {
+                                hasText(expectedMessage)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         fun verifyCurrentFileTabContainsMessages(vararg expectedMessages: String) {
             with(remoteRobot) {
                 idea {
@@ -153,6 +169,26 @@ class CurrentFileTabTests {
                     disableConnectedMode()
                 }
             }
+        }
+
+        fun isProjectBoundInSettings(): Boolean {
+            var bound = false
+            with(remoteRobot) {
+                idea {
+                    toolWindow("CodeScan") {
+                        ensureOpen()
+                        tabTitleContains("Current File") { select() }
+                        content("CurrentFilePanel") {
+                            toolBarButton("Configure CodeScan").click()
+                        }
+                    }
+                    dialog("Project Settings") {
+                        bound = checkBox("Bind project to CodeScan").isSelected()
+                        button("Cancel").click()
+                    }
+                }
+            }
+            return bound
         }
 
         fun verifyCurrentFileRuleDescriptionTabContains(expectedMessage: String) {

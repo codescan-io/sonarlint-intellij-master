@@ -39,8 +39,8 @@ class OpenInIdeTests {
         fun createConnection(token: String) {
             with(remoteRobot) {
                 idea {
-                    dialog("Trust This SonarQube Server Instance?") {
-                        button("Connect to This SonarQube Server Instance").click()
+                    dialog("Trust This CodeScan Server?") {
+                        button("Connect to This CodeScan Server").click()
                     }
                     dialog("New Connection: Server Details") {
                         keyboard { enterText("Orchestrator") }
@@ -63,9 +63,9 @@ class OpenInIdeTests {
         fun acceptNewAutomatedConnection() {
             with(remoteRobot) {
                 idea {
-                    dialog("Trust This SonarQube Server Instance?") {
+                    dialog("Trust This CodeScan Server?") {
                         jbTextFields()[1].text = "Orchestrator"
-                        buttonContainsText("Connect to This SonarQube Server Instance").click()
+                        buttonContainsText("Connect to This CodeScan Server").click()
                     }
                 }
             }
@@ -74,9 +74,9 @@ class OpenInIdeTests {
         fun acceptNewSCAutomatedConnection() {
             with(remoteRobot) {
                 idea {
-                    dialog("Trust This SonarQube Cloud Organization?") {
+                    dialog("Trust This CodeScan Organization?") {
                         jbTextFields()[1].text = "sonarlint-it"
-                        buttonContainsText("Connect to This SonarQube Cloud Organization").click()
+                        buttonContainsText("Connect to This CodeScan Organization").click()
                     }
                 }
             }

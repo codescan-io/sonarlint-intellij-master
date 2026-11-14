@@ -42,7 +42,11 @@ class ActionMenuFixture(
     }
   }
 
-  fun item(label: String, function: ActionMenuItemFixture.() -> Unit = {}): ActionMenuItemFixture {
-    return findElement<ActionMenuItemFixture>(byXpath("menu item $label", "//div[@class='ActionMenuItem' and @text='$label']")).apply(function)
+  // Give several labels when IDE versions name the item differently; the item may carry any of them.
+  fun item(vararg labels: String, function: ActionMenuItemFixture.() -> Unit = {}): ActionMenuItemFixture {
+    val anyLabel = labels.joinToString(" or ") { "@text='$it'" }
+    return findElement<ActionMenuItemFixture>(
+      byXpath("menu item ${labels.joinToString(" or ")}", "//div[@class='ActionMenuItem' and ($anyLabel)]")
+    ).apply(function)
   }
 }

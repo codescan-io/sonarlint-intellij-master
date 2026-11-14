@@ -12,6 +12,10 @@ apply(from = "${rootProject.projectDir}/gradle/module-conventions.gradle")
 val intellijBuildVersion: String by project
 val ijVersion: String by project
 val runIdeDirectory: String by project
+// The port of the WireMock copy of CodeScan: the tests start it there and the UI-test IDE uses it as its CodeScan URL.
+val wiremockPort: String = providers.gradleProperty("wiremockPort").getOrElse("18089")
+// Written by BaseUiTest when a UI test class loads (so the tests needed the IDE); checkIdeLog reads the IDE log only then.
+val uiTestMarker = layout.buildDirectory.file("its-ui-test-ran.txt")
 group = "org.sonarsource.sonarlint.intellij.its"
 description = "ITs for SonarLint IntelliJ"
 
@@ -38,6 +42,7 @@ dependencies {
     testImplementation(libs.its.sonar.scala)
     testImplementation(libs.its.sonar.ws)
     testImplementation(libs.bundles.its.remote)
+    testImplementation(libs.wiremock)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
     testImplementation(libs.junit.four)
@@ -54,6 +59,17 @@ tasks {
             }
         }
         testLogging.showStandardStreams = true
+        systemProperty("its.wiremock.port", wiremockPort)
+        systemProperty("its.ui.marker", uiTestMarker.get().asFile.path)
+        // The real-indexing scenario (CodeScanScenarioTests) indexes a copy of this folder plus generated Java files
+        // (-PindexingFiles, default 6000). Without -PindexingProject that scenario is skipped.
+        providers.gradleProperty("indexingProject").orNull?.let { systemProperty("its.indexing.project", it) }
+        providers.gradleProperty("indexingFiles").orNull?.let { systemProperty("its.indexing.files", it) }
+        doFirst { uiTestMarker.get().asFile.delete() }
+        // Each run drives a live IDE: an earlier result, from this build or from the build cache, never counts.
+        outputs.upToDateWhen { false }
+        outputs.doNotCacheIf("it drives a live IDE") { true }
+        finalizedBy("checkIdeLog")
     }
     // This project is a test helper, not a shipped plugin, and has no IDE list for the plugin verifier.
     // Without this, a root-level `./gradlew verifyPlugin` fails with "No IDE resolved for verification".
@@ -108,16 +124,33 @@ val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
     }
 
     task {
+        dependsOn("rotateIdeLog")
         jvmArgumentProviders += CommandLineArgumentProvider {
             listOf(
                 "-Xmx1G",
                 "-Drobot-server.port=8082",
-                "-Dsonarlint.internal.sonarcloud.url=https://sc-staging.io",
-                "-Dsonarlint.internal.sonarcloud.websocket.url=wss://events-api.sc-staging.io/",
+                // A slow operation on the UI thread is logged as an error, which checkIdeLog then reports. The main
+                // switch alone misses some: each section below has its own switch, and these are off by default
+                // (2023.1.7: the main switch, write.action, action.perform, vcs.line-status-tracker-provider, cwm;
+                // 2026.1.5: write.action, action.perform, known-issues, vcs.line-status-tracker-provider). A switch an
+                // IDE does not know is ignored. CodeScanScenarioTests.slowOperationChecksAreOn checks that every
+                // "ide.slow.operations.assertion*" switch the running IDE knows is on.
+                "-Dide.slow.operations.assertion=true",
+                "-Dide.slow.operations.assertion.write.action=true",
+                "-Dide.slow.operations.assertion.action.perform=true",
+                "-Dide.slow.operations.assertion.known-issues=true",
+                "-Dide.slow.operations.assertion.vcs.line-status-tracker-provider=true",
+                "-Dide.slow.operations.assertion.cwm=true",
+                "-Didea.is.internal=true",
+                // CodeScan is the WireMock copy the tests start (no WebSocket: CodeScan has none).
+                "-Dsonarlint.internal.sonarcloud.url=http://localhost:$wiremockPort",
                 "-Dsonarlint.telemetry.disabled=true",
                 "-Dsonarlint.logs.verbose=true",
                 "-Didea.trust.all.projects=true",
                 "-Dide.show.tips.on.startup.default.value=false",
+                // Newer IDEs (seen on 2026.1.5) offer a tour of the new UI in a modal dialog when the first project
+                // opens. The dialog takes the keys the tests type.
+                "-Dide.experimental.ui.onboarding=false",
                 "-Dide.experimental.ui.navbar.scroll=true",
                 "-Djb.privacy.policy.text=<!--999.999-->",
                 "-Djb.consents.confirmation.enabled=false",
@@ -144,6 +177,57 @@ val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
     }
 }
 
+// Before the UI-test IDE starts, the log folder an earlier run left in its sandbox is moved to <folder>-previous
+// (replacing an older one). Otherwise checkIdeLog, after a direct `./gradlew :its:test`, reads the earlier run's log too.
+// An empty folder (prepareSandbox creates one) is left alone, so it never replaces a real earlier log, and an empty
+// folder is always left behind: the 2026.1.5 IDE writes no idea.log at all when its log folder is missing.
+val rotateIdeLog by tasks.registering {
+    group = "verification"
+    description = "Moves the UI-test IDE's log folder from an earlier run to <folder>-previous."
+    val logDir = runIdeForUiTests.flatMap { it.task }.flatMap { it.sandboxLogDirectory }.map { it.asFile }
+    outputs.upToDateWhen { false }
+    doLast {
+        val dir = logDir.get()
+        if (!dir.list().isNullOrEmpty()) {
+            val previous = File(dir.path + "-previous")
+            previous.deleteRecursively()
+            check(dir.renameTo(previous)) { "cannot move $dir to $previous" }
+            logger.lifecycle("Moved the earlier UI-test IDE log folder to $previous")
+        }
+        check(dir.isDirectory || dir.mkdirs()) { "cannot create the IDE log folder $dir" }
+    }
+}
+
+// The UI tests fail if the IDE they drove logged a slow operation on the UI thread, wrong-thread access, a freeze or a
+// CodeScan error (scripts/qa/scan-ide-logs.sh). It also runs when the tests fail. -PideLogDir=<folder> checks another
+// IDE log folder instead of the runIdeForUiTests sandbox one. When only tests that need no IDE ran (no UI test class
+// loaded, see uiTestMarker) and -PideLogDir is not set, it is skipped with a message: there is no IDE log to read.
+// Exit codes are scan-ide-logs.sh's: 1 = CodeScan hits, 6 = hits whose source it cannot tell; both fail the build.
+// Run after :its:test, it reads the log while the IDE is still running, so it misses what the IDE logs while closing.
+// scripts/qa/run-ide-scenarios.sh checks the log again after the IDE has stopped.
+val checkIdeLog by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Checks the UI-test IDE's idea.log for slow operations on the UI thread and CodeScan errors."
+    val logDir = providers.gradleProperty("ideLogDir").map { file(it) }
+        .orElse(runIdeForUiTests.flatMap { it.task }.flatMap { it.sandboxLogDirectory }.map { it.asFile })
+    val script = rootProject.file("scripts/qa/scan-ide-logs.sh")
+    val report = layout.buildDirectory.file("reports/ide-log-check/scan.txt")
+    executable = "bash"
+    argumentProviders += CommandLineArgumentProvider {
+        listOf(script.path, logDir.get().path, report.get().asFile.path)
+    }
+    // The IDE keeps writing its log while it runs, so an earlier result never counts.
+    outputs.upToDateWhen { false }
+    val logDirGiven = providers.gradleProperty("ideLogDir").isPresent
+    onlyIf("a UI test ran, or -PideLogDir is set") {
+        val run = logDirGiven || uiTestMarker.get().asFile.exists()
+        if (!run) {
+            logger.lifecycle("IDE log check skipped: no UI test ran (only tests that need no IDE), so there is no IDE log to read")
+        }
+        run
+    }
+}
+
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
@@ -156,5 +240,6 @@ intellijPlatform {
 
 license {
     // exclude file from resources (workaround for https://github.com/hierynomus/license-gradle-plugin/issues/145)
-    excludes(listOf("**/*.jar", "**/*.png", "**/README", "**.xml"))
+    // The CodeScan recordings are WireMock JSON copied unchanged from sonarlint-core; JSON has no comment syntax for a header.
+    excludes(listOf("**/*.jar", "**/*.png", "**/README", "**.xml", "**/codescan-wiremock/*.json"))
 }

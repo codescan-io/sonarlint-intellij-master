@@ -17,30 +17,19 @@
  * License along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-package org.sonarlint.intellij.its.fixtures
+package org.sonarlint.intellij.its.utils
 
-import com.intellij.remoterobot.RemoteRobot
-import com.intellij.remoterobot.data.RemoteComponent
-import com.intellij.remoterobot.fixtures.ComponentFixture
-import com.intellij.remoterobot.fixtures.ContainerFixture
-import com.intellij.remoterobot.search.locators.byXpath
+object IdeErrors {
 
-fun ContainerFixture.stripeButton(text: String) =
-    find(StripeButtonFixture::class.java, byXpath("//div[@class='StripeButton' and @text='$text']"))
+    // Thread-rule breaks are reported by the IDE log check after the run (its checkIdeLog task), as one list.
+    // Failing each UI test on them as well would hide whether the feature itself works.
+    private val threadRuleBreaks = listOf(
+        "Slow operations are prohibited on EDT",
+        "Read access is allowed from inside read-action",
+        "Access is allowed from Event Dispatch Thread",
+    )
 
-class StripeButtonFixture(
-    remoteRobot: RemoteRobot,
-    remoteComponent: RemoteComponent
-) : ComponentFixture(remoteRobot, remoteComponent) {
-    private fun isSelected(): Boolean {
-        return callJs("component.isSelected()")
-    }
+    fun failsTest(error: String) =
+        (error.contains("sonarlint", true) || error.contains("sonarsource", true)) && threadRuleBreaks.none { error.contains(it) }
 
-    fun open() {
-        if (isSelected().not()) click()
-    }
-
-    fun close() {
-        if (isSelected()) click()
-    }
 }

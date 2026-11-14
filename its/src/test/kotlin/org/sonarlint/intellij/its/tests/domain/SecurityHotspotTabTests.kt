@@ -53,7 +53,7 @@ class SecurityHotspotTabTests {
         fun changeSecurityHotspotStatusAndPressChange(status: String) {
             with(remoteRobot) {
                 idea {
-                    dialog("Change Security Hotspot Status on SonarQube Server") {
+                    dialog("Change Security Hotspot Status on CodeScan") {
                         content(status) {
                             click()
                         }
@@ -75,6 +75,53 @@ class SecurityHotspotTabTests {
                 }
             }
         }
+
+        // Once the plugin has asked its backend, the tab shows why Security Hotspots are not supported, or the result.
+        fun waitForSecurityHotspotTabMessage(fragment: String, timeout: Duration = Duration.ofMinutes(1)) {
+            with(remoteRobot) {
+                idea {
+                    toolWindow("CodeScan") {
+                        ensureOpen()
+                        tabTitleContains("Security Hotspots") { select() }
+                        content("SecurityHotspotsPanel") {
+                            var shown = ""
+                            waitFor(
+                                timeout, Duration.ofSeconds(2), "Security Hotspots tab shows '$fragment'",
+                                { "the Security Hotspots tab never showed '$fragment'; it showed '$shown'" }
+                            ) {
+                                shown = callJs(SHOWN_MESSAGES_JS, true)
+                                shown.contains(fragment)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tab messages are the empty texts of child-less panels (SecurityHotspotsPanel.centeredLabel); read them directly.
+        // Such a panel paints its empty text only while none of its children is visible.
+        private val SHOWN_MESSAGES_JS = """
+            const shown = [];
+            function isPanelWithEmptyText(c) {
+                for (var k = c.getClass(); k != null; k = k.getSuperclass()) {
+                    if (k.getName() == "com.intellij.ui.components.JBPanelWithEmptyText") return true;
+                }
+                return false;
+            }
+            function hasVisibleChild(c) {
+                const children = c.getComponents();
+                for (var i = 0; i < children.length; i++) if (children[i].isVisible()) return true;
+                return false;
+            }
+            function collect(c) {
+                if (!c.isShowing()) return;
+                if (isPanelWithEmptyText(c) && !hasVisibleChild(c)) shown.push(String(c.getEmptyText().getText()));
+                const children = c.getComponents();
+                for (var i = 0; i < children.length; i++) collect(children[i]);
+            }
+            collect(component);
+            shown.join("\n")
+        """.trimIndent()
 
         fun verifySecurityHotspotTabContainsMessages(vararg expectedMessages: String) {
             with(remoteRobot) {

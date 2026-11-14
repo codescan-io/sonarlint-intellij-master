@@ -38,7 +38,7 @@ import org.sonarlint.intellij.its.utils.SettingsUtils.Companion.optionalIdeaFram
 class OpeningUtils {
 
     companion object {
-        fun openFile(filePath: String, fileName: String = filePath) {
+        fun openFile(filePath: String, fileName: String = filePath, waitForBackgroundTasks: Boolean = true) {
             with(remoteRobot) {
                 idea {
                     runJs(
@@ -53,7 +53,9 @@ class OpeningUtils {
                         }
         """, true
                     )
-                    waitBackgroundTasksFinished()
+                    if (waitForBackgroundTasks) {
+                        waitBackgroundTasksFinished()
+                    }
                 }
             }
         }
@@ -76,7 +78,12 @@ class OpeningUtils {
             }
         }
 
-        fun openExistingProject(projectName: String, isMaven: Boolean = false, copyProjectFiles: Boolean = true) {
+        fun openExistingProject(
+            projectName: String,
+            isMaven: Boolean = false,
+            copyProjectFiles: Boolean = true,
+            waitForIndexing: Boolean = true,
+        ) {
             if (copyProjectFiles) {
                 copyProjectFiles(projectName)
             }
@@ -112,8 +119,10 @@ class OpeningUtils {
                         }
                     }
                 }
-                idea {
-                    waitBackgroundTasksFinished()
+                if (waitForIndexing) {
+                    idea {
+                        waitBackgroundTasksFinished()
+                    }
                 }
                 if (remoteRobot.isCLion()) {
                     optionalStep {
@@ -122,10 +131,14 @@ class OpeningUtils {
                         }
                     }
                 }
-                idea {
-                    // corresponding system property has been introduced around middle of 2020
-                    // removable at some point when raising minimal version
-                    closeTipOfTheDay()
+                // closeTipOfTheDay waits for indexing to end, so a caller that does not want to wait skips it; the UI-test
+                // IDE does not show tips anyway (ide.show.tips.on.startup.default.value=false in its/build.gradle.kts).
+                if (waitForIndexing) {
+                    idea {
+                        // corresponding system property has been introduced around middle of 2020
+                        // removable at some point when raising minimal version
+                        closeTipOfTheDay()
+                    }
                 }
             }
         }

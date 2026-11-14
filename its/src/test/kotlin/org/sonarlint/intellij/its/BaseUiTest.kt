@@ -20,6 +20,7 @@
 package org.sonarlint.intellij.its
 
 import com.intellij.remoterobot.RemoteRobot
+import java.io.File
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.fail
@@ -38,6 +39,7 @@ import org.sonarlint.intellij.its.fixtures.isRider
 import org.sonarlint.intellij.its.fixtures.isSQLPlugin
 import org.sonarlint.intellij.its.fixtures.tool.window.TabContentFixture
 import org.sonarlint.intellij.its.fixtures.tool.window.toolWindow
+import org.sonarlint.intellij.its.utils.IdeErrors
 import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.closeProject
 import org.sonarlint.intellij.its.utils.StepsLogger
 import org.sonarlint.intellij.its.utils.ThreadDumpOnFailure
@@ -56,10 +58,16 @@ open class BaseUiTest {
         init {
             StepsLogger.init()
             remoteRobot = RemoteRobot(robotUrl)
+            // Tells the Gradle log check (its checkIdeLog task) that UI tests ran, so the IDE's log must be read.
+            System.getProperty("its.ui.marker")?.let { File(it).apply { parentFile.mkdirs() }.writeText("a UI test class loaded\n") }
         }
 
         @JvmStatic
         fun isIdeaCommunity() = remoteRobot.isIdea() && remoteRobot.isBuildCommunity()
+
+        // IntelliJ IDEA of either edition: from 2025.3 JetBrains ships only the unified (IU) build.
+        @JvmStatic
+        fun isIdea() = remoteRobot.isIdea()
 
         @JvmStatic
         fun isIdeaUltimate() = remoteRobot.isIdea() && remoteRobot.isBuildUltimate()
@@ -111,9 +119,9 @@ open class BaseUiTest {
             closeAllDialogs()
             optionalStep {
                 sonarlintLogPanel {
-                    println("SonarQube for IDE log outputs:")
+                    println("CodeScan log outputs:")
                     println(console().text)
-                    toolBarButton("Clear SonarQube for IDE Console").click()
+                    toolBarButton("Clear CodeScan Console").click()
                 }
             }
             if (remoteRobot.isCLion()) {
@@ -131,7 +139,7 @@ open class BaseUiTest {
 
     private fun failTestIfUncaughtExceptions() {
         val uncaughtExceptions = getUncaughtExceptions()
-        val shouldFailTest = uncaughtExceptions.any { e -> e.contains("sonarlint", true) || e.contains("sonarsource", true) }
+        val shouldFailTest = uncaughtExceptions.any { IdeErrors.failsTest(it) }
         uncaughtExceptions.forEach { e -> println("Uncaught error during the test: $e") }
         clearExceptions()
         if (shouldFailTest) {
