@@ -69,33 +69,37 @@ class CodeScanScenarioTests : BaseUiTest() {
     @Test
     fun openProjectDuringIndexing() = uiTest {
         markInIdeLog("start", "openProjectDuringIndexing")
-        openExistingProject("codescan-sample", waitForIndexing = false)
-        waitForProject()
-        // A small project can finish indexing before the file is open, so the IDE is held in indexing ("dumb") mode
-        // until the file is saved. (openLargeProjectDuringRealIndexing does the same during real indexing.)
-        setIndexingHold(true)
         try {
-            waitFor(Duration.ofSeconds(10), Duration.ofMillis(500), "the IDE did not enter indexing mode") { isIndexing() }
-            openFile("src/main/java/sample/Greeter.java", "Greeter.java", waitForBackgroundTasks = false)
+            openExistingProject("codescan-sample", waitForIndexing = false)
+            waitForProject()
+            // A small project can finish indexing before the file is open, so the IDE is held in indexing ("dumb") mode
+            // until the file is saved. (openLargeProjectDuringRealIndexing does the same during real indexing.)
+            setIndexingHold(true)
+            try {
+                waitFor(Duration.ofSeconds(10), Duration.ofMillis(500), "the IDE did not enter indexing mode") { isIndexing() }
+                openFile("src/main/java/sample/Greeter.java", "Greeter.java", waitForBackgroundTasks = false)
 
-            typeLineBelowMarker("Greeter.java", "int typed = 0;")
-            saveAll()
-        } finally {
-            setIndexingHold(false)
-        }
-
-        // Greeter.java has 2 issues (unused local, System.out); the typed line adds a second unused local.
-        waitForCurrentFileTabMessage("Found 3 issues in 1 file", Duration.ofMinutes(5))
-
-        sonarLintGlobalSettings {
-            findText("Rules").click()
-            searchRule("java:S106")
-            waitFor(Duration.ofSeconds(60), Duration.ofSeconds(2), "the Rules tab never listed java:S106") {
-                hasText("Standard outputs should not be used directly to log anything")
+                typeLineBelowMarker("Greeter.java", "int typed = 0;")
+                saveAll()
+            } finally {
+                setIndexingHold(false)
             }
-            pressCancel()
+
+            // Greeter.java has 2 issues (unused local, System.out); the typed line adds a second unused local.
+            waitForCurrentFileTabMessage("Found 3 issues in 1 file", Duration.ofMinutes(5))
+
+            sonarLintGlobalSettings {
+                findText("Rules").click()
+                searchRule("java:S106")
+                waitFor(Duration.ofSeconds(60), Duration.ofSeconds(2), "the Rules tab never listed java:S106") {
+                    hasText("Standard outputs should not be used directly to log anything")
+                }
+                pressCancel()
+            }
+        } finally {
+            // Also after a failure, so that later log entries are not read as part of this scenario.
+            markInIdeLog("end", "openProjectDuringIndexing")
         }
-        markInIdeLog("end", "openProjectDuringIndexing")
     }
 
     // The same steps while the IDE really indexes a larger project: a copy of the folder given with -PindexingProject
@@ -113,28 +117,31 @@ class CodeScanScenarioTests : BaseUiTest() {
         println("Real-indexing project: ${project.absolutePath} (${project.walkTopDown().count { it.isFile }} files)")
 
         markInIdeLog("start", "openLargeProjectDuringRealIndexing")
-        openExistingProject("codescan-indexing", copyProjectFiles = false, waitForIndexing = false)
-        waitForProject()
-        waitFor(Duration.ofSeconds(60), Duration.ofMillis(500), "the IDE never started indexing the project") { isIndexingRunning() }
-        openFile("src/main/java/sample/Greeter.java", "Greeter.java", waitForBackgroundTasks = false)
-        typeLineBelowMarker("Greeter.java", "int typed = 0;")
-        saveAll()
-        assertThat(isIndexingRunning())
-            .describedAs("indexing was still running after Greeter.java was opened, typed in and saved; if it was over, raise -PindexingFiles (now $fileCount)")
-            .isTrue()
+        try {
+            openExistingProject("codescan-indexing", copyProjectFiles = false, waitForIndexing = false)
+            waitForProject()
+            waitFor(Duration.ofSeconds(60), Duration.ofMillis(500), "the IDE never started indexing the project") { isIndexingRunning() }
+            openFile("src/main/java/sample/Greeter.java", "Greeter.java", waitForBackgroundTasks = false)
+            typeLineBelowMarker("Greeter.java", "int typed = 0;")
+            saveAll()
+            assertThat(isIndexingRunning())
+                .describedAs("indexing was still running after Greeter.java was opened, typed in and saved; if it was over, raise -PindexingFiles (now $fileCount)")
+                .isTrue()
 
-        sonarLintGlobalSettings {
-            findText("Rules").click()
-            searchRule("java:S106")
-            waitFor(Duration.ofSeconds(90), Duration.ofSeconds(2), "the Rules tab never listed java:S106") {
-                hasText("Standard outputs should not be used directly to log anything")
+            sonarLintGlobalSettings {
+                findText("Rules").click()
+                searchRule("java:S106")
+                waitFor(Duration.ofSeconds(90), Duration.ofSeconds(2), "the Rules tab never listed java:S106") {
+                    hasText("Standard outputs should not be used directly to log anything")
+                }
+                pressCancel()
             }
-            pressCancel()
-        }
-        println("Indexing still running after the settings were closed: ${isIndexingRunning()}")
+            println("Indexing still running after the settings were closed: ${isIndexingRunning()}")
 
-        waitForCurrentFileTabMessage("Found 3 issues in 1 file", Duration.ofMinutes(10))
-        markInIdeLog("end", "openLargeProjectDuringRealIndexing")
+            waitForCurrentFileTabMessage("Found 3 issues in 1 file", Duration.ofMinutes(10))
+        } finally {
+            markInIdeLog("end", "openLargeProjectDuringRealIndexing")
+        }
     }
 
     // projects/codescan-indexing-tmp: the sample project, a copy of [source] under apex-recipes/ (without version
@@ -156,18 +163,20 @@ class CodeScanScenarioTests : BaseUiTest() {
         return project
     }
 
+    // 60 methods with names unique to each file: with 12 shared names, 2023.1.7 indexed 6000 files in 5 s, before the
+    // scenario had saved its edit; 2026.1.5 took longer.
     private fun generatedClass(pkg: String, i: Int): String {
-        val methods = (0 until 12).joinToString("\n") { m ->
+        val methods = (0 until 60).joinToString("\n") { m ->
             """
-            |    public int compute$m(int input) {
+            |    public int compute${i}x$m(int input) {
             |        int total = input + VALUE + $m;
             |        for (int k = 0; k < $m; k++) {
-            |            total += helper$m(k);
+            |            total += helper${i}x$m(k);
             |        }
             |        return total;
             |    }
             |
-            |    private static int helper$m(int k) {
+            |    private static int helper${i}x$m(int k) {
             |        return k * ${i % 97 + 1};
             |    }
             |""".trimMargin()
