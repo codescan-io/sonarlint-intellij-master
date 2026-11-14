@@ -47,6 +47,15 @@
 
     <change-notes><![CDATA[
       <ul>
+        <li>8.0.0 - Updated to the SonarLint for IntelliJ 10.14 code base, with all CodeScan changes kept.
+          Fixes the "slow operations are prohibited on the UI thread" errors and freezes on current IntelliJ versions (up to 2026.1):
+          opening Project Settings no longer searches every settings page, rule highlights in Settings no longer block, and the
+          before-commit check offers "Commit Anyway" / "Abort" if it runs longer than 60 seconds.
+          The Security Hotspots tab no longer shows a false "service stopped working" message, and Space now works on a rule in Settings > Rules.
+          Kotlin analysis works on IntelliJ 2026.1 for projects that are not bound to a CodeScan server.
+          Plugin error reports now go to CodeScan, and help links open the CodeScan knowledge base.
+          Passwords and tokens are masked in the analysis settings log.
+          Supports IntelliJ IDEA 2023.1 and later. Rider and CLion are no longer supported.</li>
         <li>7.3.0 - Added support of Sonarqube 24.12 and fixed compatibility issue with CodeScan Cloud 25.1.0</li>
         <li>7.2.2 - Added support for CodeScan 24.0.9.</li>
         <li>7.2.1 - Added a fix for the plugin throwing an error when connecting to self-hosted SonarQube 10.x server.</li>

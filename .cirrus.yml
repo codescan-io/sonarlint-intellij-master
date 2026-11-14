@@ -7,7 +7,7 @@ env:
   ARTIFACTORY_PRIVATE_PASSWORD: VAULT[development/artifactory/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-private-reader access_token]
   SLACK_TOKEN: VAULT[development/kv/data/slack data.token]
   SLACK_CHANNEL: squad-ide-intellij-family-bots
-  GRADLE_VERSION: "8.9"
+  GRADLE_VERSION: "8.14.3"
   GRADLE_USER_HOME: ${CIRRUS_WORKING_DIR}/.gradle_cache
   IDEA_HOME: "/opt/intellij"
   RIDER_HOME: "/opt/rider"
@@ -184,7 +184,7 @@ plugin_verifier_task:
     memory: 10G
   matrix:
     - env:
-        IDEA_VERSION: '2022.3.1'
+        IDEA_VERSION: '2023.1.7'
     - env:
         IDEA_VERSION: '2024.1.4'
     - env:
@@ -202,7 +202,7 @@ plugin_verifier_task:
     source .cirrus/use-gradle-wrapper.sh
     VERSIONS=$(curl -s -L https://jb.gg/intellij-platform-builds-list | jq '.[] | "\(.code) \(.releases[].version)"' | grep -Ew "${ALLOWED_IDE}" | grep "${IDEA_VERSION}" | tr -d '"' | awk '{k=$1} $2>a[k]{a[k]=$2} END{for (i in a) print i, a[i]}' | sort -u | sed 's/ /-/' | paste -s -d',')
     echo ${VERSIONS}
-    ./gradlew :runPluginVerifier -PverifierVersions=${VERSIONS}
+    ./gradlew :verifyPlugin -PverifierVersions=${VERSIONS}
   <<: *CLEANUP_GRADLE_CACHE_SCRIPT
   on_failure:
     reports_artifacts:
@@ -264,20 +264,20 @@ qa_task:
     variable_name: WEBSTORM_KEY
   matrix:
     - env:
-        IDEA_VERSION: 'IC-2022.3.1'
-        QA_CATEGORY: 'Idea2022'
+        IDEA_VERSION: 'IC-2023.1.7'
+        QA_CATEGORY: 'Idea2023'
         TEST_SUITE: 'OpenInIdeTests'
     - env:
-        IDEA_VERSION: 'IC-2022.3.1'
-        QA_CATEGORY: 'Idea2022'
+        IDEA_VERSION: 'IC-2023.1.7'
+        QA_CATEGORY: 'Idea2023'
         TEST_SUITE: 'ConnectedAnalysisTests'
     - env:
-        IDEA_VERSION: 'IC-2022.3.1'
-        QA_CATEGORY: 'Idea2022'
+        IDEA_VERSION: 'IC-2023.1.7'
+        QA_CATEGORY: 'Idea2023'
         TEST_SUITE: 'ConfigurationTests'
     - env:
-        IDEA_VERSION: 'IC-2022.3.1'
-        QA_CATEGORY: 'Idea2022'
+        IDEA_VERSION: 'IC-2023.1.7'
+        QA_CATEGORY: 'Idea2023'
         TEST_SUITE: 'Standalone'
     - env:
         IDEA_VERSION: 'IC-2024.1.4'
@@ -296,44 +296,44 @@ qa_task:
         QA_CATEGORY: 'Idea2024'
         TEST_SUITE: 'Standalone'
     - env:
-        IDEA_VERSION: 'IU-2022.3.1'
-        QA_CATEGORY: 'IdeaUltimate2022'
+        IDEA_VERSION: 'IU-2023.1.7'
+        QA_CATEGORY: 'IdeaUltimate2023'
     - env:
         IDEA_VERSION: 'IU-2024.1.4'
         QA_CATEGORY: 'IdeaUltimate2024'
     - env:
-        IDEA_VERSION: 'PY-2022.3.1'
-        QA_CATEGORY: 'PyCharmProfessional2022'
+        IDEA_VERSION: 'PY-2023.1.7'
+        QA_CATEGORY: 'PyCharmProfessional2023'
     - env:
         IDEA_VERSION: 'PY-2024.1.4'
         QA_CATEGORY: 'PyCharmProfessional2024'
     - env:
-        IDEA_VERSION: 'PC-2022.3.1'
-        QA_CATEGORY: 'PyCharmCommunity2022'
+        IDEA_VERSION: 'PC-2023.1.7'
+        QA_CATEGORY: 'PyCharmCommunity2023'
     - env:
         IDEA_VERSION: 'PC-2024.1.4'
         QA_CATEGORY: 'PyCharmCommunity2024'
     - env:
-        IDEA_VERSION: 'RD-2022.3.1'
-        QA_CATEGORY: 'Rider2022'
+        IDEA_VERSION: 'RD-2023.1.7'
+        QA_CATEGORY: 'Rider2023'
     - env:
         IDEA_VERSION: 'RD-2024.1.4'
         QA_CATEGORY: 'Rider2024'
     - env:
-        IDEA_VERSION: 'PS-2022.3.1'
-        QA_CATEGORY: 'PhpStorm2022'
+        IDEA_VERSION: 'PS-2023.1.7'
+        QA_CATEGORY: 'PhpStorm2023'
     - env:
         IDEA_VERSION: 'PS-2024.1.4'
         QA_CATEGORY: 'PhpStorm2024'
     - env:
-        IDEA_VERSION: 'GO-2022.3.1'
-        QA_CATEGORY: 'GoLand2022'
+        IDEA_VERSION: 'GO-2023.1.7'
+        QA_CATEGORY: 'GoLand2023'
     - env:
         IDEA_VERSION: 'GO-2024.1.4'
         QA_CATEGORY: 'GoLand2024'
     - env:
-        IDEA_VERSION: 'CL-2022.3.1'
-        QA_CATEGORY: 'CLion2022'
+        IDEA_VERSION: 'CL-2023.1.7'
+        QA_CATEGORY: 'CLion2023'
     - env:
         IDEA_VERSION: 'CL-2024.1.4'
         QA_CATEGORY: 'CLion2024'
