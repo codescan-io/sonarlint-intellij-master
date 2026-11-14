@@ -3,7 +3,7 @@
 # by default in a Linux Docker container on a virtual screen, then checks the IDE's idea.log with scan-ide-logs.sh.
 #
 # Usage: run-ide-scenarios.sh <ide-version> [--foreground] [--plugin <plugin.zip>] [--tests <filter>] [--out <dir>]
-#                              [--indexing-project <folder>]
+#                              [--indexing-project <folder>] [--staging]
 #   <ide-version>  2023.1.7, 2026.1.5, ...: IntelliJ IDEA Community (IC) before 2025.3, the single IntelliJ IDEA (IU)
 #                  from 2025.3 on. A full Gradle value such as IC-2024.1.7 or IU-2026.1.5 is used as it is.
 #   --foreground   run on this machine's own screen instead of in Docker (for debugging). The UI tests move the mouse
@@ -15,7 +15,12 @@
 #   --indexing-project  a larger project for the real-indexing scenario (CodeScanScenarioTests): the test indexes a copy
 #                  of it plus generated Java files, and never writes to the folder (in Docker it is mounted read-only).
 #                  Without it, or when the folder is missing, that scenario is skipped (a warning says so).
-# Env:   QA_CACHE_DIR      the container's Gradle cache, with the downloaded IDEs, is kept in $QA_CACHE_DIR/gradle-home
+#   --staging      run the live-server test (CodeScanStagingTests; --tests still picks other tests) against the CodeScan
+#                  server in CODESCAN_URL (default https://staging.codescan.io) with CODESCAN_TOKEN, CODESCAN_ORG and
+#                  CODESCAN_PROJECT from this environment. They reach the container by name only (docker run -e NAME),
+#                  never on a command line. CODESCAN_TOKEN must be set. After the run, every result file that holds
+#                  the token is deleted and the run fails (exit 7). Without --staging none of them reach the container.
+# Env:  QA_CACHE_DIR      the container's Gradle cache, with the downloaded IDEs, is kept in $QA_CACHE_DIR/gradle-home
 #                          (default ~/.cache/codescan-qa)
 #        QA_DOCKER_CPUS / QA_DOCKER_MEMORY   container limits (6 / 6g)
 #        PREPARE_TIMEOUT_SEC, START_TIMEOUT_SEC, TEST_TIMEOUT_SEC: see its-run.sh
@@ -36,7 +41,9 @@
 #            and printed.
 #        6 = the UI tests passed and the log check found no CodeScan hits, but some hits whose source it cannot tell
 #            ("unknown", for example a slow operation logged with no stack trace). They might be CodeScan's: read
-#            scan.txt. Order when several apply: 3, 4, 5, 1, 6.
+#            scan.txt.
+#        7 = (--staging) a result file held the CodeScan token; those files were deleted. Order when several apply:
+#            7, 3, 4, 5, 1, 6.
 # Hits from the IDE or another plugin ("other") do not fail the run; they are counted on the "Log check:" line.
 # Works with macOS bash 3.2 and Linux bash.
 set -u
@@ -50,6 +57,7 @@ PLUGIN=""
 TESTS=""
 OUT=""
 INDEXING_PROJECT=""
+STAGING=0
 
 usage() { sed -n '2,/^set -u/{/^set -u/!p;}' "$0" >&2; exit 2; }
 need_value() { [ $# -ge 2 ] && [ -n "$2" ] || { echo "error: $1 needs a value" >&2; usage; }; }
@@ -61,11 +69,18 @@ while [ $# -gt 0 ]; do
     --tests) need_value "$@"; TESTS="$2"; shift 2 ;;
     --out) need_value "$@"; OUT="$2"; shift 2 ;;
     --indexing-project) need_value "$@"; INDEXING_PROJECT="$2"; shift 2 ;;
+    --staging) STAGING=1; shift ;;
     -*) echo "error: unknown argument: $1" >&2; usage ;;
     *) [ -z "$VERSION" ] || { echo "error: only one <ide-version>" >&2; usage; }; VERSION="$1"; shift ;;
   esac
 done
 [ -n "$VERSION" ] || { echo "error: <ide-version> is required" >&2; usage; }
+STAGING_ENV=""
+if [ "$STAGING" -eq 1 ]; then
+  [ -n "${CODESCAN_TOKEN:-}" ] || { echo "error: --staging needs CODESCAN_TOKEN in the environment" >&2; usage; }
+  [ -n "$TESTS" ] || TESTS='*CodeScanStagingTests*'
+  STAGING_ENV="-e CODESCAN_TOKEN -e CODESCAN_URL -e CODESCAN_ORG -e CODESCAN_PROJECT"
+fi
 
 # JetBrains ships one IntelliJ IDEA (product code IU) from 2025.3 on; before that the free edition is IC.
 case "$VERSION" in
@@ -102,6 +117,27 @@ rm -rf "$OUT/log" "$OUT/test-results" "$OUT/test-report" "$OUT/screens" "$OUT/pl
 # name once it starts: what a signal must stop.
 BG_PID=""
 NAME=""
+
+# The result files that hold the CodeScan token. grep reads the token from a pattern file, so it is not on a command line.
+token_files() {
+  grep -rlF --exclude-dir=plugin -f <(printf '%s\n' "$CODESCAN_TOKEN") "$OUT" 2>/dev/null
+}
+
+# Exits with $1. With --staging, the result files that hold the token are deleted first and the exit is 7.
+end_run() {
+  if [ "$STAGING" -eq 1 ]; then
+    local leaked
+    leaked="$(token_files | wc -l | tr -d ' ')"
+    echo "Token check: $leaked result file(s) hold the CodeScan token"
+    if [ "$leaked" -gt 0 ]; then
+      token_files | while IFS= read -r f; do rm -f "$f"; done
+      echo "error: the CodeScan token was in $leaked result file(s) under $OUT; they were deleted" >&2
+      exit 7
+    fi
+  fi
+  exit "$1"
+}
+
 on_signal() {
   trap '' HUP INT TERM
   echo "error: interrupted by SIG$1; stopping the run" >&2
@@ -109,7 +145,7 @@ on_signal() {
   # stop_tree sends SIGTERM to the whole job at once. With --foreground that includes its-run.sh, which then stops its
   # IDE and Gradle runs (the IDE gets up to STOP_TIMEOUT_SEC, 90 s); whatever still runs after 120 s is killed.
   [ -n "$BG_PID" ] && stop_tree "$BG_PID" 120
-  exit 3
+  end_run 3
 }
 trap 'on_signal HUP' HUP
 trap 'on_signal INT' INT
@@ -192,9 +228,11 @@ else
   # The sources are copied inside the container, so its build output never lands in this tree.
   # MALLOC_ARENA_MAX: uncapped, the C library keeps up to 8 memory pools per CPU in each Java process and holds on to
   # freed memory; the 2026.1.5 IDE held 637 MB that way and was killed (exit 137) in 6 GB.
+  # STAGING_ENV is "-e NAME" words (variable names only), split on purpose.
+  # shellcheck disable=SC2086
   docker run --rm --name "$NAME" --cpus "${QA_DOCKER_CPUS:-6}" --memory "${QA_DOCKER_MEMORY:-6g}" --shm-size 1g \
     -e MALLOC_ARENA_MAX=2 \
-    -e PREPARE_TIMEOUT_SEC -e START_TIMEOUT_SEC -e TEST_TIMEOUT_SEC -e INDEXING_FILES \
+    -e PREPARE_TIMEOUT_SEC -e START_TIMEOUT_SEC -e TEST_TIMEOUT_SEC -e INDEXING_FILES $STAGING_ENV \
     -v "$ROOT:/src:ro" \
     ${INDEXING_MOUNT:+-v "$INDEXING_MOUNT"} \
     -v "$OUT/plugin:/plugin:ro" \
@@ -220,7 +258,7 @@ fi
 case "$RC" in
   0|5) ;;
   *) echo "error: the UI test run did not happen (exit $RC); see $OUT/run.log" >&2
-     [ -s "$OUT/log/idea.log" ] || exit 3 ;;
+     [ -s "$OUT/log/idea.log" ] || end_run 3 ;;
 esac
 
 # The test classes a full run (no --tests) must have run at least one test of. A skipped test did not run: JUnit
@@ -283,8 +321,8 @@ else
   echo "error: the run left no IDE log folder" >&2
 fi
 
-[ "$RC" -ne 0 ] && [ "$RC" -ne 5 ] && exit 3
-case "$SCAN_RC" in 3|4) exit 4 ;; 0|1|6) ;; *) exit 4 ;; esac
-[ "$RC" -eq 5 ] && [ "$TESTS_OK" -eq 0 ] && [ "$SCAN_RC" -eq 0 ] && { echo "error: :its:test failed but no UI test did; see $OUT/gradle-test.log" >&2; exit 5; }
-[ "$TESTS_OK" -ne 0 ] && exit 5
-exit "$SCAN_RC"
+[ "$RC" -ne 0 ] && [ "$RC" -ne 5 ] && end_run 3
+case "$SCAN_RC" in 3|4) end_run 4 ;; 0|1|6) ;; *) end_run 4 ;; esac
+[ "$RC" -eq 5 ] && [ "$TESTS_OK" -eq 0 ] && [ "$SCAN_RC" -eq 0 ] && { echo "error: :its:test failed but no UI test did; see $OUT/gradle-test.log" >&2; end_run 5; }
+[ "$TESTS_OK" -ne 0 ] && end_run 5
+end_run "$SCAN_RC"
