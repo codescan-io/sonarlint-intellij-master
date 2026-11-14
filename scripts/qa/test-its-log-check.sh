@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Tests the Gradle wiring of the UI-test log check (:its:checkIdeLog, run after :its:test).
 # Run from anywhere with a JDK 17 on JAVA_HOME: bash scripts/qa/test-its-log-check.sh
-# Slow (3 Gradle runs, about a minute each with a warm Gradle cache). Works with macOS bash 3.2 and Linux bash.
+# Slow (9 Gradle runs, up to a minute each with a warm Gradle cache). Works with macOS bash 3.2 and Linux bash.
+# It moves the default UI-test sandbox's IDE log folder aside (to <folder>-previous), as the start of a UI test run does.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -25,6 +26,12 @@ not_ok() {
   echo "       $2"
   echo "$OUT" | tail -40 | sed 's/^/       | /'
 }
+expect_code() {
+  if [ "$CODE" -eq "$2" ]; then ok "$1: Gradle exit $2"; else not_ok "$1: Gradle exit $2" "got exit $CODE"; fi
+}
+expect_no_out() {
+  if printf '%s\n' "$OUT" | grep -F -q -- "$2"; then not_ok "$1: output lacks '$2'" "present"; else ok "$1: output lacks '$2'"; fi
+}
 expect_out() {
   if printf '%s\n' "$OUT" | grep -F -q -- "$2"; then ok "$1: output has '$2'"; else not_ok "$1: output has '$2'" "missing"; fi
 }
@@ -38,10 +45,21 @@ mkdir -p "$TMP/slow" "$TMP/clean"
   printf '\tat org.sonarlint.intellij.config.project.SonarLintProjectConfigurable.reset(SonarLintProjectConfigurable.java:125)\n'
 } > "$TMP/slow/idea.log"
 echo "$TS   INFO - #c.i.i.StartupUtil - IDE STARTED" > "$TMP/clean/idea.log"
+# A slow operation with no stack trace: the log check cannot tell whether it is CodeScan's.
+mkdir -p "$TMP/unknown"
+echo "$TS  ERROR - #c.i.u.SlowOperations - Slow operations are prohibited on EDT. See SlowOperations.assertSlowOperationsAreAllowed javadoc." > "$TMP/unknown/idea.log"
 
+# The failure must be the log check's own (scan-ide-logs.sh exit 1), not any other Gradle failure.
 run_gradle :its:checkIdeLog -PideLogDir="$TMP/slow"
-if [ "$CODE" -ne 0 ]; then ok "known slow operation: Gradle fails"; else not_ok "known slow operation: Gradle fails" "Gradle passed"; fi
+expect_code "known slow operation" 1
+expect_out "known slow operation" "Execution failed for task ':its:checkIdeLog'"
+expect_out "known slow operation" "finished with non-zero exit value 1"
 expect_out "known slow operation" "CodeScan total: 1"
+
+run_gradle :its:checkIdeLog -PideLogDir="$TMP/unknown"
+expect_code "unknown hit" 1
+expect_out "unknown hit" "Execution failed for task ':its:checkIdeLog'"
+expect_out "unknown hit" "finished with non-zero exit value 6"
 
 run_gradle :its:checkIdeLog -PideLogDir="$TMP/clean"
 if [ "$CODE" -eq 0 ]; then ok "clean log: Gradle passes"; else not_ok "clean log: Gradle passes" "Gradle failed (exit $CODE)"; fi
@@ -49,6 +67,31 @@ if [ "$CODE" -eq 0 ]; then ok "clean log: Gradle passes"; else not_ok "clean log
 # The check must run after the UI tests, also when they fail.
 run_gradle :its:test --dry-run
 expect_out "after :its:test" ":its:checkIdeLog SKIPPED"
+
+# Only tests that need no IDE ran (no UI test class was loaded): there is no IDE log to read, so the check is skipped
+# with a message, not failed. A marker left by an earlier run must not count.
+MARKER="$ROOT/its/build/its-ui-test-ran.txt"
+mkdir -p "$(dirname "$MARKER")" && echo "left by an earlier run" > "$MARKER"
+run_gradle :its:test --tests 'org.sonarlint.intellij.its.utils.IdeErrorsTest'
+expect_code "IDE-free tests only" 0
+expect_out "IDE-free tests only" "IDE log check skipped"
+expect_no_out "IDE-free tests only" "non-zero exit value"
+
+# A UI test run first moves the sandbox's old IDE log folder aside, so an earlier run's log is never checked again.
+SANDBOX_LOG="$ROOT/its/build/idea-sandbox/IC-2023.1.7/log_runIdeForUiTests"
+rm -rf "$SANDBOX_LOG-previous"
+mkdir -p "$SANDBOX_LOG" && echo "old run $$" > "$SANDBOX_LOG/idea.log"
+run_gradle :its:rotateIdeLog
+expect_code "rotate the IDE log" 0
+if [ ! -e "$SANDBOX_LOG" ] && grep -q "old run $$" "$SANDBOX_LOG-previous/idea.log" 2>/dev/null; then
+  ok "rotate the IDE log: moved to log_runIdeForUiTests-previous"
+else
+  not_ok "rotate the IDE log: moved to log_runIdeForUiTests-previous" "$(ls -d "$SANDBOX_LOG"* 2>&1)"
+fi
+run_gradle :its:rotateIdeLog
+expect_code "rotate with no log folder" 0
+run_gradle :its:runIdeForUiTests --dry-run
+expect_out "before the UI-test IDE starts" ":its:rotateIdeLog SKIPPED"
 
 echo
 echo "passed: $PASS  failed: $FAIL"

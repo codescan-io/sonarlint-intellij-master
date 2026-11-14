@@ -20,6 +20,7 @@
 package org.sonarlint.intellij.its
 
 import com.intellij.remoterobot.RemoteRobot
+import java.io.File
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.fail
@@ -57,6 +58,8 @@ open class BaseUiTest {
         init {
             StepsLogger.init()
             remoteRobot = RemoteRobot(robotUrl)
+            // Tells the Gradle log check (its checkIdeLog task) that UI tests ran, so the IDE's log must be read.
+            System.getProperty("its.ui.marker")?.let { File(it).apply { parentFile.mkdirs() }.writeText("a UI test class loaded\n") }
         }
 
         @JvmStatic

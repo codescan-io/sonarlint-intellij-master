@@ -14,6 +14,8 @@ val ijVersion: String by project
 val runIdeDirectory: String by project
 // The port of the WireMock copy of CodeScan: the tests start it there and the UI-test IDE uses it as its CodeScan URL.
 val wiremockPort: String = providers.gradleProperty("wiremockPort").getOrElse("18089")
+// Written by BaseUiTest when a UI test class loads (so the tests needed the IDE); checkIdeLog reads the IDE log only then.
+val uiTestMarker = layout.buildDirectory.file("its-ui-test-ran.txt")
 group = "org.sonarsource.sonarlint.intellij.its"
 description = "ITs for SonarLint IntelliJ"
 
@@ -58,6 +60,12 @@ tasks {
         }
         testLogging.showStandardStreams = true
         systemProperty("its.wiremock.port", wiremockPort)
+        systemProperty("its.ui.marker", uiTestMarker.get().asFile.path)
+        // The real-indexing scenario (CodeScanScenarioTests) indexes a copy of this folder plus generated Java files
+        // (-PindexingFiles, default 6000). Without -PindexingProject that scenario is skipped.
+        providers.gradleProperty("indexingProject").orNull?.let { systemProperty("its.indexing.project", it) }
+        providers.gradleProperty("indexingFiles").orNull?.let { systemProperty("its.indexing.files", it) }
+        doFirst { uiTestMarker.get().asFile.delete() }
         // Each run drives a live IDE: an earlier result, from this build or from the build cache, never counts.
         outputs.upToDateWhen { false }
         outputs.doNotCacheIf("it drives a live IDE") { true }
@@ -116,6 +124,7 @@ val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
     }
 
     task {
+        dependsOn("rotateIdeLog")
         jvmArgumentProviders += CommandLineArgumentProvider {
             listOf(
                 "-Xmx1G",
@@ -158,9 +167,29 @@ val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
     }
 }
 
+// Before the UI-test IDE starts, the log folder an earlier run left in its sandbox is moved to <folder>-previous
+// (replacing an older one). Otherwise checkIdeLog, after a direct `./gradlew :its:test`, reads the earlier run's log too.
+val rotateIdeLog by tasks.registering {
+    group = "verification"
+    description = "Moves the UI-test IDE's log folder from an earlier run to <folder>-previous."
+    val logDir = runIdeForUiTests.flatMap { it.task }.flatMap { it.sandboxLogDirectory }.map { it.asFile }
+    outputs.upToDateWhen { false }
+    doLast {
+        val dir = logDir.get()
+        if (dir.exists()) {
+            val previous = File(dir.path + "-previous")
+            previous.deleteRecursively()
+            check(dir.renameTo(previous)) { "cannot move $dir to $previous" }
+            logger.lifecycle("Moved the earlier UI-test IDE log folder to $previous")
+        }
+    }
+}
+
 // The UI tests fail if the IDE they drove logged a slow operation on the UI thread, wrong-thread access, a freeze or a
 // CodeScan error (scripts/qa/scan-ide-logs.sh). It also runs when the tests fail. -PideLogDir=<folder> checks another
-// IDE log folder instead of the runIdeForUiTests sandbox one.
+// IDE log folder instead of the runIdeForUiTests sandbox one. When only tests that need no IDE ran (no UI test class
+// loaded, see uiTestMarker) and -PideLogDir is not set, it is skipped with a message: there is no IDE log to read.
+// Exit codes are scan-ide-logs.sh's: 1 = CodeScan hits, 6 = hits whose source it cannot tell; both fail the build.
 // Run after :its:test, it reads the log while the IDE is still running, so it misses what the IDE logs while closing.
 // scripts/qa/run-ide-scenarios.sh checks the log again after the IDE has stopped.
 val checkIdeLog by tasks.registering(Exec::class) {
@@ -176,6 +205,14 @@ val checkIdeLog by tasks.registering(Exec::class) {
     }
     // The IDE keeps writing its log while it runs, so an earlier result never counts.
     outputs.upToDateWhen { false }
+    val logDirGiven = providers.gradleProperty("ideLogDir").isPresent
+    onlyIf("a UI test ran, or -PideLogDir is set") {
+        val run = logDirGiven || uiTestMarker.get().asFile.exists()
+        if (!run) {
+            logger.lifecycle("IDE log check skipped: no UI test ran (only tests that need no IDE), so there is no IDE log to read")
+        }
+        run
+    }
 }
 
 intellijPlatform {
