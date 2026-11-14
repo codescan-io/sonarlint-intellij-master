@@ -10,11 +10,13 @@ RUN apt-get -o Acquire::http::Timeout=60 -o Acquire::Retries=3 update \
       xvfb fluxbox xdotool x11-apps x11-utils imagemagick tesseract-ocr \
       fontconfig fonts-dejavu-core libfreetype6 \
       libxext6 libxrender1 libxtst6 libxi6 libxrandr2 libasound2t64 \
-      git unzip procps ca-certificates curl openjdk-17-jdk-headless \
+      git unzip procps ca-certificates curl openjdk-17-jdk-headless nodejs \
       libnss3 libnspr4 libgbm1 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
       libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libpango-1.0-0 libcairo2 libdbus-1-3 libxshmfence1 \
  && rm -rf /var/lib/apt/lists/*
 
+# nodejs (18.19 on Ubuntu 24.04): CodeScan's JavaScript/TypeScript/CSS analyzer needs Node.js 18.17 or later on the
+# PATH; without it the CodeScan service skips that analyzer and IntelliJ IDEA Ultimate's web-language test fails.
 # The lib* packages from libnss3 on are for the IDE's embedded browser (JCEF); without them
 # it fails to start and logs a SEVERE error that a real desktop would not have.
 
