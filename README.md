@@ -28,7 +28,10 @@ How to build
 The plugin uses a CodeScan build of sonarlint-core (`sonarlint-core` in `gradle/libs.versions.toml`), which is not published publicly.
 Install it into your local Maven repository first, from the CodeScan fork of sonarlint-core:
 
-    ./mvnw install -DskipTests
+    ./mvnw install -DskipTests -P 'dist-no-arch,!dist-linux_x64'
+
+A plain `./mvnw install -DskipTests` does not rebuild the backend zip (the `dist-no-arch` profile is off by default), so the plugin would
+silently ship the old backend from `~/.m2`.
 
 Other CodeScan libraries come from AWS CodeArtifact; see the comment above the repositories in `build.gradle.kts`. Then:
 
@@ -36,7 +39,14 @@ Other CodeScan libraries come from AWS CodeArtifact; see the comment above the r
 
 Note that the above won't run tests and checks. To do that too, run:
 
-    ./gradlew check buildPlugin
+    ./gradlew :check :common:check :git:check :its:license buildPlugin
+
+(A plain `./gradlew check` also runs the UI tests in `its`, which need a running IDE.)
+
+To check that the plugin still installs on the supported IDEs (2023.1 and later) without using removed APIs, run the JetBrains
+plugin verifier. The list of IDEs is in `build.gradle.kts`; to pick your own:
+
+    ./gradlew verifyPlugin -PverifierVersions=IC-2023.1.7,IU-2026.1.5
 
 For the complete list of tasks, see:
 
@@ -55,7 +65,7 @@ Finally, close the IDE.
 
 To test against a specific version of IntelliJ, the `ijVersion` property can be used, e.g.:
 
-    ./gradlew :its:runIdeForUiTests  -PijVersion=IC-2019.3 &
+    ./gradlew :its:runIdeForUiTests  -PijVersion=IC-2023.1.7 &
 
 To test against a specific IDE, the `runIdeDirectory` property can be used as such:
 
