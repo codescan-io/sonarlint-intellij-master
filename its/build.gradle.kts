@@ -129,8 +129,18 @@ val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
             listOf(
                 "-Xmx1G",
                 "-Drobot-server.port=8082",
-                // Any slow operation on the UI thread is logged as an error, which checkIdeLog then reports.
+                // A slow operation on the UI thread is logged as an error, which checkIdeLog then reports. The main
+                // switch alone misses some: each section below has its own switch, and these are off by default
+                // (2023.1.7: the main switch, write.action, action.perform, vcs.line-status-tracker-provider, cwm;
+                // 2026.1.5: write.action, action.perform, known-issues, vcs.line-status-tracker-provider). A switch an
+                // IDE does not know is ignored. CodeScanScenarioTests.slowOperationChecksAreOn checks that every
+                // "ide.slow.operations.assertion*" switch the running IDE knows is on.
                 "-Dide.slow.operations.assertion=true",
+                "-Dide.slow.operations.assertion.write.action=true",
+                "-Dide.slow.operations.assertion.action.perform=true",
+                "-Dide.slow.operations.assertion.known-issues=true",
+                "-Dide.slow.operations.assertion.vcs.line-status-tracker-provider=true",
+                "-Dide.slow.operations.assertion.cwm=true",
                 "-Didea.is.internal=true",
                 // CodeScan is the WireMock copy the tests start (no WebSocket: CodeScan has none).
                 "-Dsonarlint.internal.sonarcloud.url=http://localhost:$wiremockPort",
