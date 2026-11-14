@@ -70,6 +70,7 @@ import org.sonarlint.intellij.config.Settings.getSettingsFor
 import org.sonarlint.intellij.config.global.NodeJsSettings
 import org.sonarlint.intellij.config.global.ServerConnection
 import org.sonarlint.intellij.config.global.SonarLintGlobalSettings
+import org.sonarlint.intellij.finding.hotspot.SecurityHotspotsRefreshTrigger
 import org.sonarlint.intellij.finding.issue.vulnerabilities.TaintVulnerabilityMatcher
 import org.sonarlint.intellij.fs.VirtualFileEvent
 import org.sonarlint.intellij.messages.GlobalConfigurationListener
@@ -840,6 +841,9 @@ class BackendService : Disposable {
                     ModuleManager.getInstance(project).modules.map { toConfigurationScope(it, binding) }
                 )
             )
+            // CodeScan: refreshViews() cannot clear the hotspot tab's "service stopped" error if no file was analysed yet.
+            // Ask the restarted service again, now that it knows the project (the refresh runs on a pooled thread).
+            getService(project, SecurityHotspotsRefreshTrigger::class.java).triggerRefresh()
         }
     }
 
