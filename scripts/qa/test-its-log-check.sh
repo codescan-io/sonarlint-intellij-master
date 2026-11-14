@@ -78,18 +78,32 @@ expect_out "IDE-free tests only" "IDE log check skipped"
 expect_no_out "IDE-free tests only" "non-zero exit value"
 
 # A UI test run first moves the sandbox's old IDE log folder aside, so an earlier run's log is never checked again.
+# The log folder must exist again afterwards: the 2026.1.5 IDE writes no idea.log when its log folder is missing.
 SANDBOX_LOG="$ROOT/its/build/idea-sandbox/IC-2023.1.7/log_runIdeForUiTests"
+empty_log_folder() { [ -d "$SANDBOX_LOG" ] && [ -z "$(ls -A "$SANDBOX_LOG")" ]; }
 rm -rf "$SANDBOX_LOG-previous"
 mkdir -p "$SANDBOX_LOG" && echo "old run $$" > "$SANDBOX_LOG/idea.log"
 run_gradle :its:rotateIdeLog
 expect_code "rotate the IDE log" 0
-if [ ! -e "$SANDBOX_LOG" ] && grep -q "old run $$" "$SANDBOX_LOG-previous/idea.log" 2>/dev/null; then
+if grep -q "old run $$" "$SANDBOX_LOG-previous/idea.log" 2>/dev/null; then
   ok "rotate the IDE log: moved to log_runIdeForUiTests-previous"
 else
   not_ok "rotate the IDE log: moved to log_runIdeForUiTests-previous" "$(ls -d "$SANDBOX_LOG"* 2>&1)"
 fi
+empty_log_folder && ok "rotate the IDE log: an empty log folder is left for the IDE" \
+  || not_ok "rotate the IDE log: an empty log folder is left for the IDE" "$(ls -la "$SANDBOX_LOG" 2>&1)"
+# prepareSandbox creates an empty log folder just before; moving it would replace the real earlier log.
+run_gradle :its:rotateIdeLog
+expect_code "rotate an empty log folder" 0
+grep -q "old run $$" "$SANDBOX_LOG-previous/idea.log" 2>/dev/null && ok "rotate an empty log folder: the earlier log is kept" \
+  || not_ok "rotate an empty log folder: the earlier log is kept" "$(ls -la "$SANDBOX_LOG-previous" 2>&1)"
+empty_log_folder && ok "rotate an empty log folder: the log folder is still there" \
+  || not_ok "rotate an empty log folder: the log folder is still there" "$(ls -la "$SANDBOX_LOG" 2>&1)"
+rm -rf "$SANDBOX_LOG"
 run_gradle :its:rotateIdeLog
 expect_code "rotate with no log folder" 0
+empty_log_folder && ok "rotate with no log folder: an empty log folder is created" \
+  || not_ok "rotate with no log folder: an empty log folder is created" "$(ls -la "$SANDBOX_LOG" 2>&1)"
 run_gradle :its:runIdeForUiTests --dry-run
 expect_out "before the UI-test IDE starts" ":its:rotateIdeLog SKIPPED"
 

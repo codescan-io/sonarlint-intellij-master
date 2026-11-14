@@ -169,6 +169,8 @@ val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
 
 // Before the UI-test IDE starts, the log folder an earlier run left in its sandbox is moved to <folder>-previous
 // (replacing an older one). Otherwise checkIdeLog, after a direct `./gradlew :its:test`, reads the earlier run's log too.
+// An empty folder (prepareSandbox creates one) is left alone, so it never replaces a real earlier log, and an empty
+// folder is always left behind: the 2026.1.5 IDE writes no idea.log at all when its log folder is missing.
 val rotateIdeLog by tasks.registering {
     group = "verification"
     description = "Moves the UI-test IDE's log folder from an earlier run to <folder>-previous."
@@ -176,12 +178,13 @@ val rotateIdeLog by tasks.registering {
     outputs.upToDateWhen { false }
     doLast {
         val dir = logDir.get()
-        if (dir.exists()) {
+        if (!dir.list().isNullOrEmpty()) {
             val previous = File(dir.path + "-previous")
             previous.deleteRecursively()
             check(dir.renameTo(previous)) { "cannot move $dir to $previous" }
             logger.lifecycle("Moved the earlier UI-test IDE log folder to $previous")
         }
+        check(dir.isDirectory || dir.mkdirs()) { "cannot create the IDE log folder $dir" }
     }
 }
 
