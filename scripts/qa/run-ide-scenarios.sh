@@ -9,7 +9,7 @@
 #                  and type; keep your hands off until it ends.
 #   --plugin       test this plugin zip instead of building one with ./gradlew buildPlugin (which needs CodeArtifact
 #                  access, see CLAUDE.md). The CodeArtifact token never goes into the container.
-#   --tests        only these UI tests (a Gradle --tests filter such as '*OpenProjectDuringIndexingTests*')
+#   --tests        only these UI tests (a Gradle --tests filter such as '*CodeScanScenarioTests*')
 #   --out          results folder (default build/qa/<ide-version>; emptied first)
 # Env:   QA_CACHE_DIR      the container's Gradle cache, with the downloaded IDEs, is kept in $QA_CACHE_DIR/gradle-home
 #                          (default ~/.cache/codescan-qa)

@@ -171,6 +171,26 @@ class CurrentFileTabTests {
             }
         }
 
+        fun isProjectBoundInSettings(): Boolean {
+            var bound = false
+            with(remoteRobot) {
+                idea {
+                    toolWindow("CodeScan") {
+                        ensureOpen()
+                        tabTitleContains("Current File") { select() }
+                        content("CurrentFilePanel") {
+                            toolBarButton("Configure CodeScan").click()
+                        }
+                    }
+                    dialog("Project Settings") {
+                        bound = checkBox("Bind project to CodeScan").isSelected()
+                        button("Cancel").click()
+                    }
+                }
+            }
+            return bound
+        }
+
         fun verifyCurrentFileRuleDescriptionTabContains(expectedMessage: String) {
             with(remoteRobot) {
                 idea {

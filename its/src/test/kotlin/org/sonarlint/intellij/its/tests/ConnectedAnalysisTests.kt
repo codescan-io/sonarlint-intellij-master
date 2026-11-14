@@ -21,17 +21,17 @@ package org.sonarlint.intellij.its.tests
 
 import com.intellij.remoterobot.utils.waitFor
 import java.time.Duration
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIf
 import org.sonarlint.intellij.its.BaseUiTest
-import org.sonarlint.intellij.its.tests.domain.TaintVulnerabilityTests.Companion.enableConnectedModeFromTaintPanel
-import org.sonarlint.intellij.its.tests.domain.TaintVulnerabilityTests.Companion.waitForTaintTabMessage
+import org.sonarlint.intellij.its.tests.domain.CurrentFileTabTests.Companion.enableConnectedModeFromCurrentFilePanel
+import org.sonarlint.intellij.its.tests.domain.CurrentFileTabTests.Companion.isProjectBoundInSettings
 import org.sonarlint.intellij.its.utils.CodeScanWireMock
 import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.openExistingProject
-import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.openFile
 import org.sonarlint.intellij.its.utils.SettingsUtils.Companion.addCodeScanConnection
 import org.sonarlint.intellij.its.utils.SettingsUtils.Companion.clearConnections
 
@@ -67,15 +67,15 @@ class ConnectedAnalysisTests : BaseUiTest() {
     fun should_bind_to_codescan_then_sync_then_unbind() = uiTest {
         openExistingProject("codescan-sample")
 
-        enableConnectedModeFromTaintPanel(CodeScanWireMock.PROJECT_KEY, true, CONNECTION)
+        // CodeScan has no Taint Vulnerabilities tab (SonarLintUtils.isTaintVulnerabilitiesEnabled), so bind from the Current File tab.
+        enableConnectedModeFromCurrentFilePanel(CodeScanWireMock.PROJECT_KEY, true, CONNECTION)
         waitFor(Duration.ofSeconds(60), Duration.ofSeconds(2), "the plugin never asked CodeScan for the bound project's quality profiles") {
             CodeScanWireMock.wasCalled("/api/qualityprofiles/search.protobuf", "project", CodeScanWireMock.PROJECT_KEY)
         }
-        openFile("force-app/main/default/classes/GreeterService.cls", "GreeterService.cls")
-        waitForTaintTabMessage("No vulnerabilities found for currently opened files in the latest analysis on CodeScan", Duration.ofSeconds(60))
+        assertThat(isProjectBoundInSettings()).isTrue()
 
-        enableConnectedModeFromTaintPanel(CodeScanWireMock.PROJECT_KEY, false, CONNECTION)
-        waitForTaintTabMessage("The project is not bound to CodeScan", Duration.ofSeconds(30))
+        enableConnectedModeFromCurrentFilePanel(CodeScanWireMock.PROJECT_KEY, false, CONNECTION)
+        assertThat(isProjectBoundInSettings()).isFalse()
     }
 
 }

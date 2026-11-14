@@ -21,7 +21,9 @@ package org.sonarlint.intellij.its.tests
 
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.DisabledOnOs
 import org.junit.jupiter.api.condition.EnabledIf
+import org.junit.jupiter.api.condition.OS
 import org.sonarlint.intellij.its.BaseUiTest
 import org.sonarlint.intellij.its.tests.domain.CurrentFileTabTests.Companion.verifyCurrentFileTabContainsMessages
 import org.sonarlint.intellij.its.tests.domain.ReportTabTests.Companion.analyzeAndVerifyReportTabContainsMessages
@@ -67,6 +69,8 @@ class StandaloneIdeaTests : BaseUiTest() {
     }
 
     @Test
+    // The IaC analyzer ships its Helm helper program for linux-amd64, darwin and windows only (sonar-helm-for-iac-*).
+    @DisabledOnOs(value = [OS.LINUX], architectures = ["aarch64"], disabledReason = "No Helm helper for Linux on ARM")
     fun chart() = uiTest {
         openExistingProject("DuplicatedEnvsChart")
         openFile("templates/memory_limit_pod2.yml", "memory_limit_pod2.yml")

@@ -19,9 +19,12 @@
  */
 package org.sonarlint.intellij.its.utils
 
+import com.intellij.remoterobot.fixtures.ComponentFixture
 import com.intellij.remoterobot.fixtures.JListFixture
+import com.intellij.remoterobot.search.locators.byXpath
 import com.intellij.remoterobot.utils.keyboard
 import com.intellij.remoterobot.utils.waitFor
+import java.awt.event.KeyEvent
 import java.time.Duration
 import org.assertj.swing.timing.Pause
 import org.sonarlint.intellij.its.BaseUiTest.Companion.remoteRobot
@@ -67,9 +70,11 @@ class SettingsUtils {
             sonarLintGlobalSettings {
                 findText("Rules").click()
                 searchRule(ruleKey)
-                findText(ruleText).click()
+                // Space swaps the selected rule like a double click does (RulesTreeTable). Two clicks on a busy machine can arrive
+                // too far apart to count as a double click, and once a rule is selected its name also shows in the description.
+                find<ComponentFixture>(byXpath("//div[@class='RulesTreeTable']")).findText(ruleText).click()
                 Pause.pause(1000)
-                findText(ruleText).doubleClick()
+                keyboard { key(KeyEvent.VK_SPACE) }
                 waitFor(Duration.ofSeconds(10)) {
                     button("Apply").isEnabled()
                 }
