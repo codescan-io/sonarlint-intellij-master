@@ -19,22 +19,34 @@
  */
 package org.sonarlint.intellij.its.tests
 
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.DisabledOnOs
 import org.junit.jupiter.api.condition.EnabledIf
+import org.junit.jupiter.api.condition.OS
 import org.sonarlint.intellij.its.BaseUiTest
 import org.sonarlint.intellij.its.tests.domain.CurrentFileTabTests.Companion.verifyCurrentFileTabContainsMessages
 import org.sonarlint.intellij.its.tests.domain.ReportTabTests.Companion.analyzeAndVerifyReportTabContainsMessages
 import org.sonarlint.intellij.its.utils.ExclusionUtils.Companion.excludeFile
 import org.sonarlint.intellij.its.utils.ExclusionUtils.Companion.removeFileExclusion
+import org.sonarlint.intellij.its.utils.FiltersUtils.Companion.resetFocusOnNewCode
 import org.sonarlint.intellij.its.utils.FiltersUtils.Companion.setFocusOnNewCode
 import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.openExistingProject
 import org.sonarlint.intellij.its.utils.OpeningUtils.Companion.openFile
 import org.sonarlint.intellij.its.utils.SettingsUtils.Companion.toggleRule
 
 @Tag("Standalone")
-@EnabledIf("isIdeaCommunity")
+@EnabledIf("isIdea")
 class StandaloneIdeaTests : BaseUiTest() {
+
+    // "Focus on new code" is an IDE-wide setting. Left on, it changes the issue summary of every later test class
+    // ("Found 1 new issue in 1 file from last 30 days" instead of "Found 1 issue in 1 file"). Runs before the base
+    // class closes the project, while the CodeScan tool window is still there.
+    @AfterEach
+    fun turnOffFocusOnNewCode() {
+        resetFocusOnNewCode()
+    }
 
     @Test
     fun should_exclude_rule_and_focus_on_new_code() = uiTest {
@@ -67,6 +79,8 @@ class StandaloneIdeaTests : BaseUiTest() {
     }
 
     @Test
+    // The IaC analyzer ships its Helm helper program for linux-amd64, darwin and windows only (sonar-helm-for-iac-*).
+    @DisabledOnOs(value = [OS.LINUX], architectures = ["aarch64"], disabledReason = "No Helm helper for Linux on ARM")
     fun chart() = uiTest {
         openExistingProject("DuplicatedEnvsChart")
         openFile("templates/memory_limit_pod2.yml", "memory_limit_pod2.yml")

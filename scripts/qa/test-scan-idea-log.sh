@@ -242,12 +242,13 @@ expect_out "suppressed default" "CodeScan total: 0"
 run_scan --strict "$f"
 expect_code "suppressed strict" 1
 
-# Mixed log: the three classes add up, and the existing Total line still counts every hit.
+# Mixed log: the three classes add up, and the existing Total line still counts every hit. The repeat comes before
+# the full read-access entry, so there is nothing to match it to and it stays unknown.
 f="$TMP/mixed.log"
 {
   cat "$TMP/ts-edt.log"
-  cat "$TMP/read-codescan.log"
   cat "$TMP/suppressed.log"
+  cat "$TMP/read-codescan.log"
   echo "$TS SEVERE - #org.sonarlint.intellij.core.BackendService - Backend failed"
 } > "$f"
 run_scan "$f"
@@ -279,6 +280,75 @@ expect_out "caused-by" "      org.sonarlint.intellij.finding.LiveFinding.isValid
 run_scan "$TMP/suppressed.log"
 expect_out "no-stack key" "1 x [Read access is allowed from inside read-action] unknown"
 expect_out "no-stack key" "(no stack trace)"
+
+# ---- "Suppressed a frequent exception" repeats -----------------------------------------
+# IntelliJ counts repeats by a hash of the whole stack trace and writes the first one in full, so a repeat takes the
+# group of the earlier full entries of its pattern from the same logger, when they all have one group.
+
+# full_slow <logger> <frame>: a slow operation on the UI thread with a stack, as 2026.1.5 writes it.
+full_slow() {
+  echo "$TS SEVERE - #$1 - Slow operations are prohibited on EDT. See SlowOperations.assertSlowOperationsAreAllowed javadoc."
+  echo "java.lang.Throwable: Slow operations are prohibited on EDT. See SlowOperations.assertSlowOperationsAreAllowed javadoc."
+  echo "	at com.intellij.util.SlowOperations.assertSlowOperationsAreAllowed(SlowOperations.java:128)"
+  echo "	at $2"
+}
+repeat_slow() {
+  echo "$TS   WARN - #$1 - Suppressed a frequent exception logged for the 2nd time: Slow operations are prohibited on EDT. See SlowOperations.assertSlowOperationsAreAllowed javadoc."
+}
+IDE_FRAME="com.intellij.openapi.vfs.newvfs.persistent.FSRecordsImpl.update(FSRecordsImpl.java:789)"
+CS_FRAME="org.sonarlint.intellij.core.BackendService.x(BackendService.kt:1)"
+
+# Every earlier full entry is the IDE's: the repeat is other, and the check passes.
+f="$TMP/repeat-other.log"
+{ full_slow c.i.u.SlowOperations "$IDE_FRAME"; full_slow c.i.u.SlowOperations "$IDE_FRAME"; repeat_slow c.i.u.SlowOperations; } > "$f"
+run_scan "$f"
+expect_split "repeat of other" "Slow operations are prohibited on EDT" 0 3 0
+expect_code "repeat of other" 0
+expect_out "repeat of other" "Repeats matched to an earlier full entry: 1"
+expect_out "repeat of other" "repeat: every earlier full entry of this kind from c.i.u.SlowOperations in this log is other"
+expect_out "repeat of other" "1 x [Slow operations are prohibited on EDT] other"
+
+# Every earlier full entry is CodeScan's: the repeat is CodeScan.
+f="$TMP/repeat-codescan.log"
+{ full_slow c.i.u.SlowOperations "$CS_FRAME"; repeat_slow c.i.u.SlowOperations; } > "$f"
+run_scan "$f"
+expect_split "repeat of CodeScan" "Slow operations are prohibited on EDT" 2 0 0
+expect_code "repeat of CodeScan" 1
+
+# Earlier full entries of both groups: the repeat could be either, so it stays unknown.
+f="$TMP/repeat-both.log"
+{ full_slow c.i.u.SlowOperations "$IDE_FRAME"; full_slow c.i.u.SlowOperations "$CS_FRAME"; repeat_slow c.i.u.SlowOperations; } > "$f"
+run_scan "$f"
+expect_split "repeat, both groups before" "Slow operations are prohibited on EDT" 1 1 1
+expect_out "repeat, both groups before" "Repeats matched to an earlier full entry: 0"
+
+# A full entry from another logger does not count.
+f="$TMP/repeat-logger.log"
+{ full_slow c.i.o.OtherLogger "$IDE_FRAME"; repeat_slow c.i.u.SlowOperations; } > "$f"
+run_scan "$f"
+expect_split "repeat, other logger before" "Slow operations are prohibited on EDT" 0 1 1
+
+# A full entry of another pattern does not count.
+f="$TMP/repeat-pattern.log"
+{ cat "$TMP/read-codescan.log"; repeat_slow c.i.o.a.i.ApplicationImpl; } > "$f"
+run_scan "$f"
+expect_split "repeat, other pattern before" "Slow operations are prohibited on EDT" 0 0 1
+
+# A full entry that IntelliJ blames on CodeScan (blame line within 100 ms) counts as CodeScan for the repeat.
+f="$TMP/repeat-blamed.log"
+{
+  full_slow c.i.u.SlowOperations "$IDE_FRAME"
+  echo "$TS SEVERE - #c.i.u.SlowOperations - Plugin to blame: CodeScan version: 8.0.0-CODESCAN"
+  repeat_slow c.i.u.SlowOperations
+} > "$f"
+run_scan "$f"
+expect_split "repeat of a blamed entry" "Slow operations are prohibited on EDT" 2 0 0
+
+# A WARN with no stack that is not a repeat stays unknown, even after full entries.
+f="$TMP/repeat-not.log"
+{ full_slow c.i.u.SlowOperations "$IDE_FRAME"; echo "$TS   WARN - #c.i.u.SlowOperations - Slow operations are prohibited on EDT. See javadoc."; } > "$f"
+run_scan "$f"
+expect_split "no stack, not a repeat" "Slow operations are prohibited on EDT" 0 1 1
 
 # ---- Freeze dumps ----------------------------------------------------------------------
 

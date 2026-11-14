@@ -76,6 +76,7 @@ import org.sonarqube.ws.client.usertokens.GenerateRequest
 import org.sonarqube.ws.client.usertokens.RevokeRequest
 
 // In order to run these test change the url triggerOpenHotspotRequest to some other port than 64120 depending on number of IntelliJ instances
+@Disabled("Needs SonarQube Developer edition with a SonarSource licence (Orchestrator) and SonarCloud staging; the CodeScan copy has no open-in-IDE recordings.")
 @Tag("OpenInIdeTests")
 @EnabledIf("isIdeaCommunity")
 class OpenInIdeTests : BaseUiTest() {

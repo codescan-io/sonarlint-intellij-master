@@ -1,0 +1,10 @@
+Answers of a real CodeScan server, one WireMock stub per file, for the connected-mode UI tests
+(its/src/test/kotlin/org/sonarlint/intellij/its/utils/CodeScanWireMock.kt).
+
+Copied unchanged from sonarlint-core/medium-tests/src/test/resources/codescan-recordings (sonarlint-core commit
+44c07013d). How they were made and cleaned is described in sonarlint-core's CodeScanServerMediumTests. When they change in
+sonarlint-core, copy them here again.
+
+- Organization "test-org", project "test-project", branch "main".
+- Any token is accepted, except the word REDACTED, which is answered as invalid. No real token is stored here.
+- The plugin downloads are small stand-in jars, so a project bound to this copy gets no issues from server analyzers.

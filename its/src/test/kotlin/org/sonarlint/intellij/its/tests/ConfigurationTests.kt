@@ -70,6 +70,7 @@ import org.sonarqube.ws.client.settings.SetRequest
 import org.sonarqube.ws.client.usertokens.GenerateRequest
 import org.sonarqube.ws.client.usertokens.RevokeRequest
 
+@Disabled("Needs SonarQube Developer edition with a SonarSource licence (Orchestrator) and SonarCloud staging; no CodeScan copy for shared configuration and module binding yet.")
 @Tag("ConfigurationTests")
 @EnabledIf("isIdeaCommunity")
 class ConfigurationTests : BaseUiTest() {

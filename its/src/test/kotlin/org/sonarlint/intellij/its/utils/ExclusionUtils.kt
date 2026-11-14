@@ -88,7 +88,7 @@ class ExclusionUtils {
                     dialog("Project Settings") {
                         findText("File Exclusions").click()
                         actionButtons(ActionButtonFixture.byType())[0].clickWhenEnabled()
-                        dialog("Add SonarQube for IDE File Exclusion") {
+                        dialog("Add CodeScan File Exclusion") {
                             jbTextFieldsWithBrowseButton()[0].click()
                             keyboard { enterText(fileName) }
                             waitFor(Duration.ofSeconds(1)) {

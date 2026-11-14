@@ -19,9 +19,12 @@
  */
 package org.sonarlint.intellij.its.utils
 
+import com.intellij.remoterobot.fixtures.ComponentFixture
 import com.intellij.remoterobot.fixtures.JListFixture
+import com.intellij.remoterobot.search.locators.byXpath
 import com.intellij.remoterobot.utils.keyboard
 import com.intellij.remoterobot.utils.waitFor
+import java.awt.Point
 import java.time.Duration
 import org.assertj.swing.timing.Pause
 import org.sonarlint.intellij.its.BaseUiTest.Companion.remoteRobot
@@ -40,6 +43,9 @@ import org.sonarlint.intellij.its.fixtures.welcomeFrame
 class SettingsUtils {
 
     companion object {
+        // RulesTreeTable.IS_ENABLED_COLUMN
+        private const val RULES_TABLE_CHECK_BOX_COLUMN = 2
+
         fun sonarLintGlobalSettings(function: PreferencesDialog.() -> Unit) {
             settings {
                 // let the dialog settle (if we type the search query too soon it might be cleared for no reason)
@@ -67,9 +73,20 @@ class SettingsUtils {
             sonarLintGlobalSettings {
                 findText("Rules").click()
                 searchRule(ruleKey)
-                findText(ruleText).click()
-                Pause.pause(1000)
-                findText(ruleText).doubleClick()
+                // One click on the rule's check box, as a user does. Two clicks on a busy machine can arrive too far apart to
+                // count as a double click, Space on a rule throws a ClassCastException (RulesTreeTable.installKeyboardListener),
+                // and once a rule is selected its name also shows in the description, so look only inside the table.
+                val rulesTable = find<ComponentFixture>(byXpath("//div[@class='RulesTreeTable']"))
+                val namePoint = rulesTable.findText(ruleText).point
+                val checkBox = rulesTable.callJs<String>(
+                    """
+                    const row = component.rowAtPoint(new java.awt.Point(${namePoint.x}, ${namePoint.y}));
+                    if (row < 0) throw new Error("no rules table row at the rule's name");
+                    const cell = component.getCellRect(row, $RULES_TABLE_CHECK_BOX_COLUMN, true);
+                    Math.floor(cell.x + cell.width / 2) + "," + Math.floor(cell.y + cell.height / 2)
+                    """, true
+                ).split(",").map { it.trim().toDouble().toInt() }
+                rulesTable.click(Point(checkBox[0], checkBox[1]))
                 waitFor(Duration.ofSeconds(10)) {
                     button("Apply").isEnabled()
                 }
@@ -145,6 +162,35 @@ class SettingsUtils {
                 }
                 dialog("New Connection: Configure Notifications") {
                     button("Next").click()
+                }
+                dialog("New Connection: Configuration completed") {
+                    pressCreate()
+                }
+                pressOk()
+            }
+        }
+
+        fun addCodeScanConnection(token: String, connectionName: String, organization: String) {
+            sonarLintGlobalSettings {
+                addConnectionButton().clickWhenEnabled()
+                dialog("New Connection: Server Details") {
+                    keyboard { enterText(connectionName) }
+                    button("Next").click()
+                }
+                dialog("New Connection: Authentication") {
+                    jPasswordField().text = token
+                    button("Next").click()
+                }
+                dialog("New Connection: Organization") {
+                    jList(JListFixture.byType()) {
+                        clickItem(organization, false)
+                    }
+                    button("Next").click()
+                }
+                optionalStep {
+                    dialog("New Connection: Configure Notifications", Duration.ofSeconds(5)) {
+                        button("Next").click()
+                    }
                 }
                 dialog("New Connection: Configuration completed") {
                     pressCreate()
