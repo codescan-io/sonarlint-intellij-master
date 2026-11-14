@@ -130,7 +130,8 @@ class IdeaFrame(remoteRobot: RemoteRobot, remoteComponent: RemoteComponent) : Co
     fun openSettings() {
         actionMenu("File") {
             open()
-            item("Settings...") {
+            // Three dots up to 2023.x; one ellipsis character in later IDEs (seen on 2026.1.5).
+            item("Settings...", "Settings…") {
                 click()
             }
         }

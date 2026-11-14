@@ -129,6 +129,9 @@ val runIdeForUiTests by intellijPlatformTesting.runIde.registering {
                 "-Dsonarlint.logs.verbose=true",
                 "-Didea.trust.all.projects=true",
                 "-Dide.show.tips.on.startup.default.value=false",
+                // Newer IDEs (seen on 2026.1.5) offer a tour of the new UI in a modal dialog when the first project
+                // opens. The dialog takes the keys the tests type.
+                "-Dide.experimental.ui.onboarding=false",
                 "-Dide.experimental.ui.navbar.scroll=true",
                 "-Djb.privacy.policy.text=<!--999.999-->",
                 "-Djb.consents.confirmation.enabled=false",
