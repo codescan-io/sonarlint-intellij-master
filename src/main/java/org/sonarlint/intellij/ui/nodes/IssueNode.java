@@ -32,6 +32,7 @@ import org.sonarlint.intellij.SonarLintIcons;
 import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.core.ProjectBindingManager;
 import org.sonarlint.intellij.finding.issue.LiveIssue;
+import org.sonarlint.intellij.finding.issue.SeverityMaskingService;
 import org.sonarlint.intellij.ui.tree.TreeCellRenderer;
 import org.sonarlint.intellij.util.CompoundIcon;
 import org.sonarlint.intellij.util.DateUtils;
@@ -95,7 +96,8 @@ public class IssueNode extends FindingNode {
       if (severity != null && type != null) {
         typeIcon = SonarLintIcons.getIconForTypeAndSeverity(type, severity);
         typeStr = type.toString().replace('_', ' ').toLowerCase(Locale.ENGLISH);
-        severityText = StringUtil.capitalize(severity.toString().toLowerCase(Locale.ENGLISH));
+        var mask = issue.project().isDisposed() ? null : getService(issue.project(), SeverityMaskingService.class).mask(severity.name());
+        severityText = mask != null ? mask : StringUtil.capitalize(severity.toString().toLowerCase(Locale.ENGLISH));
       }
 
       if (issue.getServerKey() != null && serverConnection.isPresent()) {

@@ -88,6 +88,7 @@ import org.sonarsource.sonarlint.core.rpc.protocol.SonarLintRpcServer
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.analysis.AnalyzeFilesAndTrackParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.analysis.AnalyzeFilesResponse
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.analysis.DidChangeAutomaticAnalysisSettingParams
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.analysis.GetAnalysisConfigParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.analysis.DidChangeClientNodeJsPathParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.binding.GetSharedConnectedModeConfigFileParams
 import org.sonarsource.sonarlint.core.rpc.protocol.backend.binding.GetSharedConnectedModeConfigFileResponse
@@ -794,6 +795,12 @@ class BackendService : Disposable {
             ?: Either.forRight(UsernamePasswordDto(server.login, server.password))
         val params = GetOrganizationParams(credentials, organizationKey, server.hostUrl)
         return requestFromBackend { it.connectionService.getOrganization(params) }
+    }
+
+    /** CodeScan: the project settings saved by the last sync (plus user analysis settings). Empty for an unbound project. */
+    fun getProjectServerSettings(project: Project): CompletableFuture<Map<String, String>> {
+        return requestFromBackend { it.analysisService.getAnalysisConfig(GetAnalysisConfigParams(projectId(project))) }
+            .thenApply { response -> response.analysisProperties }
     }
 
     fun getNewCodePeriodText(project: Project): CompletableFuture<String> {

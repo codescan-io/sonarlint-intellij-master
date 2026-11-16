@@ -55,8 +55,10 @@ import org.sonarlint.intellij.actions.ReopenIssueAction.Companion.canBeReopened
 import org.sonarlint.intellij.actions.ReopenIssueAction.Companion.reopenIssueDialog
 import org.sonarlint.intellij.actions.ReviewSecurityHotspotAction
 import org.sonarlint.intellij.documentation.SonarLintDocumentation.Intellij.CLEAN_CODE_LINK
+import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.finding.Issue
 import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot
+import org.sonarlint.intellij.finding.issue.SeverityMaskingService
 import org.sonarlint.intellij.util.RoundedPanelWithBackgroundColor
 import org.sonarsource.sonarlint.core.client.utils.CleanCodeAttribute
 import org.sonarsource.sonarlint.core.client.utils.ImpactSeverity
@@ -71,7 +73,7 @@ import org.sonarsource.sonarlint.core.rpc.protocol.common.RuleType
 import org.sonarsource.sonarlint.core.rpc.protocol.common.StandardModeDetails
 
 
-class RuleHeaderPanel(private val parent: Disposable) : JBPanel<RuleHeaderPanel>(BorderLayout()) {
+class RuleHeaderPanel(private val parent: Disposable, private val project: Project? = null) : JBPanel<RuleHeaderPanel>(BorderLayout()) {
     companion object {
         private const val MARK_AS_RESOLVED = "Mark Issue as\u2026"
         private const val REOPEN = "Reopen"
@@ -200,7 +202,15 @@ class RuleHeaderPanel(private val parent: Disposable) : JBPanel<RuleHeaderPanel>
             add(JBLabel(cleanCapitalized(type.toString())).apply {
                 foreground = SonarLintIcons.fontColorsBySeverity[severity]
             })
-            add(JBLabel().apply { icon = SonarLintIcons.severity(severity) })
+            // CodeScan: show the project's own name for the severity when it sets one (codescan.severity.masking.*)
+            val mask = project?.takeUnless { it.isDisposed }?.let { getService(it, SeverityMaskingService::class.java).mask(severity.name) }
+            add(JBLabel().apply {
+                icon = SonarLintIcons.severity(severity)
+                toolTipText = mask ?: cleanCapitalized(severity.name)
+            })
+            if (mask != null) {
+                add(JBLabel(mask).apply { foreground = SonarLintIcons.fontColorsBySeverity[severity] })
+            }
         }
         ruleKeyLabel.text = ruleKey
         ruleKeyLabel.setCopyable(true)

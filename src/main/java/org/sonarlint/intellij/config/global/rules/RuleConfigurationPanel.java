@@ -364,7 +364,7 @@ public class RuleConfigurationPanel implements Disposable, ConfigurationPanel<So
     rulePanel.withEmptyText(EMPTY_HTML);
     rulePanel.setBorder(JBUI.Borders.emptyLeft(5));
 
-    ruleHeaderPanel = new RuleHeaderPanel(this);
+    ruleHeaderPanel = new RuleHeaderPanel(this, null);
     rulePanel.add(ruleHeaderPanel, BorderLayout.NORTH);
 
     ruleDescription = new RuleDescriptionPanel(project, this);
