@@ -107,6 +107,7 @@ import org.sonarlint.intellij.sharing.ConfigurationSharing
 import org.sonarlint.intellij.sharing.SonarLintSharedFolderUtils.Companion.findSharedFolder
 import org.sonarlint.intellij.trigger.TriggerType
 import org.sonarlint.intellij.ui.UiUtils.Companion.runOnUiThread
+import org.sonarlint.intellij.finding.issue.SeverityMaskingService
 import org.sonarlint.intellij.util.GlobalLogOutput
 import org.sonarlint.intellij.util.IpAllowlistBlock
 import org.sonarlint.intellij.util.ProjectUtils.tryFindFile
@@ -541,6 +542,7 @@ object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
 
     override fun didSynchronizeConfigurationScopes(configurationScopeIds: Set<String>) {
         GlobalLogOutput.get().log("Did synchronize config scopes $configurationScopeIds", ClientLogOutput.Level.INFO)
+        refreshSeverityMasks(configurationScopeIds)
     }
 
     override fun getCredentials(connectionId: String): Either<TokenDto, UsernamePasswordDto> {
@@ -632,8 +634,19 @@ object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
         )
     }
 
+    private fun refreshSeverityMasks(configurationScopeIds: Set<String>) {
+        configurationScopeIds.mapNotNull { BackendService.findModule(it)?.project ?: findProject(it) }
+            .distinct()
+            .filter { !it.isDisposed }
+            .forEach { getService(it, SeverityMaskingService::class.java).refresh() }
+    }
+
     override fun didChangeAnalysisReadiness(configurationScopeIds: Set<String>, areReadyForAnalysis: Boolean) {
         GlobalLogOutput.get().log("Analysis became ready=$areReadyForAnalysis for $configurationScopeIds", ClientLogOutput.Level.DEBUG)
+        if (areReadyForAnalysis) {
+            // CodeScan: readiness follows project open, binding changes and syncs
+            refreshSeverityMasks(configurationScopeIds)
+        }
         configurationScopeIds.associateBy(
             { BackendService.findModule(it)?.project ?: findProject(it) },
             { BackendService.findModule(it) }

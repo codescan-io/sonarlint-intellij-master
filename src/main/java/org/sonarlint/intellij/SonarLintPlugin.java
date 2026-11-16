@@ -19,15 +19,17 @@
  */
 package org.sonarlint.intellij;
 
-import com.intellij.ide.plugins.IdeaPluginDescriptor;
-import com.intellij.ide.plugins.PluginManagerCore;
+import com.intellij.ide.plugins.PluginManager;
+import com.intellij.ide.plugins.cl.PluginAwareClassLoader;
 import com.intellij.openapi.components.Service;
+import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.extensions.PluginId;
 import java.nio.file.Path;
 
 @Service(Service.Level.APP)
 public final class SonarLintPlugin {
-  private IdeaPluginDescriptor plugin;
+  private static final String PLUGIN_ID = "com.code-scan.intellij";
+  private PluginDescriptor plugin;
 
   public String getVersion() {
     return getPlugin().getVersion();
@@ -37,9 +39,14 @@ public final class SonarLintPlugin {
     return getPlugin().getPluginPath();
   }
 
-  private IdeaPluginDescriptor getPlugin() {
+  private PluginDescriptor getPlugin() {
     if (plugin == null) {
-      plugin = PluginManagerCore.getPlugin(PluginId.getId("com.code-scan.intellij"));
+      // CodeScan (7.3.1): find our own plugin through its class loader, not the internal PluginManagerCore.getPlugin.
+      // In tests our classes are not loaded by the plugin's class loader, so look the plugin up by its id there.
+      var classLoader = getClass().getClassLoader();
+      plugin = classLoader instanceof PluginAwareClassLoader pluginClassLoader
+        ? pluginClassLoader.getPluginDescriptor()
+        : PluginManager.getInstance().findEnabledPlugin(PluginId.getId(PLUGIN_ID));
     }
     return plugin;
   }

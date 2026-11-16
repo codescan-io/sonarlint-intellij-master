@@ -78,7 +78,7 @@ class SonarLintRulePanel(private val project: Project, parent: Disposable) : JBL
     private val topPanel = JBPanel<JBPanel<*>>(BorderLayout())
     private val descriptionPanel = RuleDescriptionPanel(project, parent)
     private val ruleNameLabel = JBLabel()
-    private val headerPanel = RuleHeaderPanel(parent)
+    private val headerPanel = RuleHeaderPanel(parent, project)
     private val paramsPanel = JBPanel<JBPanel<*>>(GridBagLayout())
     private val securityHotspotHeaderMessage = JEditorPane()
     private val ruleDetailsLoader = RuleDetailsLoader()
