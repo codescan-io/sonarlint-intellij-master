@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.finding
 
@@ -23,21 +23,26 @@ import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import org.sonarlint.intellij.analysis.DefaultClientInputFile
+import java.util.stream.Collectors
 import org.sonarlint.intellij.common.ui.SonarLintConsole
+import org.sonarlint.intellij.util.VirtualFileUtils.uriToVirtualFile
 import org.sonarlint.intellij.util.getDocument
-import org.sonarsource.sonarlint.core.analysis.api.ClientInputFileEdit
-import org.sonarsource.sonarlint.core.analysis.api.TextEdit
-import org.sonarsource.sonarlint.core.analysis.api.QuickFix as CoreQuickFix
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.FileEditDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.QuickFixDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.TextEditDto
 
-fun convert(project: Project, coreQuickFix: CoreQuickFix): QuickFix? {
-    val virtualFileEdits = coreQuickFix.inputFileEdits().map { convert(it) }
-    if (virtualFileEdits.contains(null)) {
-        log(project, "Quick fix won't be proposed as it is invalid")
+fun convert(
+    project: Project,
+    coreQuickFix: QuickFixDto,
+    modificationStamp: Long?,
+): QuickFix? {
+    val virtualFileEdits = coreQuickFix.fileEdits().map { convert(it, modificationStamp) }
+    if (null in virtualFileEdits) {
+        SonarLintConsole.get(project).debug("Quick fix won't be proposed as it is invalid")
         return null
     }
     if (virtualFileEdits.distinctBy { it!!.target }.size > 1) {
-        log(project, "Quick fix won't be proposed because multi-files edits are not supported")
+        SonarLintConsole.get(project).debug("Quick fix won't be proposed because multi-files edits are not supported")
         return null
     }
     return QuickFix(coreQuickFix.message(), virtualFileEdits.mapNotNull { it })
@@ -47,23 +52,22 @@ private fun log(project: Project, message: String) {
     SonarLintConsole.get(project).debug(message)
 }
 
-private fun convert(fileEdit: ClientInputFileEdit): VirtualFileEdit? {
-    val clientInputFile = fileEdit.target() as DefaultClientInputFile
-    val targetVirtualFile = clientInputFile.clientObject
-    val document = targetVirtualFile.getDocument() ?: return null
-    if (clientInputFile.isOlderThan(document)) {
+private fun convert(fileEdit: FileEditDto, modificationStamp: Long?): VirtualFileEdit? {
+    val virtualFile = uriToVirtualFile(fileEdit.target()) ?: return null
+    val document = virtualFile.getDocument() ?: return null
+    if (modificationStamp != null && modificationStamp < document.modificationStamp) {
         // we don't want to show potentially outdated fixes
         // next analysis will bring more up-to-date quick fixes
         return null
     }
     val virtualFileEdits = fileEdit.textEdits().map { convert(document, it) }
-    if (virtualFileEdits.contains(null)) {
+    if (null in virtualFileEdits) {
         return null
     }
-    return VirtualFileEdit(targetVirtualFile, virtualFileEdits.mapNotNull { it })
+    return VirtualFileEdit(virtualFile, virtualFileEdits.mapNotNull { it })
 }
 
-private fun convert(document: Document, textEdit: TextEdit): RangeMarkerEdit? {
+private fun convert(document: Document, textEdit: TextEditDto): RangeMarkerEdit? {
     val range = textEdit.range()
     val lineCount = document.lineCount
     val beginLine = range.startLine.minus(1)
@@ -85,8 +89,27 @@ private fun convert(document: Document, textEdit: TextEdit): RangeMarkerEdit? {
 
 data class QuickFix(val message: String, val virtualFileEdits: List<VirtualFileEdit>) {
     var applied = false
-    fun isApplicable() =
-        !applied && virtualFileEdits.all { it.target.isValid && it.edits.all { e -> e.rangeMarker.isValid } }
+
+    fun isApplicable(document: Document) = !applied
+        && virtualFileEdits.all { it.target.isValid && it.edits.all { e -> e.rangeMarker.isValid } }
+        && isWithinBounds(document)
+
+    private fun isWithinBounds(document: Document): Boolean {
+        return virtualFileEdits.flatMap { it.edits }.all { (rangeMarker, _) ->
+            val startOffsetInBound = rangeMarker.startOffset >= 0 && rangeMarker.startOffset <= document.textLength
+            val endOffsetInBound = rangeMarker.endOffset >= 0 && rangeMarker.endOffset <= document.textLength
+
+            return if (startOffsetInBound && endOffsetInBound) {
+                rangeMarker.endOffset >= rangeMarker.startOffset
+            } else {
+                false
+            }
+        }
+    }
+
+    fun isSingleFile(): Boolean {
+        return this.virtualFileEdits.stream().map(VirtualFileEdit::target).collect(Collectors.toSet()).size == 1
+    }
 }
 
 data class VirtualFileEdit(val target: VirtualFile, val edits: List<RangeMarkerEdit>)

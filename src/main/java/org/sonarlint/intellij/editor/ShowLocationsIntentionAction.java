@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.editor;
 
@@ -33,8 +33,6 @@ import org.sonarlint.intellij.actions.SonarLintToolWindow;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.finding.FindingContext;
 import org.sonarlint.intellij.finding.LiveFinding;
-
-import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 public class ShowLocationsIntentionAction implements IntentionAction, PriorityAction, Iconable {
   private final LiveFinding finding;
@@ -60,7 +58,7 @@ public class ShowLocationsIntentionAction implements IntentionAction, PriorityAc
   @Override public void invoke(@NotNull Project project, Editor editor, PsiFile file) {
     SonarLintUtils.getService(project, EditorDecorator.class).highlightFinding(finding);
     var sonarLintToolWindow = SonarLintUtils.getService(project, SonarLintToolWindow.class);
-    runOnUiThread(project, () -> sonarLintToolWindow.showFindingLocations(finding));
+    sonarLintToolWindow.showFindingLocations(finding);
   }
 
   @Override public boolean startInWriteAction() {

@@ -15,40 +15,18 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.its.utils
 
-import java.io.IOException
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Paths
-import java.util.Properties
-
 object ItUtils {
 
-  val SONAR_VERSION: String = sonarVersion
-  lateinit var javaVersion: String
+    val SONAR_VERSION: String = sonarVersion
 
-  private val sonarVersion: String
-    get() {
-      val versionProperty = System.getProperty("sonar.runtimeVersion")
-      return versionProperty ?: "LATEST_RELEASE"
-    }
-
-  init {
-    if ("LATEST_RELEASE[6.7]" == System.getProperty("sonar.runtimeVersion")) {
-      val props = Properties()
-      try {
-        Files.newBufferedReader(Paths.get("../../core/src/main/resources/plugins_min_versions.txt"), StandardCharsets.UTF_8).use { r ->
-          props.load(r)
-          javaVersion = props.getProperty("java")
+    private val sonarVersion: String
+        get() {
+            val versionProperty = System.getProperty("sonar.runtimeVersion")
+            return versionProperty ?: "LATEST_RELEASE"
         }
-      } catch (e: IOException) {
-        throw IllegalStateException(e)
-      }
-    } else {
-      javaVersion = "LATEST_RELEASE"
-    }
-  }
+
 }

@@ -15,13 +15,14 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.messages;
 
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.messages.Topic;
 import java.util.Collection;
+import org.sonarlint.intellij.trigger.TriggerType;
 
 /**
  * Notifies about analysis tasks starting. It will be called for any analysis task, regardless of the trigger, if it is background or not, etc.
@@ -29,11 +30,11 @@ import java.util.Collection;
 public interface AnalysisListener {
   Topic<AnalysisListener> TOPIC = Topic.create("CodeScan analysis start", AnalysisListener.class);
 
-  void started(Collection<VirtualFile> files);
+  void started(Collection<VirtualFile> files, TriggerType trigger);
 
   abstract class Adapter implements AnalysisListener {
     @Override
-    public void started(Collection<VirtualFile> files) {
+    public void started(Collection<VirtualFile> files, TriggerType trigger) {
       // can be optionally implemented
     }
   }

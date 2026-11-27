@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.analysis;
 
@@ -26,7 +26,7 @@ import org.sonarsource.sonarlint.core.analysis.api.ClientInputFile;
 
 import static java.util.stream.Collectors.toSet;
 
-class ModuleAnalysisResult {
+public class ModuleAnalysisResult {
 
   private final Set<VirtualFile> failedFiles;
 
@@ -35,6 +35,10 @@ class ModuleAnalysisResult {
       .map(ClientInputFile::getClientObject)
       .map(VirtualFile.class::cast)
       .collect(toSet());
+  }
+
+  public ModuleAnalysisResult(Set<VirtualFile> failedAnalysisFiles) {
+    failedFiles = failedAnalysisFiles;
   }
 
   public Collection<VirtualFile> failedFiles() {

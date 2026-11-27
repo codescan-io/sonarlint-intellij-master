@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.tree;
 
@@ -25,7 +25,7 @@ import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.EditSourceOnDoubleClickHandler;
 import com.intellij.util.EditSourceOnEnterKeyHandler;
 import javax.annotation.CheckForNull;
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -39,6 +39,8 @@ import org.sonarlint.intellij.ui.nodes.AbstractNode;
 import org.sonarlint.intellij.ui.nodes.FlowNode;
 import org.sonarlint.intellij.ui.nodes.FlowSecondaryLocationNode;
 import org.sonarlint.intellij.ui.nodes.PrimaryLocationNode;
+
+import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
 
 public class FlowsTree extends Tree {
   private final Project project;
@@ -82,21 +84,20 @@ public class FlowsTree extends Tree {
   }
 
   public void expandAll() {
-    for (var i = 0; i < getRowCount(); i++) {
-      expandRow(i);
-    }
+    runOnUiThread(project, () -> {
+      for (var i = 0; i < getRowCount(); i++) {
+        expandRow(i);
+      }
+    });
   }
 
   private void highlightInEditor(DefaultMutableTreeNode node) {
     var highlighter = SonarLintUtils.getService(project, EditorDecorator.class);
-    if (node instanceof FlowNode) {
-      var flowNode = (FlowNode) node;
+    if (node instanceof FlowNode flowNode) {
       highlighter.highlightFlow(flowNode.getFlow());
-    } else if (node instanceof FlowSecondaryLocationNode) {
-      var locationNode = (FlowSecondaryLocationNode) node;
+    } else if (node instanceof FlowSecondaryLocationNode locationNode) {
       highlighter.highlightSecondaryLocation(locationNode.getSecondaryLocation(), locationNode.getAssociatedFlow());
-    } else if (node instanceof PrimaryLocationNode) {
-      var primaryLocationNode = (PrimaryLocationNode) node;
+    } else if (node instanceof PrimaryLocationNode primaryLocationNode) {
       highlighter.highlightPrimaryLocation(primaryLocationNode.rangeMarker(), primaryLocationNode.message(), primaryLocationNode.getAssociatedFlow());
     }
   }
@@ -106,11 +107,9 @@ public class FlowsTree extends Tree {
       return;
     }
     RangeMarker rangeMarker;
-    if (node instanceof FlowNode) {
-      var flowNode = (FlowNode) node;
+    if (node instanceof FlowNode flowNode) {
       rangeMarker = flowNode.getFlow().getLocations().stream().findFirst().map(Location::getRange).orElse(null);
-    } else if (node instanceof PrimaryLocationNode) {
-      var locationNode = (PrimaryLocationNode) node;
+    } else if (node instanceof PrimaryLocationNode locationNode) {
       rangeMarker = locationNode.rangeMarker();
     } else {
       rangeMarker = null;

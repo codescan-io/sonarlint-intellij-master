@@ -15,13 +15,13 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.its.utils
 
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.junit.jupiter.api.extension.TestWatcher
-import org.sonarlint.intellij.its.BaseUiTest
+import org.sonarlint.intellij.its.BaseUiTest.Companion.remoteRobot
 
 class ThreadDumpOnFailure : TestWatcher {
     override fun testFailed(context: ExtensionContext, cause: Throwable) {
@@ -32,7 +32,7 @@ class ThreadDumpOnFailure : TestWatcher {
     }
 
     private fun printThreadDump() {
-        val stackTrace = BaseUiTest.remoteRobot.callJs<String>(
+        val stackTrace = remoteRobot.callJs<String>(
             """
                java.lang.management.ManagementFactory.getThreadMXBean().dumpAllThreads(true, true).map(function(element){
                     return element.toString();

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui;
 
@@ -23,11 +23,12 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionToolbar;
+import com.intellij.openapi.actionSystem.AnAction;
+import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.actionSystem.ex.ActionUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.SimpleToolWindowPanel;
 import com.intellij.openapi.ui.VerticalFlowLayout;
-import com.intellij.tools.SimpleActionGroup;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.components.JBPanel;
@@ -38,14 +39,22 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import javax.swing.Box;
 import javax.swing.JScrollPane;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.tree.TreeSelectionModel;
 import org.sonarlint.intellij.analysis.AnalysisResult;
+import org.sonarlint.intellij.cayc.CleanAsYouCodeService;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.core.BackendService;
 import org.sonarlint.intellij.editor.EditorDecorator;
 import org.sonarlint.intellij.finding.LiveFinding;
+import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot;
 import org.sonarlint.intellij.finding.issue.LiveIssue;
 import org.sonarlint.intellij.messages.StatusListener;
 import org.sonarlint.intellij.trigger.TriggerType;
@@ -56,34 +65,49 @@ import org.sonarlint.intellij.ui.tree.IssueTreeModelBuilder;
 import org.sonarlint.intellij.ui.tree.SecurityHotspotTree;
 import org.sonarlint.intellij.ui.tree.SecurityHotspotTreeModelBuilder;
 import org.sonarlint.intellij.util.SonarLintActions;
-import org.sonarsource.sonarlint.core.clientapi.backend.hotspot.HotspotStatus;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.hotspot.HotspotStatus;
 
+import static java.util.function.Predicate.not;
+import static org.sonarlint.intellij.actions.RestartBackendAction.SONARLINT_ERROR_MSG;
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.ui.SonarLintToolWindowFactory.createSplitter;
 import static org.sonarlint.intellij.ui.UiUtils.runOnUiThread;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
   private static final String SPLIT_PROPORTION_PROPERTY = "SONARLINT_ANALYSIS_RESULTS_SPLIT_PROPORTION";
   private static final String ID = "CodeScan";
   protected final Project project;
   private final LastAnalysisPanel lastAnalysisPanel;
+  private final ReportTabStatusPanel whatsNewPanel;
+  private final AnAction restartSonarLintAction = SonarLintActions.getInstance().restartSonarLintAction();
   protected Tree tree;
+  protected Tree oldTree;
   protected IssueTreeModelBuilder treeBuilder;
-  private ActionToolbar mainToolbar;
+  protected IssueTreeModelBuilder oldTreeBuilder;
   protected SecurityHotspotTreeModelBuilder securityHotspotTreeBuilder;
+  protected SecurityHotspotTreeModelBuilder oldSecurityHotspotTreeBuilder;
   protected Tree securityHotspotTree;
+  protected Tree oldSecurityHotspotTree;
+  private ActionToolbar mainToolbar;
   private JScrollPane findingsTreePane;
   private FindingDetailsPanel findingDetailsPanel;
+  private AnalysisResult lastAnalysisResult;
+  private JBPanelWithEmptyText findingsPanel;
 
   public ReportPanel(Project project) {
-    super(false, true);
+    super(false, false);
     this.project = project;
-    this.lastAnalysisPanel = new LastAnalysisPanel();
+    lastAnalysisPanel = new LastAnalysisPanel();
+    whatsNewPanel = new ReportTabStatusPanel(project);
 
     createIssuesTree();
     createSecurityHotspotsTree();
+    createOldIssuesTree();
+    createOldSecurityHotspotsTree();
+
     createFindingDetailsPanel();
     handleListener();
-    disableSecurityHotspotTree();
 
     initPanel();
 
@@ -95,18 +119,49 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
     if (project.isDisposed()) {
       return;
     }
+
+    var currentFocus = getService(CleanAsYouCodeService.class).shouldFocusOnNewCode(project);
+    lastAnalysisResult = analysisResult;
+
     lastAnalysisPanel.update(analysisResult.getAnalysisDate(), whatAnalyzed(analysisResult));
     var findings = analysisResult.getFindings();
-    treeBuilder.updateModel(findings.getIssuesPerFile(), "No issues found");
-    securityHotspotTreeBuilder.updateModel(findings.getSecurityHotspotsPerFile(), "No Security Hotspots found");
+
+    if (currentFocus) {
+      var oldHotspots = findings.getSecurityHotspotsPerFile().entrySet().stream()
+        .map(e -> Map.entry(e.getKey(), e.getValue().stream().filter(not(LiveFinding::isOnNewCode)).toList()))
+        .filter(e -> !e.getValue().isEmpty())
+        .collect(Collectors.toMap(Map.Entry::getKey, e -> (Collection<LiveSecurityHotspot>) e.getValue()));
+      var newHotspots = findings.getSecurityHotspotsPerFile().entrySet().stream()
+        .map(e -> Map.entry(e.getKey(), e.getValue().stream().filter(LiveFinding::isOnNewCode).toList()))
+        .filter(e -> !e.getValue().isEmpty())
+        .collect(Collectors.toMap(Map.Entry::getKey, e -> (Collection<LiveSecurityHotspot>) e.getValue()));
+      var oldIssues = findings.getIssuesPerFile().entrySet().stream()
+        .map(e -> Map.entry(e.getKey(), e.getValue().stream().filter(not(LiveFinding::isOnNewCode)).toList()))
+        .filter(e -> !e.getValue().isEmpty())
+        .collect(Collectors.toMap(Map.Entry::getKey, e -> (Collection<LiveIssue>) e.getValue()));
+      var newIssues = findings.getIssuesPerFile().entrySet().stream()
+        .map(e -> Map.entry(e.getKey(), e.getValue().stream().filter(LiveFinding::isOnNewCode).toList()))
+        .filter(e -> !e.getValue().isEmpty())
+        .collect(Collectors.toMap(Map.Entry::getKey, e -> (Collection<LiveIssue>) e.getValue()));
+
+      runOnUiThread(project, () -> {
+        treeBuilder.updateModel(newIssues);
+        oldTreeBuilder.updateModel(oldIssues);
+        securityHotspotTreeBuilder.updateModel(newHotspots);
+        oldSecurityHotspotTreeBuilder.updateModel(oldHotspots);
+      });
+    } else {
+      runOnUiThread(project, () -> {
+        securityHotspotTreeBuilder.updateModel(findings.getSecurityHotspotsPerFile());
+        oldSecurityHotspotTreeBuilder.updateModel(Collections.emptyMap());
+        treeBuilder.updateModel(findings.getIssuesPerFile());
+        oldTreeBuilder.updateModel(Collections.emptyMap());
+      });
+    }
 
     disableEmptyDisplay(true);
 
-    if (findings.getSecurityHotspotsPerFile().isEmpty()) {
-      disableSecurityHotspotTree();
-    } else {
-      enableHotspotTree();
-    }
+    setTrees(currentFocus);
 
     expandTree();
   }
@@ -122,18 +177,27 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
     }
   }
 
+  public void updateStatusForOldSecurityHotspots(String securityHotspotKey, HotspotStatus status) {
+    var wasUpdated = oldSecurityHotspotTreeBuilder.updateStatusForHotspotWithFileNode(securityHotspotKey, status);
+    if (wasUpdated) {
+      expandTree();
+    }
+  }
+
   private void initPanel() {
     // Findings panel with tree
-    var findingsPanel = new JBPanelWithEmptyText(new BorderLayout());
-
-    initEmptyViews(findingsPanel);
+    findingsPanel = new JBPanelWithEmptyText(new BorderLayout());
 
     var treePanel = new JBPanel<ReportPanel>(new VerticalFlowLayout(0, 0));
     treePanel.add(tree);
     treePanel.add(securityHotspotTree);
-    findingsTreePane = ScrollPaneFactory.createScrollPane(treePanel);
+    treePanel.add(oldTree);
+    treePanel.add(oldSecurityHotspotTree);
+    findingsTreePane = ScrollPaneFactory.createScrollPane(treePanel, true);
     findingsPanel.add(findingsTreePane, BorderLayout.CENTER);
     findingsPanel.add(lastAnalysisPanel, BorderLayout.SOUTH);
+    whatsNewPanel.add(lastAnalysisPanel, BorderLayout.WEST);
+    findingsPanel.add(whatsNewPanel, BorderLayout.SOUTH);
     setToolbar(createActionGroup());
     disableEmptyDisplay(false);
 
@@ -142,23 +206,30 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
     super.setContent(createSplitter(project, this, this, findingsPanel, findingDetailsPanel, SPLIT_PROPORTION_PROPERTY, 0.5f));
   }
 
-  private void initEmptyViews(JBPanelWithEmptyText findingsPanel) {
+  private void handleEmptyView() {
     var statusText = findingsPanel.getEmptyText();
-    var sonarLintActions = SonarLintActions.getInstance();
-    var analyzeChangedFiles = sonarLintActions.analyzeChangedFiles();
-    var analyzeAllFiles = sonarLintActions.analyzeAllFiles();
-    statusText.setText(LastAnalysisPanel.NEVER_ANALYZED_EMPTY_TEXT);
-    statusText.appendLine("");
-    if (analyzeChangedFiles.getTemplateText() != null) {
-      statusText.appendText(analyzeChangedFiles.getTemplateText(), SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES,
-        ignore -> ActionUtil.invokeAction(analyzeChangedFiles, this, CurrentFilePanel.SONARLINT_TOOLWINDOW_ID, null, null));
-      if (analyzeAllFiles.getTemplateText() != null) {
-        statusText.appendText(" or ");
+    var backendIsAlive = getService(BackendService.class).isAlive();
+    if (!backendIsAlive) {
+      statusText.setText(SONARLINT_ERROR_MSG);
+      statusText.appendLine("Restart CodeScan Service", SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES,
+        ignore -> ActionUtil.invokeAction(restartSonarLintAction, this, CurrentFilePanel.SONARLINT_TOOLWINDOW_ID, null, null));
+    } else {
+      var sonarLintActions = SonarLintActions.getInstance();
+      var analyzeChangedFiles = sonarLintActions.analyzeChangedFiles();
+      var analyzeAllFiles = sonarLintActions.analyzeAllFiles();
+      statusText.setText(LastAnalysisPanel.NEVER_ANALYZED_EMPTY_TEXT);
+      statusText.appendLine("");
+      if (analyzeChangedFiles.getTemplateText() != null) {
+        statusText.appendText(analyzeChangedFiles.getTemplateText(), SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES,
+          ignore -> ActionUtil.invokeAction(analyzeChangedFiles, this, CurrentFilePanel.SONARLINT_TOOLWINDOW_ID, null, null));
+        if (analyzeAllFiles.getTemplateText() != null) {
+          statusText.appendText(" or ");
+        }
       }
-    }
-    if (analyzeAllFiles.getTemplateText() != null) {
-      statusText.appendText(analyzeAllFiles.getTemplateText(), SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES,
-        ignore -> ActionUtil.invokeAction(analyzeAllFiles, this, CurrentFilePanel.SONARLINT_TOOLWINDOW_ID, null, null));
+      if (analyzeAllFiles.getTemplateText() != null) {
+        statusText.appendText(analyzeAllFiles.getTemplateText(), SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES,
+          ignore -> ActionUtil.invokeAction(analyzeAllFiles, this, CurrentFilePanel.SONARLINT_TOOLWINDOW_ID, null, null));
+      }
     }
   }
 
@@ -166,21 +237,32 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
     mainToolbar.updateActionsImmediately();
   }
 
-  private void enableHotspotTree() {
-    tree.setShowsRootHandles(true);
-    securityHotspotTree.setShowsRootHandles(true);
-    securityHotspotTree.setVisible(true);
-  }
-
-  private void disableSecurityHotspotTree() {
-    tree.setShowsRootHandles(false);
-    securityHotspotTree.setShowsRootHandles(false);
-    securityHotspotTree.setVisible(false);
+  private void setTrees(boolean isFocusOnNewCode) {
+    runOnUiThread(project, () -> {
+      tree.setShowsRootHandles(true);
+      oldTree.setShowsRootHandles(true);
+      securityHotspotTree.setShowsRootHandles(true);
+      oldSecurityHotspotTree.setShowsRootHandles(true);
+      tree.setVisible(true);
+      oldTree.setVisible(isFocusOnNewCode);
+      securityHotspotTree.setVisible(true);
+      oldSecurityHotspotTree.setVisible(isFocusOnNewCode);
+    });
   }
 
   private void issueTreeSelectionChanged(TreeSelectionEvent e) {
+    clearSelections(tree, List.of(oldTree, securityHotspotTree, oldSecurityHotspotTree));
+  }
+
+  private void oldIssueTreeSelectionChanged(TreeSelectionEvent e) {
+    clearSelections(oldTree, List.of(tree, securityHotspotTree, oldSecurityHotspotTree));
+  }
+
+  private void clearSelections(Tree tree, List<Tree> treesToClear) {
     if (!tree.isSelectionEmpty()) {
-      securityHotspotTree.clearSelection();
+      for(Tree treeItem : treesToClear){
+        treeItem.clearSelection();
+      }
     }
     var selectedIssueNodes = tree.getSelectedNodes(IssueNode.class, null);
     if (selectedIssueNodes.length > 0) {
@@ -191,11 +273,21 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
   }
 
   private void securityHotspotTreeSelectionChanged(TreeSelectionEvent e) {
+    clearSelectionsForHotspots(e, securityHotspotTree, List.of(tree, oldTree, oldSecurityHotspotTree));
+  }
+
+  private void oldSecurityHotspotTreeSelectionChanged(TreeSelectionEvent e) {
+    clearSelectionsForHotspots(e, oldSecurityHotspotTree, List.of(tree, oldTree, securityHotspotTree));
+  }
+
+  private void clearSelectionsForHotspots(TreeSelectionEvent e, Tree tree, List<Tree> treesToClear) {
     if (e.getSource() instanceof SecurityHotspotTree) {
-      if (!securityHotspotTree.isSelectionEmpty()) {
-        tree.clearSelection();
+      if (!tree.isSelectionEmpty()) {
+        for (Tree treeItem : treesToClear) {
+          treeItem.clearSelection();
+        }
       }
-      var selectedHotspotsNodes = securityHotspotTree.getSelectedNodes(LiveSecurityHotspotNode.class, null);
+      var selectedHotspotsNodes = tree.getSelectedNodes(LiveSecurityHotspotNode.class, null);
       if (selectedHotspotsNodes.length > 0) {
         updateOnSelect(selectedHotspotsNodes[0].getHotspot());
       } else {
@@ -222,9 +314,10 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
     mainToolbar.getComponent().setVisible(true);
   }
 
-  private static SimpleActionGroup createActionGroup() {
+  private static DefaultActionGroup createActionGroup() {
     var sonarLintActions = SonarLintActions.getInstance();
-    var actionGroup = new SimpleActionGroup();
+    var actionGroup = new DefaultActionGroup();
+    actionGroup.add(ActionManager.getInstance().getAction("CodeScan.SetFocusNewCode"));
     actionGroup.add(sonarLintActions.analyzeChangedFiles());
     actionGroup.add(sonarLintActions.analyzeAllFiles());
     actionGroup.add(sonarLintActions.cancelAnalysis());
@@ -250,14 +343,23 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
 
   private void handleListener() {
     tree.addTreeSelectionListener(this::issueTreeSelectionChanged);
+    oldTree.addTreeSelectionListener(this::oldIssueTreeSelectionChanged);
     securityHotspotTree.addTreeSelectionListener(this::securityHotspotTreeSelectionChanged);
+    oldSecurityHotspotTree.addTreeSelectionListener(this::oldSecurityHotspotTreeSelectionChanged);
   }
 
   private void createSecurityHotspotsTree() {
     securityHotspotTreeBuilder = new SecurityHotspotTreeModelBuilder();
-    var model = securityHotspotTreeBuilder.createModel();
+    var model = securityHotspotTreeBuilder.createModel(project, false);
     securityHotspotTree = new SecurityHotspotTree(project, model);
     manageInteraction(securityHotspotTree);
+  }
+
+  private void createOldSecurityHotspotsTree() {
+    oldSecurityHotspotTreeBuilder = new SecurityHotspotTreeModelBuilder();
+    var model = oldSecurityHotspotTreeBuilder.createModel(project, true);
+    oldSecurityHotspotTree = new SecurityHotspotTree(project, model);
+    manageInteraction(oldSecurityHotspotTree);
   }
 
   private void createFindingDetailsPanel() {
@@ -271,11 +373,19 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
   }
 
   private void createIssuesTree() {
-    treeBuilder = new IssueTreeModelBuilder();
-    var model = treeBuilder.createModel();
+    treeBuilder = new IssueTreeModelBuilder(project);
+    var model = treeBuilder.createModel(false);
     tree = new IssueTree(project, model);
     manageInteraction(tree);
   }
+
+  private void createOldIssuesTree() {
+    oldTreeBuilder = new IssueTreeModelBuilder(project);
+    var model = oldTreeBuilder.createModel(true);
+    oldTree = new IssueTree(project, model);
+    manageInteraction(oldTree);
+  }
+
 
   private void manageInteraction(Tree tree) {
     tree.addKeyListener(new KeyAdapter() {
@@ -291,7 +401,7 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
   }
 
   private void subscribeToEvents() {
-    var busConnection = project.getMessageBus().connect(project);
+    var busConnection = project.getMessageBus().connect();
     busConnection.subscribe(StatusListener.SONARLINT_STATUS_TOPIC,
       newStatus -> runOnUiThread(project, this::refreshToolbar));
   }
@@ -302,26 +412,35 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
     }
     lastAnalysisPanel.clear();
     treeBuilder.clear();
+    oldTreeBuilder.clear();
+    oldSecurityHotspotTreeBuilder.clear();
     securityHotspotTreeBuilder.clear();
     disableEmptyDisplay(false);
   }
 
   private void expandTree() {
-    if (treeBuilder.numberIssues() < 30) {
-      TreeUtil.expandAll(tree);
-    } else {
-      tree.expandRow(0);
-    }
+    runOnUiThread(project, () -> {
+      if (treeBuilder.numberIssues() < 30) {
+        TreeUtil.expandAll(tree);
+      } else {
+        tree.expandRow(0);
+      }
 
-    if (securityHotspotTreeBuilder.numberHotspots() < 30) {
-      TreeUtil.expandAll(securityHotspotTree);
-    } else {
-      securityHotspotTree.expandRow(0);
-    }
+      if (securityHotspotTreeBuilder.numberHotspots() < 30) {
+        TreeUtil.expandAll(securityHotspotTree);
+      } else {
+        securityHotspotTree.expandRow(0);
+      }
+    });
   }
 
   private void disableEmptyDisplay(Boolean state) {
+    if (Boolean.FALSE.equals(state)) {
+      runOnPooledThread(project, this::handleEmptyView);
+    }
     findingsTreePane.setVisible(state);
+    lastAnalysisPanel.setVisible(state);
+    whatsNewPanel.setVisible(state);
     lastAnalysisPanel.setVisible(state);
   }
 
@@ -330,4 +449,13 @@ public class ReportPanel extends SimpleToolWindowPanel implements Disposable {
   public void dispose() {
     lastAnalysisPanel.dispose();
   }
+
+  public void refreshView() {
+    if (lastAnalysisResult != null) {
+      updateFindings(lastAnalysisResult);
+    } else {
+      disableEmptyDisplay(false);
+    }
+  }
+
 }

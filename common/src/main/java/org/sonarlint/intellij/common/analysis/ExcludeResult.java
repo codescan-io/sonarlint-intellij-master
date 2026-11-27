@@ -15,18 +15,18 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.common.analysis;
 
-//import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 public class ExcludeResult {
   private final boolean excluded;
-//  @Nullable
+  @Nullable
   private final String excludeReason;
 
-  private ExcludeResult(boolean excluded, String excludeReason) {
+  private ExcludeResult(boolean excluded, @Nullable String excludeReason) {
     this.excluded = excluded;
     this.excludeReason = excludeReason;
   }

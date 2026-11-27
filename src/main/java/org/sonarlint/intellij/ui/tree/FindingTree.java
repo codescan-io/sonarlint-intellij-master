@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.tree;
 
@@ -58,11 +58,10 @@ public abstract class FindingTree extends Tree {
   @CheckForNull
   protected VirtualFile getSelectedFile() {
     var node = getSelectedNode();
-    if (!(node instanceof FileNode)) {
-      return null;
+    if (node instanceof FileNode fileNode) {
+      return fileNode.file();
     }
-    var fileNode = (FileNode) node;
-    return fileNode.file();
+    return null;
   }
 
   @CheckForNull

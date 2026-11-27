@@ -1,0 +1,27 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPath": "/api/authentication/validate",
+    "queryParameters": {
+      "format": {
+        "equalTo": "json"
+      }
+    },
+    "headers": {
+      "Authorization": {
+        "equalTo": "Bearer ip-allowlist-blocked-token"
+      }
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\"errors\":[{\"msg\":\"Access to organization 'salil-nov-24' is blocked by its IP allowlist. Your IP address is 203.0.113.7.\"}]}"
+  },
+  "metadata": {
+    "note": "Not a recording: added for CSN-74. CodeScan's answer when the organization's IP allowlist refuses the caller. Matches only Authorization: Bearer ip-allowlist-blocked-token; priority 1 so it wins over the normal answer for the same address."
+  }
+}

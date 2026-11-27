@@ -15,17 +15,20 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.nodes;
 
-import com.intellij.psi.PsiFile;
+import com.intellij.openapi.vfs.VirtualFile;
+import java.time.Instant;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
 import org.sonarlint.intellij.finding.issue.LiveIssue;
-import org.sonarsource.sonarlint.core.client.api.common.analysis.Issue;
-import org.sonarsource.sonarlint.core.commons.IssueSeverity;
-import org.sonarsource.sonarlint.core.commons.RuleType;
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.RaisedIssueDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Either;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.IssueSeverity;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.RuleType;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.StandardModeDetails;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -36,20 +39,19 @@ class IssueNodeTests {
 
   @Test
   void testCount() {
-    var i = createIssue(System.currentTimeMillis(), "rule");
+    var i = createIssue(Instant.now(), "rule");
     node = new IssueNode(i);
     assertThat(node.getFindingCount()).isEqualTo(1);
     assertThat(node.issue()).isEqualTo(i);
   }
 
-  private static LiveIssue createIssue(long date, String message) {
-    var file = mock(PsiFile.class);
+  private static LiveIssue createIssue(Instant date, String message) {
+    var file = mock(VirtualFile.class);
     when(file.isValid()).thenReturn(true);
-    var issue = mock(Issue.class);
-    when(issue.getMessage()).thenReturn(message);
-    when(issue.getSeverity()).thenReturn(IssueSeverity.MAJOR);
-    when(issue.getType()).thenReturn(RuleType.BUG);
-    var issuePointer = new LiveIssue(issue, file, Collections.emptyList());
+    var issue = mock(RaisedIssueDto.class);
+    when(issue.getPrimaryMessage()).thenReturn(message);
+    when(issue.getSeverityMode()).thenReturn(Either.forLeft(new StandardModeDetails(IssueSeverity.MAJOR, RuleType.BUG)));
+    var issuePointer = new LiveIssue(null, issue, file, Collections.emptyList());
     issuePointer.setIntroductionDate(date);
     return issuePointer;
   }

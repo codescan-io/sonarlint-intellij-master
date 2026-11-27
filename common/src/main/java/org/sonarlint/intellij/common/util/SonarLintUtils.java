@@ -15,14 +15,13 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.common.util;
 
 import com.intellij.lang.Language;
 import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.ApplicationNamesInfo;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
@@ -33,31 +32,26 @@ import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.SourceFolder;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
-import java.awt.GraphicsEnvironment;
-import java.awt.Image;
-import java.awt.Transparency;
-import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import javax.swing.Icon;
-import javax.swing.ImageIcon;
-import org.apache.commons.lang3.StringUtils;
-import org.jetbrains.annotations.NotNull;
+import java.net.URISyntaxException;
+import java.util.List;
+import java.util.Locale;
+import javax.annotation.CheckForNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
-import org.sonarsource.sonarlint.core.commons.log.SonarLintLogger;
 
 public class SonarLintUtils {
 
-  private static final SonarLintLogger LOG =  SonarLintLogger.get();
+  private static final Logger LOG = Logger.getInstance(SonarLintUtils.class);
+  public static final String DEFAULT_SONARCLOUD_URL = "https://sonarcloud.io";
+  // CodeScan: the "cloud" is CodeScan's, so new cloud connections and their links use this address
   public static final String DEFAULT_CODESCANCLOUD_URL = "https://app.codescan.io";
   public static final String SONARCLOUD_URL = System.getProperty("sonarlint.internal.sonarcloud.url", DEFAULT_CODESCANCLOUD_URL);
-  static final String[] CODESCAN_DOMAINS = new String[]{"codescan.io", "autorabit.com"};
-  private static final String CODESCAN_HEALTH_ENDPOINT = "/_codescan/actuator/health";
-  private static final String CODESCAN_HEALTH_JSON_RESPONSE = "{\"status\":\"UP\"}";
-  private static final String CODESCAN_HEALTH_JSON_RESPONSE_DOWN = "{\"status\":\"DOWN\"}";
+  // CodeScan: every host on these domains is CodeScan
+  private static final List<String> CODESCAN_DOMAINS = List.of("codescan.io", "autorabit.com");
+  @Nullable
+  private static final String SONARCLOUD_HOST = hostOf(SONARCLOUD_URL);
 
   private SonarLintUtils() {
     // Utility class
@@ -84,40 +78,6 @@ public class SonarLintUtils {
     return t;
   }
 
-  public static boolean isCodeScanCloudAlias(String url) {
-    url = removeTrailingSlashesFromUrl(url);
-    if (StringUtils.containsAny(url, CODESCAN_DOMAINS)) {
-      return true;
-    }
-    HttpClient httpClient = HttpClient.newHttpClient();
-    HttpRequest httpRequest = HttpRequest.newBuilder()
-            .uri(URI.create(url + CODESCAN_HEALTH_ENDPOINT))
-            .build();
-    try {
-      HttpResponse<String> httpResponse = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-      int statusCode = httpResponse.statusCode();
-      if (statusCode == 200
-              && (CODESCAN_HEALTH_JSON_RESPONSE.equals(httpResponse.body())
-              || CODESCAN_HEALTH_JSON_RESPONSE_DOWN.equals(httpResponse.body()))) {
-        return true;
-      } else {
-        LOG.debug("isCodeScanCloudAlias health check request for host {} failed with status code: {}.", url, statusCode);
-        return false;
-      }
-    } catch (Exception e) {
-      LOG.error("isCodeScanCloudAlias health check request for host {} gave an exception", url, e);
-      return false;
-    }
-  }
-
-  private static String removeTrailingSlashesFromUrl(String url) {
-    String cleanedUrl = url.trim();
-    while (cleanedUrl.endsWith("/")) {
-      cleanedUrl = cleanedUrl.substring(0, cleanedUrl.length() - 1);
-    }
-    return cleanedUrl;
-  }
-
   private static <T> void logAndThrowIfServiceNotFound(T t, String name) {
     if (t == null) {
       LOG.error("Could not find service: " + name);
@@ -125,12 +85,73 @@ public class SonarLintUtils {
     }
   }
 
+  /**
+   * CodeScan: tells whether a server is CodeScan, which the plugin treats as a "cloud" server (it has organizations).
+   * That is the case for the cloud address, for any host on codescan.io or autorabit.com (the host itself; the rest of the
+   * address does not count), and for a self-hosted CodeScan server on its own domain that answers CodeScan's health check.
+   * On the UI thread the health check is never waited for, see {@link CodeScanServerCheck}.
+   */
+  public static boolean isSonarCloudAlias(@Nullable String url) {
+    if (isBlank(url)) {
+      return false;
+    }
+    URI uri;
+    try {
+      uri = new URI(url.trim());
+    } catch (URISyntaxException e) {
+      return false;
+    }
+    var scheme = uri.getScheme();
+    var host = uri.getHost();
+    if (scheme == null || host == null || !("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))) {
+      return false;
+    }
+    host = host.toLowerCase(Locale.ROOT);
+    if (isCodeScanHost(host)) {
+      return true;
+    }
+    var application = ApplicationManager.getApplication();
+    if (application == null) {
+      // no IDE around (plain unit tests), so no health check
+      return false;
+    }
+    return application.getService(CodeScanServerCheck.class).isCodeScanServer(serverAddress(scheme, host, uri));
+  }
 
-  public static boolean isEmpty(String str) {
+  private static boolean isCodeScanHost(String host) {
+    if (host.equals(SONARCLOUD_HOST)) {
+      return true;
+    }
+    return CODESCAN_DOMAINS.stream().anyMatch(domain -> host.equals(domain) || host.endsWith("." + domain));
+  }
+
+  @CheckForNull
+  private static String hostOf(String url) {
+    try {
+      var host = new URI(url).getHost();
+      return host == null ? null : host.toLowerCase(Locale.ROOT);
+    } catch (URISyntaxException e) {
+      return null;
+    }
+  }
+
+  /**
+   * The address without user name, query, fragment or trailing slashes, so each server is asked once.
+   */
+  private static String serverAddress(String scheme, String host, URI uri) {
+    var port = uri.getPort() == -1 ? "" : (":" + uri.getPort());
+    var path = uri.getRawPath() == null ? "" : uri.getRawPath();
+    while (path.endsWith("/")) {
+      path = path.substring(0, path.length() - 1);
+    }
+    return scheme.toLowerCase(Locale.ROOT) + "://" + host + port + path;
+  }
+
+  public static boolean isEmpty(@Nullable String str) {
     return str == null || str.isEmpty();
   }
 
-  public static boolean isBlank(String str) {
+  public static boolean isBlank(@Nullable String str) {
     return str == null || str.trim().isEmpty();
   }
 
@@ -145,21 +166,11 @@ public class SonarLintUtils {
     return str;
   }
 
-  public static Image iconToImage(Icon icon) {
-    if (icon instanceof ImageIcon) {
-      return ((ImageIcon) icon).getImage();
-    } else {
-      var w = icon.getIconWidth();
-      var h = icon.getIconHeight();
-      var ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-      var gd = ge.getDefaultScreenDevice();
-      var gc = gd.getDefaultConfiguration();
-      var image = gc.createCompatibleImage(w, h, Transparency.TRANSLUCENT);
-      var g = image.createGraphics();
-      icon.paintIcon(null, g, 0, 0);
-      g.dispose();
-      return image;
+  public static String withoutTrailingSlash(String str) {
+    if (str.endsWith("/")) {
+      return str.substring(0, str.length() - 1);
     }
+    return str;
   }
 
   /**
@@ -167,11 +178,12 @@ public class SonarLintUtils {
    * on which one of the split editors is selected.
    * This seems to work well with split editors.
    */
-//  @CheckForNull
+  @CheckForNull
   public static VirtualFile getSelectedFile(Project project) {
     if (project.isDisposed()) {
       return null;
     }
+    ApplicationManager.getApplication().assertIsDispatchThread();
     var editorManager = FileEditorManager.getInstance(project);
 
     var editor = editorManager.getSelectedTextEditor();
@@ -191,7 +203,8 @@ public class SonarLintUtils {
     return (properties != null && properties.isForGeneratedSources()) || (resourceProperties != null && resourceProperties.isForGeneratedSources());
   }
 
-  public static SourceFolder getSourceFolder(VirtualFile source, Module module) {
+  @Nullable
+  public static SourceFolder getSourceFolder(@CheckForNull VirtualFile source, Module module) {
     if (source == null) {
       return null;
     }
@@ -224,22 +237,6 @@ public class SonarLintUtils {
     return "php".equalsIgnoreCase(file.getFileType().getName());
   }
 
-//  @CheckForNull
-  public static String getIdeVersionForTelemetry() {
-    String ideVersion;
-    try {
-      var appInfo = getAppInfo();
-      ideVersion = appInfo.getVersionName() + " " + appInfo.getFullVersion();
-      var edition = ApplicationNamesInfo.getInstance().getEditionName();
-      if (edition != null) {
-        ideVersion += " (" + edition + ")";
-      }
-    } catch (NullPointerException noAppInfo) {
-      return null;
-    }
-    return ideVersion;
-  }
-
   private static ApplicationInfo getAppInfo() {
     return ApplicationInfo.getInstance();
   }
@@ -264,6 +261,7 @@ public class SonarLintUtils {
     return getAppInfo().getFullApplicationName().toLowerCase().contains("appcode");
   }
 
+  /** CodeScan: taint vulnerabilities are not shown (no tab, no editor marks). */
   public static boolean isTaintVulnerabilitiesEnabled() {
     return false;
   }

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.ruledescription
 
@@ -31,10 +31,10 @@ import com.intellij.ui.components.panels.HorizontalLayout
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import org.sonarlint.intellij.ui.ruledescription.RuleParsingUtils.Companion.parseCodeExamples
-import org.sonarsource.sonarlint.core.clientapi.backend.rules.RuleContextualSectionDto
-import org.sonarsource.sonarlint.core.clientapi.backend.rules.RuleDescriptionTabDto
-import org.sonarsource.sonarlint.core.clientapi.backend.rules.RuleMonolithicDescriptionDto
-import org.sonarsource.sonarlint.core.clientapi.backend.rules.RuleSplitDescriptionDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.RuleContextualSectionDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.RuleDescriptionTabDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.RuleMonolithicDescriptionDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.RuleSplitDescriptionDto
 import java.awt.BorderLayout
 import java.awt.Font
 import javax.swing.DefaultComboBoxModel
@@ -70,7 +70,7 @@ class RuleDescriptionPanel(private val project: Project, private val parent: Dis
             val scrollPane = parseCodeExamples(project, parent, nonContextual.htmlContent, fileType)
             sectionPanel.add(scrollPane, BorderLayout.CENTER)
         }, { contextual ->
-            val comboPanel = JBPanel<JBPanel<*>>(HorizontalLayout(JBUI.scale(UIUtil.DEFAULT_HGAP), HorizontalLayout.FILL))
+            val comboPanel = JBPanel<JBPanel<*>>(HorizontalLayout(JBUI.scale(UIUtil.DEFAULT_HGAP)))
             comboPanel.add(JBLabel("Which component or framework contains the issue?"))
             val contextCombo = ComboBox(DefaultComboBoxModel(contextual.contextualSections.toTypedArray()))
             contextCombo.renderer = SimpleListCellRenderer.create("", RuleContextualSectionDto::getDisplayName)

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.editor;
 
@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.sonarlint.intellij.AbstractSonarLintLightTests;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -72,7 +73,7 @@ class CodeAnalyzerRestarterTests extends AbstractSonarLintLightTests {
 
     analyzerRestarter.refreshOpenFiles();
 
-    verify(codeAnalyzer).restart(file1);
+    verify(codeAnalyzer, timeout(1000)).restart(file1);
     verify(codeAnalyzer).restart(file2);
     verifyNoMoreInteractions(codeAnalyzer);
   }
@@ -84,7 +85,7 @@ class CodeAnalyzerRestarterTests extends AbstractSonarLintLightTests {
 
     analyzerRestarter.refreshFiles(List.of(file1.getVirtualFile(), file2.getVirtualFile()));
 
-    verify(codeAnalyzer).restart(file1);
+    verify(codeAnalyzer, timeout(1000)).restart(file1);
     verifyNoMoreInteractions(codeAnalyzer);
   }
 }

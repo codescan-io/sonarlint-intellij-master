@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.tasks;
 
@@ -24,28 +24,40 @@ import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.config.global.ServerConnection;
-import org.sonarlint.intellij.util.TaskProgressMonitor;
-import org.sonarsource.sonarlint.core.commons.progress.ProgressMonitor;
-import org.sonarsource.sonarlint.core.serverapi.component.ServerProject;
+import org.sonarlint.intellij.core.BackendService;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.projects.SonarProjectDto;
 
-public class ServerDownloadProjectTask extends Task.WithResult<Map<String, ServerProject>, Exception> {
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
+import static org.sonarlint.intellij.util.ProgressUtils.waitForFuture;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.computeOnPooledThreadWithoutCatching;
+
+public class ServerDownloadProjectTask extends Task.WithResult<Map<String, SonarProjectDto>, Exception> {
   private final ServerConnection server;
+  private final Project project;
 
   public ServerDownloadProjectTask(Project project, ServerConnection server) {
     super(project, "Downloading Project List", true);
+    this.project = project;
     this.server = server;
   }
 
   @Override
-  protected Map<String, ServerProject> compute(@NotNull ProgressIndicator indicator) throws Exception {
+  protected Map<String, SonarProjectDto> compute(@NotNull ProgressIndicator indicator) {
     try {
-      var monitor = new TaskProgressMonitor(indicator, myProject);
-      return server.api().component().getAllProjects(new ProgressMonitor(monitor)).stream().collect(Collectors.toMap(ServerProject::getKey, p -> p));
+      indicator.setIndeterminate(true);
+      indicator.setText("Downloading projects");
+      return computeOnPooledThreadWithoutCatching(project, "Download Projects Task",
+        () ->
+        waitForFuture(indicator, getService(BackendService.class)
+          .getAllProjects(server))
+          .getSonarProjects()
+          .stream().collect(Collectors.toMap(SonarProjectDto::getKey, p -> p)));
     } catch (Exception e) {
-      SonarLintConsole.get(myProject).error("Failed to download list of projects", e);
+      SonarLintConsole.get(project).error("Failed to download list of projects", e);
       throw e;
     }
   }

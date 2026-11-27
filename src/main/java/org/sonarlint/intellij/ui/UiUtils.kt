@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui
 
@@ -25,6 +25,11 @@ import com.intellij.openapi.project.Project
 
 class UiUtils {
     companion object {
+        @JvmStatic
+        fun runOnUiThread(modality: ModalityState, runnable: Runnable) {
+            ApplicationManager.getApplication().invokeLater(runnable, modality)
+        }
+
         @JvmStatic
         fun runOnUiThread(project: Project, runnable: Runnable) {
             runOnUiThread(project, ModalityState.defaultModalityState(), runnable)
@@ -40,12 +45,12 @@ class UiUtils {
         }
 
         @JvmStatic
-        fun runOnUiThreadAndWait(project: Project, runnable: Runnable) {
-            ApplicationManager.getApplication().invokeAndWait {
+        fun runOnUiThreadAndWait(project: Project, modality: ModalityState, runnable: Runnable) {
+            ApplicationManager.getApplication().invokeAndWait({
                 if (!project.isDisposed) {
                     runnable.run()
                 }
-            }
+            }, modality)
         }
     }
 }

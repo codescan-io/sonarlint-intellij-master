@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.notifications.binding
 
@@ -26,6 +26,8 @@ import org.sonarlint.intellij.common.ui.SonarLintConsole
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
 import org.sonarlint.intellij.config.Settings.getGlobalSettings
 import org.sonarlint.intellij.core.ProjectBindingManager
+import org.sonarlint.intellij.core.ProjectBindingManager.BindingMode.AUTOMATIC
+import org.sonarlint.intellij.core.ProjectBindingManager.BindingMode.IMPORTED
 import org.sonarlint.intellij.ui.BindingSuggestionSelectionDialog
 
 class ChooseBindingSuggestionAction(private val suggestedBindings: List<BindingSuggestion>) :
@@ -33,6 +35,8 @@ class ChooseBindingSuggestionAction(private val suggestedBindings: List<BindingS
     override fun actionPerformed(e: AnActionEvent, notification: Notification) {
         val dialog = BindingSuggestionSelectionDialog(suggestedBindings)
         val acceptedSuggestion = dialog.chooseSuggestion() ?: return
+
+        val mode = if (acceptedSuggestion.isFromSharedConfiguration) IMPORTED else AUTOMATIC
 
         notification.expire()
         val project = e.project!!
@@ -42,7 +46,8 @@ class ChooseBindingSuggestionAction(private val suggestedBindings: List<BindingS
                     getService(project, ProjectBindingManager::class.java).bindTo(
                         connection,
                         acceptedSuggestion.projectKey,
-                        emptyMap()
+                        emptyMap(),
+                        mode
                     )
                 },
                 {

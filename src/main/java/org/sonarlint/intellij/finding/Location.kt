@@ -15,19 +15,19 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.finding
 
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.vfs.VirtualFile
+import java.nio.file.Path
+import java.util.regex.Pattern
 import org.apache.commons.codec.digest.DigestUtils
 import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.computeReadActionSafely
-import java.nio.file.Paths
-import java.util.regex.Pattern
 
-fun unknownLocation(message: String?, filePath: String?): Location {
-  return Location(null, null, message, filePath?.let { Paths.get(it).fileName.toString() }, null)
+fun unknownLocation(message: String?, filePath: Path?): Location {
+  return Location(null, null, message, filePath?.fileName.toString(), null)
 }
 
 fun fileOnlyLocation(file: VirtualFile?, message: String?): Location {

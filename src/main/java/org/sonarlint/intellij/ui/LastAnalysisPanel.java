@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui;
 
@@ -25,10 +25,10 @@ import com.intellij.util.ui.JBUI;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.time.Instant;
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 import javax.swing.Box;
 import javax.swing.Timer;
-import org.sonarsource.sonarlint.core.client.api.util.DateUtils;
+import org.sonarlint.intellij.util.DateUtils;
 
 public class LastAnalysisPanel extends JBPanel<LastAnalysisPanel> {
 

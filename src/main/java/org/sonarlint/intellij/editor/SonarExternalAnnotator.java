@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.editor;
 
@@ -32,21 +32,24 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiFile;
 import java.util.ArrayList;
 import java.util.Set;
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.NotNull;
+import org.sonarlint.intellij.actions.MarkAsResolvedAction;
 import org.sonarlint.intellij.actions.ReviewSecurityHotspotAction;
 import org.sonarlint.intellij.actions.SonarLintToolWindow;
+import org.sonarlint.intellij.analysis.AnalysisSubmitter;
+import org.sonarlint.intellij.cayc.CleanAsYouCodeService;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.SonarLintTextAttributes;
 import org.sonarlint.intellij.finding.LiveFinding;
 import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot;
+import org.sonarlint.intellij.finding.issue.LiveIssue;
 import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability;
-import org.sonarlint.intellij.finding.issue.vulnerabilities.TaintVulnerabilitiesPresenter;
-import org.sonarlint.intellij.finding.persistence.FindingsCache;
+import org.sonarlint.intellij.finding.issue.vulnerabilities.TaintVulnerabilitiesCache;
 import org.sonarlint.intellij.util.SonarLintSeverity;
-import org.sonarsource.sonarlint.core.commons.IssueSeverity;
+import org.sonarsource.sonarlint.core.client.utils.ImpactSeverity;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.IssueSeverity;
 
-import static java.util.Collections.emptyList;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.isPhpFile;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.isPhpLanguageRegistered;
@@ -58,39 +61,41 @@ public class SonarExternalAnnotator extends ExternalAnnotator<SonarExternalAnnot
   private static final Set<String> SILENCED_QUICK_FIXABLE_RULE_KEYS = Set.of("java:S1068", "java:S1144", "java:S1172");
 
   @Override
-  public void apply(@NotNull PsiFile file, AnnotationContext annotationResult, @NotNull AnnotationHolder holder) {
-    if (shouldSkip(file)) {
+  public void apply(@NotNull PsiFile psiFile, AnnotationContext annotationResult, @NotNull AnnotationHolder holder) {
+    if (shouldSkip(psiFile)) {
       return;
     }
 
-    var project = file.getProject();
-    var issueManager = getService(project, FindingsCache.class);
-    var issues = issueManager.getIssuesForFile(file.getVirtualFile());
+    var project = psiFile.getProject();
+    var file = psiFile.getVirtualFile();
+
+    var onTheFlyFindingsHolder = getService(project, AnalysisSubmitter.class).getOnTheFlyFindingsHolder();
+    var issues = onTheFlyFindingsHolder.getFindingsForFile(file);
     issues.stream()
-            .filter(issue -> !issue.isResolved())
-            .forEach(issue -> {
-              // reject ranges that are no longer valid. It probably means that they were deleted from the file, or the file was deleted
-              var validTextRange = issue.getValidTextRange();
-              if (validTextRange != null) {
-                addAnnotation(project, issue, validTextRange, holder);
-              }
-            });
+      .filter(issue -> !issue.isResolved())
+      .forEach(issue -> {
+        // reject ranges that are no longer valid. It probably means that they were deleted from the file, or the file was deleted
+        var validTextRange = issue.getValidTextRange();
+        if (validTextRange != null) {
+          addAnnotation(project, issue, validTextRange, holder);
+        }
+      });
 
     // only annotate the hotspots currently displayed in the tree
     var toolWindowService = getService(project, SonarLintToolWindow.class);
-    toolWindowService.getDisplayedSecurityHotspotsForFile(file.getVirtualFile())
-            .forEach(securityHotspot -> {
-              // reject ranges that are no longer valid. It probably means that they were deleted from the file, or the file was deleted
-              var validTextRange = securityHotspot.getValidTextRange();
-              if (validTextRange != null) {
-                addAnnotation(project, securityHotspot, validTextRange, holder);
-              }
-            });
+    toolWindowService.getDisplayedSecurityHotspotsForFile(file)
+      .forEach(securityHotspot -> {
+        // reject ranges that are no longer valid. It probably means that they were deleted from the file, or the file was deleted
+        var validTextRange = securityHotspot.getValidTextRange();
+        if (validTextRange != null) {
+          addAnnotation(project, securityHotspot, validTextRange, holder);
+        }
+      });
 
     if (SonarLintUtils.isTaintVulnerabilitiesEnabled()) {
-      getService(project, TaintVulnerabilitiesPresenter.class).getCurrentVulnerabilitiesByFile()
-              .getOrDefault(file.getVirtualFile(), emptyList())
-              .forEach(vulnerability -> addAnnotation(vulnerability, holder));
+      getService(project, TaintVulnerabilitiesCache.class).getTaintVulnerabilitiesForFile(file)
+        .stream().filter(vulnerability -> !vulnerability.isResolved())
+        .forEach(vulnerability -> addAnnotation(project, vulnerability, holder));
     }
   }
 
@@ -117,24 +122,37 @@ public class SonarExternalAnnotator extends ExternalAnnotator<SonarExternalAnnot
 
   private static void addAnnotation(Project project, LiveFinding finding, TextRange validTextRange, AnnotationHolder annotationHolder) {
     var intentionActions = new ArrayList<IntentionAction>();
-    intentionActions.add(new ShowRuleDescriptionIntentionAction(finding.getRuleKey(), finding.uid()));
+    intentionActions.add(new ShowRuleDescriptionIntentionAction(finding));
     if (!getSettingsFor(project).isBindingEnabled()) {
       intentionActions.add(new DisableRuleIntentionAction(finding.getRuleKey()));
     }
 
     if (shouldSuggestQuickFix(finding)) {
-      finding.quickFixes().forEach(f -> intentionActions.add(new ApplyQuickFixIntentionAction(f, finding.getRuleKey())));
+      finding.quickFixes().forEach(fix -> {
+        // Actions are only supported on quick fixes not spanning multiple files! If this is going to change at some
+        // point in the future to support cross-file spanning quick fix actions, then
+        // "ApplyQuickFixIntentionAction.invoke(...)" has to be changed by moving the guard into the method. This is due
+        // IntelliJ is currently only supporting the preview of quick fixes on ONE file at the time!
+        if (fix.isSingleFile()) {
+          intentionActions.add(
+            new ApplyQuickFixIntentionAction(fix, finding.getRuleKey(), false));
+        }
+      });
     }
 
-    if (finding instanceof LiveSecurityHotspot) {
-      intentionActions.add(new ReviewSecurityHotspotAction(finding.getServerFindingKey(), ((LiveSecurityHotspot) finding).getStatus()));
+    if (finding instanceof LiveSecurityHotspot hotspot) {
+      intentionActions.add(new ReviewSecurityHotspotAction(finding.getServerKey(), hotspot.getStatus()));
+    }
+
+    if (finding instanceof LiveIssue liveIssue) {
+      intentionActions.add(new MarkAsResolvedAction(liveIssue));
     }
 
     finding.context().ifPresent(c -> intentionActions.add(new ShowLocationsIntentionAction(finding, c)));
 
     var annotationBuilder = annotationHolder
-            .newAnnotation(getSeverity(finding.getUserSeverity()), finding.getMessage())
-            .range(validTextRange);
+      .newAnnotation(getSeverity(finding.getHighestImpact(), finding.getUserSeverity()), finding.getMessage())
+      .range(validTextRange);
     for (IntentionAction action : intentionActions) {
       annotationBuilder = annotationBuilder.withFix(action);
     }
@@ -142,47 +160,57 @@ public class SonarExternalAnnotator extends ExternalAnnotator<SonarExternalAnnot
     if (finding.getRange() == null) {
       annotationBuilder = annotationBuilder.fileLevel();
     } else {
-      annotationBuilder = annotationBuilder.textAttributes(getTextAttrsKey(finding.getUserSeverity()));
+      annotationBuilder = annotationBuilder.textAttributes(getTextAttrsKey(project, finding.getHighestImpact(), finding.getUserSeverity(), finding.isOnNewCode()));
     }
 
-    annotationBuilder.highlightType(getType(finding.getUserSeverity()))
-            .create();
+    annotationBuilder.highlightType(getType(finding.getHighestImpact(), finding.getUserSeverity()))
+      .create();
   }
 
   private static boolean shouldSuggestQuickFix(LiveFinding issue) {
     return !SILENCED_QUICK_FIXABLE_RULE_KEYS.contains(issue.getRuleKey());
   }
 
-  private static void addAnnotation(LocalTaintVulnerability vulnerability, AnnotationHolder annotationHolder) {
+  private static void addAnnotation(Project project, LocalTaintVulnerability vulnerability, AnnotationHolder annotationHolder) {
     var textRange = vulnerability.getValidTextRange();
     if (textRange == null) {
       return;
     }
-    annotationHolder.newAnnotation(getSeverity(vulnerability.severity()), vulnerability.message())
-            .range(textRange)
-            .withFix(new ShowTaintVulnerabilityRuleDescriptionIntentionAction(vulnerability))
-            .textAttributes(getTextAttrsKey(vulnerability.severity()))
-            .highlightType(getType(vulnerability.severity()))
-            .create();
+    annotationHolder.newAnnotation(getSeverity(vulnerability.getHighestImpact(), vulnerability.severity()), vulnerability.message())
+      .range(textRange)
+      .withFix(new ShowTaintVulnerabilityRuleDescriptionIntentionAction(vulnerability))
+      .withFix(new MarkAsResolvedAction(vulnerability))
+      .textAttributes(getTextAttrsKey(project, vulnerability.getHighestImpact(), vulnerability.severity(), vulnerability.isOnNewCode()))
+      .highlightType(getType(vulnerability.getHighestImpact(), vulnerability.severity()))
+      .create();
   }
 
-  static TextAttributesKey getTextAttrsKey(@Nullable IssueSeverity severity) {
-    if (severity == null) {
-      return SonarLintTextAttributes.MAJOR;
+  static TextAttributesKey getTextAttrsKey(Project project, @Nullable ImpactSeverity impact, @Nullable IssueSeverity severity, boolean isOnNewCode) {
+    if (getService(CleanAsYouCodeService.class).shouldFocusOnNewCode(project) && !isOnNewCode) {
+      return SonarLintTextAttributes.OLD_CODE;
     }
-    switch (severity) {
-      case MINOR:
-        return SonarLintTextAttributes.MINOR;
-      case BLOCKER:
-        return SonarLintTextAttributes.BLOCKER;
-      case INFO:
-        return SonarLintTextAttributes.INFO;
-      case CRITICAL:
-        return SonarLintTextAttributes.CRITICAL;
-      case MAJOR:
-      default:
-        return SonarLintTextAttributes.MAJOR;
+
+    if (impact != null) {
+      return switch (impact) {
+        case BLOCKER -> SonarLintTextAttributes.BLOCKER;
+        case HIGH -> SonarLintTextAttributes.HIGH;
+        case LOW -> SonarLintTextAttributes.LOW;
+        case INFO -> SonarLintTextAttributes.INFO;
+        default -> SonarLintTextAttributes.MEDIUM;
+      };
     }
+
+    if (severity != null) {
+      return switch (severity) {
+        case BLOCKER -> SonarLintTextAttributes.BLOCKER;
+        case CRITICAL -> SonarLintTextAttributes.HIGH;
+        case MINOR -> SonarLintTextAttributes.LOW;
+        case INFO -> SonarLintTextAttributes.INFO;
+        default -> SonarLintTextAttributes.MEDIUM;
+      };
+    }
+
+    return SonarLintTextAttributes.MEDIUM;
   }
 
   /**
@@ -190,12 +218,12 @@ public class SonarExternalAnnotator extends ExternalAnnotator<SonarExternalAnnot
    *
    * @see Annotation#getTextAttributes
    */
-  private static ProblemHighlightType getType(@Nullable IssueSeverity severity) {
-    if (severity == null) {
-      return ProblemHighlightType.GENERIC_ERROR_OR_WARNING;
+  private static ProblemHighlightType getType(@Nullable ImpactSeverity impact, @Nullable IssueSeverity severity) {
+    if (severity != null) {
+      return SonarLintSeverity.fromCoreSeverity(impact, severity).highlightType();
     }
 
-    return SonarLintSeverity.fromCoreSeverity(severity).highlightType();
+    return ProblemHighlightType.GENERIC_ERROR_OR_WARNING;
   }
 
   /**
@@ -203,12 +231,12 @@ public class SonarExternalAnnotator extends ExternalAnnotator<SonarExternalAnnot
    *
    * @see Annotation#getTextAttributes
    */
-  private static HighlightSeverity getSeverity(@Nullable IssueSeverity severity) {
-    if (severity == null) {
-      return HighlightSeverity.WARNING;
+  private static HighlightSeverity getSeverity(@Nullable ImpactSeverity impact, @Nullable IssueSeverity severity) {
+    if (severity != null) {
+      return SonarLintSeverity.fromCoreSeverity(impact, severity).highlightSeverity();
     }
 
-    return SonarLintSeverity.fromCoreSeverity(severity).highlightSeverity();
+    return HighlightSeverity.WARNING;
   }
 
   public static class AnnotationContext {

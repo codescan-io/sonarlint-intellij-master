@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.analysis;
 
@@ -24,7 +24,6 @@ import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.ContentEntry;
 import com.intellij.openapi.roots.ModifiableRootModel;
 import com.intellij.testFramework.LightProjectDescriptor;
-import com.intellij.testFramework.fixtures.DefaultLightProjectDescriptor;
 import java.util.Collections;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
@@ -35,11 +34,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class JavaAnalysisConfiguratorInvalidEntryTests extends AbstractSonarLintLightTests {
 
-  private JavaAnalysisConfigurator underTest = new JavaAnalysisConfigurator();
+  private final JavaAnalysisConfigurator underTest = new JavaAnalysisConfigurator();
 
   @Override
   protected LightProjectDescriptor getProjectDescriptor() {
-    return new DefaultLightProjectDescriptor() {
+    return new LightProjectDescriptor() {
       @Override
       public Sdk getSdk() {
         return null;

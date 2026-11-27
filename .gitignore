@@ -1,5 +1,8 @@
 src/main/resources/plugins/*.jar
 out
+its/projects/*-tmp/
+its/projects/**/bin
+its/projects/**/obj
 
 # ---- Sonar
 .sonar
@@ -9,6 +12,7 @@ out
 *.iml
 *.ipr
 .idea
+.intellijPlatform
 
 # ---- Eclipse
 .classpath
@@ -36,5 +40,13 @@ $RECYCLE.BIN/
 # Gradle
 .gradle
 classes
+# Salesforce keeps Apex sources in a "classes" folder: the UI tests' sample project needs it (see its README).
+!/its/projects/codescan-sample/force-app/main/default/classes/
 build
 .scannerwork/
+
+# Visual Studio
+.vs
+
+# Kotlin 2.x compiler session data
+.kotlin

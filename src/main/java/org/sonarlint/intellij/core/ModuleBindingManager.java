@@ -15,26 +15,17 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.core;
 
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
-import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.platform.ModuleAttachProcessor;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import javax.annotation.CheckForNull;
-import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarlint.intellij.util.SonarLintAppUtils;
-import org.sonarsource.sonarlint.core.client.api.common.SonarLintEngine;
-import org.sonarsource.sonarlint.core.client.api.connected.ConnectedSonarLintEngine;
-import org.sonarsource.sonarlint.core.serverconnection.ProjectBinding;
 
-import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 
@@ -43,16 +34,6 @@ public class ModuleBindingManager {
 
   public ModuleBindingManager(Module module) {
     this.module = module;
-  }
-
-  @CheckForNull
-  public ProjectBinding getBinding() {
-    var projectKey = resolveProjectKey();
-    if (projectKey != null) {
-      var moduleSettings = getSettingsFor(module);
-      return new ProjectBinding(projectKey, moduleSettings.getSqPathPrefix(), moduleSettings.getIdePathPrefix());
-    }
-    return null;
   }
 
   @CheckForNull
@@ -109,54 +90,6 @@ public class ModuleBindingManager {
 
   private boolean hasOneModuleAlreadyOverridden() {
     return Arrays.stream(ModuleManager.getInstance(module.getProject()).getModules()).anyMatch(m -> getSettingsFor(m).isProjectBindingOverridden());
-  }
-
-  public void updatePathPrefixes(ConnectedSonarLintEngine engine) {
-    var projectKey = resolveProjectKey();
-    if (projectKey == null) {
-      throw new IllegalStateException("Project is not bound");
-    }
-    var moduleFiles = collectPathsForModule();
-    if (moduleFiles == null) {
-      return;
-    }
-    var projectBinding = engine.calculatePathPrefixes(projectKey, moduleFiles);
-    var settings = getSettingsFor(module);
-    settings.setIdePathPrefix(projectBinding.idePathPrefix());
-    settings.setSqPathPrefix(projectBinding.serverPathPrefix());
-  }
-
-  private List<String> collectPathsForModule() {
-    return computeReadActionSafely(module.getProject(), () -> {
-      var paths = new ArrayList<String>();
-      var moduleRootManager = ModuleRootManager.getInstance(module);
-      moduleRootManager.getFileIndex().iterateContent(virtualFile -> {
-        if (!virtualFile.isDirectory()) {
-          var path = SonarLintAppUtils.getRelativePathForAnalysis(module, virtualFile);
-          if (path != null) {
-            paths.add(path);
-          }
-        }
-        return true;
-      });
-      return paths;
-    });
-  }
-
-  @CheckForNull
-  public SonarLintEngine getEngineIfStarted() {
-    var engineManager = getService(EngineManager.class);
-    var moduleSettings = getSettingsFor(module);
-    var projectSettings = getSettingsFor(module.getProject());
-    if (moduleSettings.isProjectBindingOverridden() || projectSettings.isBound()) {
-      var connectionId = projectSettings.getConnectionName();
-      if (connectionId == null) {
-        SonarLintConsole.get(module.getProject()).error("Inconsistency in settings, the module or project is bound but there is no connection");
-      } else {
-        return engineManager.getConnectedEngineIfStarted(connectionId);
-      }
-    }
-    return engineManager.getStandaloneEngineIfStarted();
   }
 
   public void unbind() {

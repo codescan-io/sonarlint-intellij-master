@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.notifications.binding
 
@@ -26,8 +26,10 @@ import org.sonarlint.intellij.common.ui.SonarLintConsole
 import org.sonarlint.intellij.common.util.SonarLintUtils
 import org.sonarlint.intellij.config.Settings.getGlobalSettings
 import org.sonarlint.intellij.core.ProjectBindingManager
+import org.sonarlint.intellij.core.ProjectBindingManager.BindingMode
 
-class BindProjectAction(private val bindingSuggestion: BindingSuggestion) : AbstractSonarAction("Bind project") {
+class BindProjectAction(private val bindingSuggestion: BindingSuggestion, private val bindingMode: BindingMode)
+    : AbstractSonarAction("Bind project") {
     override fun actionPerformed(e: AnActionEvent) {
         val notification = Notification.get(e)
         notification.expire()
@@ -40,7 +42,8 @@ class BindProjectAction(private val bindingSuggestion: BindingSuggestion) : Abst
                     bindingManager.bindTo(
                         connection,
                         bindingSuggestion.projectKey,
-                        emptyMap()
+                        emptyMap(),
+                        bindingMode
                     )
                 },
                 {

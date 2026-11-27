@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global.wizard;
 
@@ -31,6 +31,7 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.wm.WindowManager;
 import com.intellij.ui.DocumentAdapter;
+import com.intellij.ui.JBColor;
 import java.awt.CardLayout;
 import java.awt.event.ItemEvent;
 import javax.swing.DefaultComboBoxModel;
@@ -38,6 +39,7 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
@@ -46,17 +48,21 @@ import javax.swing.event.DocumentListener;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
-import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.core.BackendService;
 import org.sonarlint.intellij.tasks.ConnectionTestTask;
 import org.sonarlint.intellij.util.GlobalLogOutput;
+import org.sonarlint.intellij.util.IpAllowlistBlock;
 import org.sonarlint.intellij.util.ProgressUtils;
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.auth.HelpGenerateUserTokenResponse;
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.validate.ValidateConnectionResponse;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.auth.HelpGenerateUserTokenResponse;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.validate.ValidateConnectionResponse;
+
+import static org.sonarlint.intellij.util.ThreadUtilsKt.computeOnPooledThread;
 
 public class AuthStep extends AbstractWizardStepEx {
   private static final String LOGIN_ITEM = "Login / Password";
   private static final String TOKEN_ITEM = "Token";
+  private static final String CONNECTION_FAILED_HEADLINE = "Failed to connect to the server.";
+  private static final String CONNECTION_FAILED = "Failed to connect to the server. Please check the configuration.";
   private final WizardModel model;
 
   private JPanel panel;
@@ -66,6 +72,7 @@ public class AuthStep extends AbstractWizardStepEx {
   private JPasswordField passwordField;
   private JPanel cardPanel;
   private JButton openTokenCreationPageButton;
+  private JLabel deprecated;
   private final ErrorPainter errorPainter;
 
   public AuthStep(WizardModel model) {
@@ -74,7 +81,10 @@ public class AuthStep extends AbstractWizardStepEx {
 
     var comboBoxModel = new DefaultComboBoxModel<String>();
     comboBoxModel.addElement(TOKEN_ITEM);
-    comboBoxModel.addElement(LOGIN_ITEM);
+    if (model.getLogin() != null) {
+      authComboBox.setEnabled(false);
+      comboBoxModel.addElement(LOGIN_ITEM);
+    }
     authComboBox.setModel(comboBoxModel);
     authComboBox.addItemListener(e -> {
       if (ItemEvent.SELECTED == e.getStateChange()) {
@@ -112,10 +122,11 @@ public class AuthStep extends AbstractWizardStepEx {
       authComboBox.setSelectedItem(TOKEN_ITEM);
       authComboBox.setEnabled(false);
     } else {
-      authComboBox.setEnabled(true);
       if (model.getLogin() != null) {
+        authComboBox.setEnabled(true);
         authComboBox.setSelectedItem(LOGIN_ITEM);
       } else {
+        authComboBox.setEnabled(false);
         authComboBox.setSelectedItem(TOKEN_ITEM);
       }
     }
@@ -127,6 +138,7 @@ public class AuthStep extends AbstractWizardStepEx {
     } else {
       passwordField.setText(null);
     }
+    deprecated.setForeground(JBColor.red);
     openTokenCreationPageButton.setText("Create token");
   }
 
@@ -203,11 +215,8 @@ public class AuthStep extends AbstractWizardStepEx {
     try {
       model.queryOrganizations();
     } catch (Exception e) {
-      var msg = "Failed to query organizations. Please check the configuration and try again.";
-      if (e.getMessage() != null) {
-        msg = msg + " Error: " + e.getMessage();
-      }
-      throw new CommitStepException(msg);
+      throw new CommitStepException(requestFailure("Failed to query organizations. Please check the configuration and try again.",
+        "Failed to query organizations.", e));
     }
   }
 
@@ -215,33 +224,36 @@ public class AuthStep extends AbstractWizardStepEx {
     try {
       model.queryIfNotificationsSupported();
     } catch (Exception e) {
-      var msg = "Failed to contact the server. Please check the configuration and try again.";
-      if (e.getMessage() != null) {
-        msg = msg + " Error: " + e.getMessage();
-      }
-      throw new CommitStepException(msg);
+      throw new CommitStepException(requestFailure("Failed to contact the server. Please check the configuration and try again.",
+        "Failed to contact the server.", e));
     }
   }
 
   private void checkConnection() throws CommitStepException {
-    ServerConnection tmpServer = model.createConnectionWithoutOrganization();
-    ConnectionTestTask test = new ConnectionTestTask(tmpServer);
-    var msg = "Failed to connect to the server. Please check the configuration.";
+    var tmpServer = model.createConnectionWithoutOrganization();
+    var test = new ConnectionTestTask(tmpServer);
     ValidateConnectionResponse result;
+
     try {
       result = ProgressManager.getInstance().run(test);
     } catch (Exception e) {
       GlobalLogOutput.get().logError("Connection test failed", e);
-      if (e.getMessage() != null) {
-        msg = msg + " Error: " + e.getMessage();
-      }
-      throw new CommitStepException(msg);
+      throw new CommitStepException(requestFailure(CONNECTION_FAILED, CONNECTION_FAILED_HEADLINE, e));
     }
     if (result == null) {
       throw new CommitStepCancelledException();
     } else if (!result.isSuccess()) {
-      throw new CommitStepException(msg + " Cause: " + result.getMessage());
+      throw new CommitStepException(connectionCheckFailure(result.getMessage()));
     }
+  }
+
+  static String connectionCheckFailure(@Nullable String reason) {
+    return IpAllowlistBlock.explain(reason, CONNECTION_FAILED_HEADLINE, CONNECTION_FAILED + " Cause: " + reason);
+  }
+
+  static String requestFailure(String genericText, String headline, Exception e) {
+    var fallback = e.getMessage() != null ? (genericText + " Error: " + e.getMessage()) : genericText;
+    return IpAllowlistBlock.explain(e, headline, fallback);
   }
 
   @Nullable
@@ -260,13 +272,13 @@ public class AuthStep extends AbstractWizardStepEx {
       return;
     }
     var progressWindow = new ProgressWindow(true, false, null, panel, "Cancel");
-    progressWindow.setTitle("Generating token...");
+    progressWindow.setTitle("Generating token\u2026");
     Disposer.register(this, progressWindow);
     try {
-      ProgressResult<HelpGenerateUserTokenResponse> progressResult = new ProgressRunner<>(pi -> {
+      ProgressResult<HelpGenerateUserTokenResponse> progressResult = new ProgressRunner<>(pi -> computeOnPooledThread("Generate User Token Task", () -> {
         var future = SonarLintUtils.getService(BackendService.class).helpGenerateUserToken(serverUrl, model.getServerType() == WizardModel.ServerType.SONARCLOUD);
         return ProgressUtils.waitForFuture(pi, future);
-      })
+      }))
         .sync()
         .onThread(ProgressRunner.ThreadToUse.POOLED)
         .withProgress(progressWindow)

@@ -15,13 +15,14 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.ruledescription
 
 import com.intellij.ui.BrowserHyperlinkListener
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.JBPanel
+import com.intellij.util.ui.HTMLEditorKitBuilder
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.SwingHelper
 import com.intellij.util.ui.UIUtil
@@ -38,7 +39,7 @@ class RuleHtmlViewer(scrollable: Boolean) : JBPanel<RuleHtmlViewer>(BorderLayout
             caret = DefaultCaret()
         }
         (caret as DefaultCaret).updatePolicy = DefaultCaret.NEVER_UPDATE
-        editorKit = UIUtil.getHTMLEditorKit()
+        editorKit = HTMLEditorKitBuilder.simple()
         border = JBUI.Borders.empty(10)
         isEditable = false
         isOpaque = false
@@ -67,6 +68,5 @@ class RuleHtmlViewer(scrollable: Boolean) : JBPanel<RuleHtmlViewer>(BorderLayout
     fun updateHtml(html: String) {
         SwingHelper.setHtml(editor, html, UIUtil.getLabelForeground())
     }
-
 
 }

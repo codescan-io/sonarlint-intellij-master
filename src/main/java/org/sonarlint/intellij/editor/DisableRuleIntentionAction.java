@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.editor;
 
@@ -30,11 +30,13 @@ import javax.swing.Icon;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.analysis.AnalysisSubmitter;
-import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.core.BackendService;
 import org.sonarlint.intellij.trigger.TriggerType;
 
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
+import static org.sonarlint.intellij.util.ThreadUtilsKt.runOnPooledThread;
 
 public class DisableRuleIntentionAction implements IntentionAction, LowPriorityAction, Iconable {
   private final String ruleKey;
@@ -44,7 +46,7 @@ public class DisableRuleIntentionAction implements IntentionAction, LowPriorityA
   }
 
   @Nls @NotNull @Override public String getText() {
-    return "Disable CodeScan rule '" + ruleKey + "'";
+    return "CodeScan: Disable rule '" + ruleKey + "'";
   }
 
   @Nls @NotNull @Override public String getFamilyName() {
@@ -57,7 +59,11 @@ public class DisableRuleIntentionAction implements IntentionAction, LowPriorityA
 
   @Override public void invoke(@NotNull Project project, Editor editor, PsiFile file) {
     getGlobalSettings().disableRule(ruleKey);
-    SonarLintUtils.getService(project, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.BINDING_UPDATE);
+    var rulesByKey = getGlobalSettings().getRulesByKey();
+    runOnPooledThread(project, () -> {
+      getService(BackendService.class).updateStandaloneRulesConfiguration(rulesByKey);
+      getService(project, AnalysisSubmitter.class).autoAnalyzeOpenFiles(TriggerType.BINDING_UPDATE);
+    });
   }
 
   @Override public boolean startInWriteAction() {

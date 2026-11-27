@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.its.fixtures
 
@@ -42,7 +42,11 @@ class ActionMenuFixture(
     }
   }
 
-  fun item(label: String, function: ActionMenuItemFixture.() -> Unit = {}): ActionMenuItemFixture {
-    return findElement<ActionMenuItemFixture>(byXpath("menu item $label", "//div[@class='ActionMenuItem' and @text='$label']")).apply(function)
+  // Give several labels when IDE versions name the item differently; the item may carry any of them.
+  fun item(vararg labels: String, function: ActionMenuItemFixture.() -> Unit = {}): ActionMenuItemFixture {
+    val anyLabel = labels.joinToString(" or ") { "@text='$it'" }
+    return findElement<ActionMenuItemFixture>(
+      byXpath("menu item ${labels.joinToString(" or ")}", "//div[@class='ActionMenuItem' and ($anyLabel)]")
+    ).apply(function)
   }
 }

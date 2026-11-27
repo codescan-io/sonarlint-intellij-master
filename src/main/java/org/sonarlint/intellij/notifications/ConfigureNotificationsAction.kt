@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.notifications
 
@@ -43,8 +43,8 @@ class ConfigureNotificationsAction(private val connectionName: String, private v
                     serverConnections[serverConnections.indexOf(connectionToEdit)] = editedConnection
                     Settings.getGlobalSettings().serverConnections = serverConnections
                 }
-            } else if (e.project != null) {
-                SonarLintConsole.get(e.project!!).error("Unable to find connection with name: $connectionName")
+            } else {
+                SonarLintConsole.get(project).error("Unable to find connection with name: $connectionName")
                 notification.expire()
             }
         }

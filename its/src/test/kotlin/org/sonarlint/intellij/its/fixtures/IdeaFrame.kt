@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.its.fixtures
 
@@ -28,8 +28,8 @@ import com.intellij.remoterobot.search.locators.byXpath
 import com.intellij.remoterobot.stepsProcessing.step
 import com.intellij.remoterobot.utils.WaitForConditionTimeoutException
 import com.intellij.remoterobot.utils.waitFor
-import org.sonarlint.intellij.its.utils.optionalStep
 import java.time.Duration
+import org.sonarlint.intellij.its.utils.optionalStep
 
 fun RemoteRobot.idea(duration: Duration = Duration.ofSeconds(20), function: IdeaFrame.() -> Unit = {}): IdeaFrame {
   return find<IdeaFrame>(duration).apply(function)
@@ -71,7 +71,7 @@ class IdeaFrame(remoteRobot: RemoteRobot, remoteComponent: RemoteComponent) : Co
     }
 
   private fun isBackgroundTaskRunning(): Boolean {
-    for (i in 0..1) {
+      for (i in 0..2) {
       try {
         ideStatusBar.backgroundTaskPendingIcon
         println("Task running")
@@ -84,7 +84,7 @@ class IdeaFrame(remoteRobot: RemoteRobot, remoteComponent: RemoteComponent) : Co
         } catch (timeoutException: WaitForConditionTimeoutException) {
           try {
             // could be between 2 background tasks, wait and retry
-            Thread.sleep(1000)
+              Thread.sleep(1000)
           } catch (e: InterruptedException) {
             e.printStackTrace()
           }
@@ -106,22 +106,35 @@ class IdeaFrame(remoteRobot: RemoteRobot, remoteComponent: RemoteComponent) : Co
   fun actionMenu(label: String, function: ActionMenuFixture.() -> Unit): ActionMenuFixture {
     return findAll<ActionMenuFixture>(byXpath("menu $label", "//div[@class='ActionMenu' and @text='$label']"))[0].apply(function)
   }
+    
+    fun IdeaFrame.analyzeFile() {
+        editorComponent().rightClick()
+        actionMenuItem("Analyze with CodeScan") {
+            click()
+        }
+    }
 
     fun actionMenuItem(label: String, function: ActionMenuItemFixture.() -> Unit = {}): ActionMenuItemFixture {
         return findElement<ActionMenuItemFixture>(byXpath("menu item $label", "//div[@class='ActionMenuItem' and @text='$label']")).apply(function)
     }
 
-  fun actionHyperLink(accessiblename: String, function: ActionHyperLinkFixture.() -> Unit): ActionHyperLinkFixture {
-    return findElement<ActionHyperLinkFixture>(byXpath("link $accessiblename", "//div[@accessiblename='$accessiblename' and @class='ActionHyperlinkLabel']")).apply(function)
-  }
-
-  fun openSettings() {
-    actionMenu("File") {
-      open()
-      item("Settings...") {
-        click()
-      }
+    fun actionHyperLink(accessiblename: String, function: ActionHyperLinkFixture.() -> Unit): ActionHyperLinkFixture {
+        return findElement<ActionHyperLinkFixture>(
+            byXpath(
+                "link $accessiblename",
+                "//div[@accessiblename='$accessiblename' and @class='ActionHyperlinkLabel']"
+            )
+        ).apply(function)
     }
-  }
+
+    fun openSettings() {
+        actionMenu("File") {
+            open()
+            // Three dots up to 2023.x; one ellipsis character in later IDEs (seen on 2026.1.5).
+            item("Settings...", "Settings…") {
+                click()
+            }
+        }
+    }
 
 }

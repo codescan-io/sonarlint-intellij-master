@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global.rules;
 
@@ -23,42 +23,42 @@ import com.intellij.ui.treeStructure.treetable.TreeTable;
 import com.intellij.ui.treeStructure.treetable.TreeTableModel;
 import com.intellij.ui.treeStructure.treetable.TreeTableTree;
 import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.List;
 import javax.swing.Icon;
 import javax.swing.table.AbstractTableModel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.sonarsource.sonarlint.core.clientapi.backend.rules.RuleDefinitionDto;
-import org.sonarsource.sonarlint.core.commons.CleanCodeAttribute;
-import org.sonarsource.sonarlint.core.commons.ImpactSeverity;
-import org.sonarsource.sonarlint.core.commons.IssueSeverity;
-import org.sonarsource.sonarlint.core.commons.RuleType;
-import org.sonarsource.sonarlint.core.commons.SoftwareQuality;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.ImpactDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.RuleDefinitionDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.CleanCodeAttribute;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.ImpactSeverity;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.SoftwareQuality;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RulesTreeTableModelTests {
   private final RulesTreeNode.Root root = new RulesTreeNode.Root();
-  private final RulesTreeNode.Language lang = new RulesTreeNode.Language("lang");
+  private final RulesTreeNode.LanguageNode lang = new RulesTreeNode.LanguageNode("lang");
   private final RuleDefinitionDto ruleDetails = mock(RuleDefinitionDto.class);
-  private final RulesTreeNode.Rule rule = new RulesTreeNode.Rule(ruleDetails, true, new HashMap<>());
   private final AbstractTableModel tableModel = mock(AbstractTableModel.class);
-  private final RulesTreeTableModel model = new RulesTreeTableModel(root);
+  private final RulesTreeTableModel model = spy(new RulesTreeTableModel(root));
+  private RulesTreeNode.Rule rule;
 
   @BeforeEach
   void setUp() {
-    when(ruleDetails.getType()).thenReturn(RuleType.BUG);
-    when(ruleDetails.getSeverity()).thenReturn(IssueSeverity.MAJOR);
-    when(ruleDetails.getCleanCodeAttribute()).thenReturn(Optional.of(CleanCodeAttribute.defaultCleanCodeAttribute()));
-    when(ruleDetails.getDefaultImpacts()).thenReturn(Map.of(SoftwareQuality.MAINTAINABILITY, ImpactSeverity.MEDIUM));
+    when(ruleDetails.getCleanCodeAttribute()).thenReturn(CleanCodeAttribute.CONVENTIONAL);
+    when(ruleDetails.getSoftwareImpacts()).thenReturn(List.of(new ImpactDto(SoftwareQuality.MAINTAINABILITY, ImpactSeverity.MEDIUM)));
     when(ruleDetails.getKey()).thenReturn("key");
     when(ruleDetails.isActiveByDefault()).thenReturn(false);
     root.add(lang);
+    rule = new RulesTreeNode.Rule(ruleDetails, true, new HashMap<>());
     lang.add(rule);
 
     // just to not give NPE when firing changes
@@ -66,6 +66,7 @@ class RulesTreeTableModelTests {
     var treeTable = mock(TreeTable.class);
     when(treeTableTree.getTreeTable()).thenReturn(treeTable);
     when(treeTable.getModel()).thenReturn(tableModel);
+    doNothing().when(model).nodeChanged(any());
     model.setTree(treeTableTree);
   }
 
@@ -160,6 +161,6 @@ class RulesTreeTableModelTests {
     assertThat(lang.isActivated()).isFalse();
     assertThat(lang.isNonDefault()).isFalse();
 
-    verify(tableModel).fireTableDataChanged();
+    verify(model).nodeChanged(any(RulesTreeNode.class));
   }
 }

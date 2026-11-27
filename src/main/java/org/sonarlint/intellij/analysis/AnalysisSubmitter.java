@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.analysis;
 
@@ -23,26 +23,38 @@ import com.intellij.openapi.actionSystem.ActionPlaces;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vcs.changes.ChangeListManager;
 import com.intellij.openapi.vfs.VirtualFile;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Map;
+import java.util.UUID;
 import javax.annotation.CheckForNull;
-import org.sonarlint.intellij.actions.ShowReportCallable;
-import org.sonarlint.intellij.actions.ShowSecurityHotspotCallable;
-import org.sonarlint.intellij.actions.ShowUpdatedCurrentFileCallable;
-import org.sonarlint.intellij.actions.UpdateOnTheFlyFindingsCallable;
+import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.Nullable;
+import org.sonarlint.intellij.callable.CheckInCallable;
+import org.sonarlint.intellij.callable.ShowFindingCallable;
+import org.sonarlint.intellij.callable.ShowReportCallable;
+import org.sonarlint.intellij.callable.ShowUpdatedCurrentFileCallable;
+import org.sonarlint.intellij.callable.UpdateOnTheFlyFindingsCallable;
+import org.sonarlint.intellij.common.analysis.AnalysisConfigurator;
+import org.sonarlint.intellij.common.analysis.ForcedLanguage;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
+import org.sonarlint.intellij.finding.Finding;
+import org.sonarlint.intellij.finding.ShowFinding;
 import org.sonarlint.intellij.tasks.TaskRunnerKt;
 import org.sonarlint.intellij.trigger.TriggerType;
 import org.sonarlint.intellij.ui.SonarLintToolWindowFactory;
 
+import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getGlobalSettings;
-import static org.sonarlint.intellij.util.ProjectUtils.getAllFiles;
+import static org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile;
+import static org.sonarlint.intellij.util.SonarLintAppUtils.visitAndAddAllFilesForProject;
 
 @Service(Service.Level.PROJECT)
 public final class AnalysisSubmitter {
@@ -56,6 +68,10 @@ public final class AnalysisSubmitter {
     this.onTheFlyFindingsHolder = new OnTheFlyFindingsHolder(project);
   }
 
+  public OnTheFlyFindingsHolder getOnTheFlyFindingsHolder() {
+    return onTheFlyFindingsHolder;
+  }
+
   public void cancelCurrentManualAnalysis() {
     if (currentManualAnalysis != null) {
       currentManualAnalysis.cancel();
@@ -64,7 +80,7 @@ public final class AnalysisSubmitter {
   }
 
   public void analyzeAllFiles() {
-    var allFiles = getAllFiles(project);
+    var allFiles = visitAndAddAllFilesForProject(project);
     var callback = new ShowReportCallable(project);
     var analysis = new Analysis(project, allFiles, TriggerType.ALL, callback);
     TaskRunnerKt.startBackgroundableModalTask(project, ANALYSIS_TASK_TITLE, analysis::run);
@@ -77,13 +93,27 @@ public final class AnalysisSubmitter {
     TaskRunnerKt.startBackgroundableModalTask(project, ANALYSIS_TASK_TITLE, analysis::run);
   }
 
-  public void autoAnalyzeOpenFiles(TriggerType triggerType) {
+  public void autoAnalyzeOpenFilesForModule(TriggerType triggerType, @Nullable Module module) {
+    if (module == null) {
+      autoAnalyzeOpenFiles(triggerType);
+      return;
+    }
+
     var openFiles = FileEditorManager.getInstance(project).getOpenFiles();
-    autoAnalyzeFiles(List.of(openFiles), triggerType);
+    var filesToAnalyze = Arrays.stream(openFiles)
+      .filter(file -> module.equals(findModuleForFile(file, project)))
+      .toList();
+
+    if (!filesToAnalyze.isEmpty()) {
+      autoAnalyzeFiles(filesToAnalyze, triggerType);
+    }
   }
 
-  public void autoAnalyzeFile(VirtualFile file, TriggerType triggerType) {
-    autoAnalyzeFiles(Collections.singleton(file), triggerType);
+  public void autoAnalyzeOpenFiles(TriggerType triggerType) {
+    var openFiles = FileEditorManager.getInstance(project).getOpenFiles();
+    if (openFiles.length > 0) {
+      autoAnalyzeFiles(List.of(openFiles), triggerType);
+    }
   }
 
   @CheckForNull
@@ -96,7 +126,7 @@ public final class AnalysisSubmitter {
   }
 
   @CheckForNull
-  public AnalysisResult analyzeFilesPreCommit(Collection<VirtualFile> files) {
+  public Pair<CheckInCallable, List<UUID>> analyzeFilesPreCommit(Collection<VirtualFile> files) {
     var console = SonarLintUtils.getService(project, SonarLintConsole.class);
     var trigger = TriggerType.CHECK_IN;
     console.debug("Trigger: " + trigger);
@@ -104,33 +134,36 @@ public final class AnalysisSubmitter {
       return null;
     }
 
-    var callback = new ErrorAwareAnalysisCallback();
+    var callback = new CheckInCallable();
     var analysis = new Analysis(project, files, trigger, callback);
-    var result = TaskRunnerKt.runModalTaskWithResult(project, ANALYSIS_TASK_TITLE, analysis::run);
-    return callback.analysisSucceeded() ? result : null;
+    var analysisIds = TaskRunnerKt.runModalTaskWithResult(project, ANALYSIS_TASK_TITLE, analysis::run);
+    return Pair.of(callback, analysisIds);
   }
 
   public void analyzeFilesOnUserAction(Collection<VirtualFile> files, AnActionEvent actionEvent) {
     AnalysisCallback callback;
+    TriggerType triggerType;
 
-    if (SonarLintToolWindowFactory.TOOL_WINDOW_ID.equals(actionEvent.getPlace())
-      || ActionPlaces.isMainMenuOrActionSearch(actionEvent.getPlace())) {
+    if (SonarLintToolWindowFactory.TOOL_WINDOW_ID.equals(actionEvent.getPlace())) {
       callback = new ShowUpdatedCurrentFileCallable(project, onTheFlyFindingsHolder);
+      triggerType = TriggerType.CURRENT_FILE_ACTION;
     } else {
       callback = new ShowReportCallable(project);
+      triggerType = TriggerType.RIGHT_CLICK;
     }
 
     // do we really need to distinguish both cases ? Couldn't we always run in background ?
     if (shouldExecuteInBackground(actionEvent)) {
-      analyzeInBackground(files, TriggerType.ACTION, callback);
+      analyzeInBackground(files, triggerType, callback);
     } else {
-      currentManualAnalysis = analyzeInBackgroundableModal(files, TriggerType.ACTION, callback);
+      currentManualAnalysis = analyzeInBackgroundableModal(files, triggerType, callback);
     }
   }
 
-  public void analyzeFileAndTrySelectHotspot(VirtualFile file, String securityHotspotKey) {
-    AnalysisCallback callback = new ShowSecurityHotspotCallable(project, onTheFlyFindingsHolder, securityHotspotKey);
-    var task = new Analysis(project, List.of(file), TriggerType.OPEN_SECURITY_HOTSPOT, callback);
+  public <T extends Finding> void analyzeFileAndTrySelectFinding(ShowFinding<T> showFinding) {
+    getService(project, OpenInIdeFindingCache.class).setAnalysisQueued(true);
+    AnalysisCallback callback = new ShowFindingCallable<>(project, onTheFlyFindingsHolder, showFinding);
+    var task = new Analysis(project, List.of(showFinding.getFile()), TriggerType.OPEN_FINDING, callback);
     TaskRunnerKt.startBackgroundableModalTask(project, ANALYSIS_TASK_TITLE, task::run);
   }
 
@@ -144,6 +177,17 @@ public final class AnalysisSubmitter {
   private static boolean shouldExecuteInBackground(AnActionEvent e) {
     return ActionPlaces.isMainMenuOrActionSearch(e.getPlace())
       || ActionPlaces.UNKNOWN.equals(e.getPlace());
+  }
+
+  public static Map<VirtualFile, ForcedLanguage> collectContributedLanguages(Module module, Collection<VirtualFile> listFiles) {
+    var contributedConfigurations = AnalysisConfigurator.EP_NAME.getExtensionList().stream()
+      .map(config -> config.configure(module, listFiles)).toList();
+
+    var contributedLanguages = new HashMap<VirtualFile, ForcedLanguage>();
+    for (var config : contributedConfigurations) {
+      contributedLanguages.putAll(config.forcedLanguages);
+    }
+    return contributedLanguages;
   }
 
   private Cancelable analyzeInBackground(Collection<VirtualFile> files, TriggerType trigger, AnalysisCallback callback) {
@@ -171,26 +215,4 @@ public final class AnalysisSubmitter {
     return false;
   }
 
-  public void clearCurrentFileIssues() {
-    onTheFlyFindingsHolder.clearCurrentFile();
-  }
-
-  private static class ErrorAwareAnalysisCallback implements AnalysisCallback {
-    private final AtomicBoolean errored = new AtomicBoolean(false);
-
-    @Override
-    public void onSuccess(AnalysisResult analysisResult) {
-      // do nothing
-    }
-
-    @Override
-    public void onError(Throwable e) {
-      errored.set(true);
-    }
-
-    public boolean analysisSucceeded() {
-      return !errored.get();
-    }
-
-  }
 }

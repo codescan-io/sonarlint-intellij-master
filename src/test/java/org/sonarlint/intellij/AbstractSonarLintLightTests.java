@@ -15,13 +15,14 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij;
 
 import com.intellij.lang.Language;
 import com.intellij.notification.Notification;
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -29,13 +30,18 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
 import com.intellij.serviceContainer.ComponentManagerImpl;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import java.io.IOException;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
+import org.apache.commons.io.file.PathUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
@@ -48,8 +54,8 @@ import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.config.global.SonarLintGlobalSettings;
 import org.sonarlint.intellij.config.module.SonarLintModuleSettings;
 import org.sonarlint.intellij.config.project.SonarLintProjectSettings;
-import org.sonarlint.intellij.core.EngineManager;
-import org.sonarlint.intellij.core.TestEngineManager;
+import org.sonarlint.intellij.core.BackendService;
+import org.sonarlint.intellij.core.ProjectBinding;
 import org.sonarlint.intellij.messages.ProjectConfigurationListener;
 import org.sonarlint.intellij.ui.SonarLintConsoleTestImpl;
 
@@ -61,10 +67,22 @@ import static org.sonarlint.intellij.config.Settings.getSettingsFor;
 public abstract class AbstractSonarLintLightTests extends BasePlatformTestCase {
 
   private Disposable disposable;
+  protected static final Path storageRoot = Paths.get(PathManager.getSystemPath()).resolve("sonarlint").resolve("storage");
 
   @Override
   protected final String getTestDataPath() {
     return Paths.get("src/test/testData/" + this.getClass().getSimpleName()).toAbsolutePath().toString();
+  }
+
+  @BeforeAll
+  static void clearStorageRoot() {
+    if (Files.exists(storageRoot)) {
+      try {
+        PathUtils.deleteDirectory(storageRoot);
+      } catch (IOException e) {
+        // Ignore, this is just a cleanup
+      }
+    }
   }
 
   @BeforeEach
@@ -75,23 +93,24 @@ public abstract class AbstractSonarLintLightTests extends BasePlatformTestCase {
     disposable = Disposer.newDisposable();
     getGlobalSettings().setRules(Collections.emptyList());
     getGlobalSettings().setServerConnections(Collections.emptyList());
+    getGlobalSettings().setFocusOnNewCode(false);
     setGlobalLevelExclusions(Collections.emptyList());
     getProjectSettings().setConnectionName(null);
     getProjectSettings().setProjectKey(null);
     getProjectSettings().setBindingEnabled(false);
     getProjectSettings().setBindingSuggestionsEnabled(true);
     setProjectLevelExclusions(Collections.emptyList());
-    getModuleSettings().setIdePathPrefix("");
-    getModuleSettings().setSqPathPrefix("");
     getModuleSettings().clearBindingOverride();
+    getService(BackendService.class).moduleUnbound(getModule());
+    getService(BackendService.class).projectUnbound(getProject());
+    getService(BackendService.class).connectionsUpdated(Collections.emptyList());
   }
 
   @RegisterExtension
   AfterTestExecutionCallback afterTestExecutionCallback = context -> {
     Optional<Throwable> exception = context.getExecutionException();
     var console = getConsole();
-    if (console instanceof SonarLintConsoleTestImpl && exception.isPresent()) {
-      var testConsole = (SonarLintConsoleTestImpl) console;
+    if (console instanceof SonarLintConsoleTestImpl testConsole && exception.isPresent()) {
       var testName = context.getDisplayName();
       System.out.println("Test '" + testName + "' failed. Logs:");
       testConsole.flushTo(System.out);
@@ -104,7 +123,6 @@ public abstract class AbstractSonarLintLightTests extends BasePlatformTestCase {
   @AfterEach
   final void afterEachLightTest() throws Exception {
     try {
-      getEngineManager().stopAllEngines(false);
       if (!getProject().isDisposed()) {
         AnalysisStatus.get(getProject()).stopRun();
       }
@@ -145,10 +163,6 @@ public abstract class AbstractSonarLintLightTests extends BasePlatformTestCase {
     return getSettingsFor(getModule());
   }
 
-  protected TestEngineManager getEngineManager() {
-    return (TestEngineManager) getService(EngineManager.class);
-  }
-
   protected SonarLintConsole getConsole() {
     return getService(getProject(), SonarLintConsole.class);
   }
@@ -177,10 +191,8 @@ public abstract class AbstractSonarLintLightTests extends BasePlatformTestCase {
     var connection = ServerConnection.newBuilder().setHostUrl(hostUrl).setName(connectionName).build();
     getGlobalSettings().addServerConnection(connection);
     getProjectSettings().bindTo(connection, projectKey);
-  }
-
-  protected void connectModuleTo(String projectKey) {
-    getModuleSettings().setProjectKey(projectKey);
+    getService(BackendService.class).connectionsUpdated(getGlobalSettings().getServerConnections());
+    getService(BackendService.class).projectBound(getProject(), new ProjectBinding(connectionName, projectKey, Collections.emptyMap()));
   }
 
   protected void connectProjectTo(ServerConnection connection, String projectKey) {

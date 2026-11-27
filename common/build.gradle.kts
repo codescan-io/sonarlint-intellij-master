@@ -1,14 +1,34 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+
+val intellijBuildVersion: String by project
+val ideaHome: String? = System.getenv("IDEA_HOME")
+
 plugins {
-    kotlin("jvm")
+    id("org.jetbrains.intellij.platform.module")
+    alias(libs.plugins.cyclonedx)
+    alias(libs.plugins.license)
+    alias(libs.plugins.kotlin)
 }
 
-val sonarlintCoreVersion: String by project
-val intellijBuildVersion: String by project
+apply(from = "${rootProject.projectDir}/gradle/module-conventions.gradle")
 
-intellij {
-    version.set(intellijBuildVersion)
+// The oldest supported IDE (2023.1, since-build 231) bundles the Kotlin 1.8 standard library, and the plugin uses the
+// IDE's copy (kotlin.stdlib.default.dependency=false). Newer library calls would fail at run time there.
+kotlin {
+    compilerOptions {
+        apiVersion.set(KotlinVersion.KOTLIN_1_8)
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
 }
 
 dependencies {
-    implementation("org.sonarsource.sonarlint.core:sonarlint-core:$sonarlintCoreVersion")
+    intellijPlatform {
+        if (!ideaHome.isNullOrBlank()) {
+            local(ideaHome)
+        } else {
+            intellijIdeaCommunity(intellijBuildVersion)
+        }
+    }
+    compileOnly(libs.findbugs.jsr305)
 }

@@ -15,18 +15,20 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij;
 
+import com.intellij.ide.plugins.PluginManager;
 import com.intellij.ide.plugins.cl.PluginAwareClassLoader;
-import com.intellij.openapi.Disposable;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.extensions.PluginDescriptor;
+import com.intellij.openapi.extensions.PluginId;
 import java.nio.file.Path;
 
 @Service(Service.Level.APP)
-public final class SonarLintPlugin implements Disposable {
+public final class SonarLintPlugin {
+  private static final String PLUGIN_ID = "com.code-scan.intellij";
   private PluginDescriptor plugin;
 
   public String getVersion() {
@@ -39,16 +41,13 @@ public final class SonarLintPlugin implements Disposable {
 
   private PluginDescriptor getPlugin() {
     if (plugin == null) {
+      // CodeScan (7.3.1): find our own plugin through its class loader, not the internal PluginManagerCore.getPlugin.
+      // In tests our classes are not loaded by the plugin's class loader, so look the plugin up by its id there.
       var classLoader = getClass().getClassLoader();
-      if (classLoader instanceof PluginAwareClassLoader) {
-        plugin = ((PluginAwareClassLoader) classLoader).getPluginDescriptor();
-      }
+      plugin = classLoader instanceof PluginAwareClassLoader pluginClassLoader
+        ? pluginClassLoader.getPluginDescriptor()
+        : PluginManager.getInstance().findEnabledPlugin(PluginId.getId(PLUGIN_ID));
     }
     return plugin;
-  }
-
-  @Override
-  public void dispose() {
-    // Nothing to do
   }
 }

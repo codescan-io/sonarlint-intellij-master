@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global;
 
@@ -41,19 +41,19 @@ class ServerConnectionTests {
     assertThat(server.getHostUrl()).isEqualTo("host");
 
     assertThat(server).hasToString(server.getName());
-    assertThat(server.isCodeScanCloud()).isFalse();
+    assertThat(server.isSonarCloud()).isFalse();
   }
 
   @Test
   void testSonarCloud() {
     var server1 = ServerConnection.newBuilder()
-      .setHostUrl("CodescanCloudConstants.CODESCAN_US_URL")
+      .setHostUrl("https://app.codescan.io")
       .setPassword("pass")
       .setToken("token")
       .setName("name")
       .setLogin("login")
       .build();
-    assertThat(server1.isCodeScanCloud()).isTrue();
+    assertThat(server1.isSonarCloud()).isTrue();
   }
 
   @Test
@@ -112,21 +112,5 @@ class ServerConnectionTests {
     ServerConnection connection = builder.build();
     assertThat(connection.getPassword()).isEqualTo("pass");
     assertThat(connection.getToken()).isEqualTo("token");
-  }
-
-  @Test
-  void testEndpointParams() {
-    var server = ServerConnection.newBuilder()
-      .setHostUrl("http://myhost")
-      .setEnableProxy(false)
-      .setToken("token")
-      .setOrganizationKey("org")
-      .build();
-
-    var endpointParams = server.getEndpointParams();
-
-    assertThat(endpointParams.getBaseUrl()).isEqualTo("http://myhost");
-    assertThat(endpointParams.getOrganization()).isEmpty();
-    assertThat(endpointParams.isSonarCloud()).isFalse();
   }
 }

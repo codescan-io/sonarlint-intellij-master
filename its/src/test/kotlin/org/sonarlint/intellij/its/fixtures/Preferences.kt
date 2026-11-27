@@ -15,12 +15,13 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.its.fixtures
 
 import com.intellij.remoterobot.RemoteRobot
 import com.intellij.remoterobot.data.RemoteComponent
+import com.intellij.remoterobot.fixtures.ActionButtonFixture
 import com.intellij.remoterobot.fixtures.FixtureName
 import com.intellij.remoterobot.fixtures.JLabelFixture
 import com.intellij.remoterobot.fixtures.JTreeFixture
@@ -52,6 +53,10 @@ open class PreferencesDialog(
         textField(byXpath("//div[@class='SettingsSearch']//div[@class='TextFieldWithProcessing']")).text = query
     }
 
+    fun searchRule(query: String) = step("Search $query") {
+        textField(byXpath("//div[@class='SearchTextField']//div[@class='TextFieldWithProcessing']")).text = query
+    }
+
     fun tree(function: JTreeFixture.() -> Unit) {
         findElement<JTreeFixture>(byXpath("//div[@class='MyTree']")).apply(function)
     }
@@ -59,6 +64,12 @@ open class PreferencesDialog(
     fun errorMessage(message: String) {
         jLabel(JLabelFixture.byContainsText(message))
     }
+
+    fun removeConnectionButton() =
+        findElement<ActionButtonFixture>(byXpath("remove connection action button", "//div[@myicon='remove.svg']"))
+
+    fun addConnectionButton() =
+        findElement<ActionButtonFixture>(byXpath("add connection action button", "//div[@myicon='add.svg']"))
 }
 
 fun RemoteRobot.preferencesTitle() = if (this.isMac()) "Preferences" else "Settings"

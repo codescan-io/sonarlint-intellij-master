@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global.wizard;
 
@@ -28,6 +28,7 @@ import javax.swing.JEditorPane;
 import javax.swing.JPanel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.sonarlint.intellij.documentation.SonarLintDocumentation;
 
 public class NotificationsStep extends AbstractWizardStepEx {
   private final WizardModel model;
@@ -49,12 +50,11 @@ public class NotificationsStep extends AbstractWizardStepEx {
 
   @Override
   public void _init() {
-    final boolean isSc = model.getServerType() == WizardModel.ServerType.SONARCLOUD;
-    final String sqOrSc = isSc ? "CodeScanCloud" : "CodeScan";
+    var isSc = model.getServerType() == WizardModel.ServerType.SONARCLOUD;
+    var sqOrSc = "CodeScan";
     notificationsCheckBox.setText("Receive notifications from " + sqOrSc);
     notificationsCheckBox.setSelected(!model.isNotificationsDisabled());
-    final String docUrl = isSc ? "https://docs.sonarcloud.io/advanced-setup/sonarlint-smart-notifications/" :
-      "https://docs.sonarqube.org/latest/user-guide/sonarlint-connected-mode/";
+    var docUrl = isSc ? SonarLintDocumentation.SonarCloud.SMART_NOTIFICATIONS : SonarLintDocumentation.SonarQube.SMART_NOTIFICATIONS;
     notificationsDetails.setText("You will receive <a href=\"" + docUrl + "\">notifications</a> from " + sqOrSc + " in situations like:\n" +
       "<ul>" +
       "<li>the Quality Gate status of a bound project changes</li>" +

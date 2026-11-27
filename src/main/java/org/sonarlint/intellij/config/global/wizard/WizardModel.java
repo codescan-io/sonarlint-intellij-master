@@ -15,22 +15,23 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global.wizard;
 
 import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.ui.Messages;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.CheckForNull;
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.common.util.SonarLintUtils;
 import org.sonarlint.intellij.config.global.ServerConnection;
 import org.sonarlint.intellij.tasks.CheckNotificationsSupportedTask;
 import org.sonarlint.intellij.tasks.GetOrganizationTask;
 import org.sonarlint.intellij.tasks.GetOrganizationsTask;
-import org.sonarsource.sonarlint.core.clientapi.backend.connection.org.OrganizationDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.connection.org.OrganizationDto;
+
+import static org.sonarlint.intellij.common.util.SonarLintUtils.SONARCLOUD_URL;
 
 public class WizardModel {
   private ServerType serverType;
@@ -56,13 +57,13 @@ public class WizardModel {
   }
 
   public WizardModel(ServerConnection connectionToEdit) {
-    if (SonarLintUtils.isCodeScanCloudAlias(connectionToEdit.getHostUrl())) {
+    if (SonarLintUtils.isSonarCloudAlias(connectionToEdit.getHostUrl())) {
       serverType = ServerType.SONARCLOUD;
-      serverUrl = connectionToEdit.getHostUrl();
     } else {
       serverType = ServerType.SONARQUBE;
-      serverUrl = connectionToEdit.getHostUrl();
     }
+    // CodeScan: a cloud connection keeps its address too, because a self-hosted CodeScan server is a cloud connection
+    serverUrl = connectionToEdit.getHostUrl();
     this.proxyEnabled = connectionToEdit.enableProxy();
     this.token = connectionToEdit.getToken();
     this.login = connectionToEdit.getLogin();
@@ -89,6 +90,29 @@ public class WizardModel {
     return ServerType.SONARCLOUD.equals(serverType);
   }
 
+  /**
+   * Whether the server step selects the cloud choice rather than showing a server address.
+   * CodeScan: a cloud connection on another address than the default cloud (a self-hosted CodeScan server) shows its address.
+   */
+  public boolean usesDefaultCloudServer() {
+    return serverType == null
+      || (serverType == ServerType.SONARCLOUD && (serverUrl == null || SonarLintUtils.equalsIgnoringTrailingSlash(serverUrl, SONARCLOUD_URL)));
+  }
+
+  /**
+   * CodeScan: uses the server address typed in the wizard. A CodeScan server, including a self-hosted one on its own domain,
+   * becomes a cloud connection, because it has organizations. This can ask the server, so never call it on the UI thread.
+   */
+  public WizardModel useServer(String serverUrl) {
+    var address = serverUrl.trim();
+    while (address.endsWith("/")) {
+      address = address.substring(0, address.length() - 1);
+    }
+    this.serverUrl = address;
+    serverType = SonarLintUtils.isSonarCloudAlias(address) ? ServerType.SONARCLOUD : ServerType.SONARQUBE;
+    return this;
+  }
+
   public boolean isNotificationsSupported() {
     return notificationsSupported;
   }
@@ -111,7 +135,6 @@ public class WizardModel {
   public void queryOrganizations() throws Exception {
     if (isSonarCloud()) {
       final ServerConnection partialConnection = createConnectionWithoutOrganization();
-
       final var task = buildAndRunGetOrganizationsTask(partialConnection);
       setOrganizationList(task.organizations());
       final var presetOrganizationKey = getOrganizationKey();
@@ -175,6 +198,13 @@ public class WizardModel {
   public WizardModel setOrganizationList(List<OrganizationDto> organizationList) {
     this.organizationList = organizationList;
     return this;
+  }
+
+  public boolean isOrganizationStepComplete(@Nullable OrganizationDto selectedOrganization) {
+    // even if skipped in the SQ context, this step is still checked for completion.
+    // CodeScan: with zero or one organization there is nothing to choose, so Next is allowed. With zero, the connection is
+    // saved without an organization, which the backend skips (BackendService) until one is added with "Select another organization".
+    return !isSonarCloud() || organizationList.size() <= 1 || selectedOrganization != null;
   }
 
   @CheckForNull
@@ -247,11 +277,16 @@ public class WizardModel {
 
   private ServerConnection.Builder createUnauthenticatedConnection(@Nullable String organizationKey) {
     var builder = ServerConnection.newBuilder()
-      .setHostUrl(serverUrl)
       .setOrganizationKey(organizationKey)
       .setEnableProxy(proxyEnabled)
       .setName(name);
 
+    if (serverType == ServerType.SONARCLOUD) {
+      // CodeScan: a cloud connection keeps its own address; the default cloud address is only the fallback
+      builder.setHostUrl(SonarLintUtils.isBlank(serverUrl) ? SONARCLOUD_URL : serverUrl);
+    } else {
+      builder.setHostUrl(serverUrl);
+    }
     builder.setDisableNotifications(notificationsDisabled);
     return builder;
   }

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.notifications.binding
 
@@ -30,7 +30,7 @@ class DisableBindingSuggestionsAction : NotificationAction("Don't ask again") {
     override fun actionPerformed(e: AnActionEvent, notification: Notification) {
         notification.expire()
         val project = e.project!!
-        getSettingsFor(project).setBindingSuggestionsEnabled(false)
+        getSettingsFor(project).isBindingSuggestionsEnabled = false
         getService(BackendService::class.java).bindingSuggestionsDisabled(project)
     }
 }

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.actions.filters;
 
@@ -47,9 +47,9 @@ public enum SecurityHotspotFilters {
     if (this == SHOW_ALL) {
       return true;
     } else if (this == LOCAL_ONLY) {
-      return null == securityHotspot.getServerFindingKey();
+      return null == securityHotspot.getServerKey();
     } else if (this == EXISTING_ON_SERVER) {
-      return null != securityHotspot.getServerFindingKey();
+      return null != securityHotspot.getServerKey();
     }
     return true;
   }

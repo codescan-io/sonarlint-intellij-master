@@ -15,82 +15,83 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.fs
 
-import com.google.common.annotations.VisibleForTesting
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.components.Service
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.event.BulkAwareDocumentListener
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.startup.StartupActivity
-import org.sonarlint.intellij.common.util.SonarLintUtils
+import com.intellij.openapi.project.ProjectLocator
+import com.intellij.openapi.vfs.VirtualFile
+import java.time.Duration
+import org.sonarlint.intellij.common.util.FileUtils
 import org.sonarlint.intellij.common.util.SonarLintUtils.getService
-import org.sonarlint.intellij.core.ProjectBindingManager
-import org.sonarlint.intellij.util.SonarLintAppUtils
-import org.sonarsource.sonarlint.core.analysis.api.ClientModuleFileEvent
+import org.sonarlint.intellij.core.BackendService
+import org.sonarlint.intellij.util.Alarm
+import org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile
 import org.sonarsource.sonarlint.plugin.api.module.file.ModuleFileEvent
-import java.util.Timer
-import java.util.TimerTask
 
 const val DEBOUNCE_DELAY_MS = 1000L
 
-class EditorFileChangeListener : BulkAwareDocumentListener.Simple, StartupActivity, Disposable {
+@Service(Service.Level.APP)
+class EditorFileChangeListener : BulkAwareDocumentListener.Simple, Disposable {
+    private val triggerAlarm = Alarm("sonarlint-editor-changes-notifier", Duration.ofMillis(DEBOUNCE_DELAY_MS)) { notifyPendingChanges() }
+    private val changedFiles = LinkedHashSet<VirtualFile>()
 
-    private var fileEventsNotifier: ModuleFileEventsNotifier? = null
-    private lateinit var project: Project
-    private var eventsToSend = LinkedHashMap<Module, MutableMap<String, ClientModuleFileEvent>>()
-    private var triggerTimer = initTimer()
-
-    @VisibleForTesting
-    fun setFileEventsNotifier(fileEventsNotifier: ModuleFileEventsNotifier) {
-        this.fileEventsNotifier = fileEventsNotifier
-    }
-
-    override fun runActivity(project: Project) {
-        this.project = project
-        EditorFactory.getInstance().eventMulticaster.addDocumentListener(this, project)
-        if (fileEventsNotifier == null) {
-            setFileEventsNotifier(getService(ModuleFileEventsNotifier::class.java))
-        }
+    fun startListening() {
+        EditorFactory.getInstance().eventMulticaster.addDocumentListener(this, this)
     }
 
     override fun afterDocumentChange(document: Document) {
-        val file = FileDocumentManager.getInstance().getFile(document) ?: return
-        // SLI-551 Only send events on .py files (avoid parse errors)
-        // For Rider, send all events for OmniSharp
-        if (!SonarLintUtils.isRider() && !ModuleFileEventsNotifier.isPython(file)) return;
-        val module = SonarLintAppUtils.findModuleForFile(file, project) ?: return
-        val fileEvent = buildModuleFileEvent(module, file, document, ModuleFileEvent.Type.MODIFIED) ?: return
-        synchronized(eventsToSend) {
-            eventsToSend.computeIfAbsent(module) { LinkedHashMap() }[file.path] = fileEvent
-            triggerTimer.cancel()
-            triggerTimer = initTimer()
-            triggerTimer.schedule(SendEventsTask(this), DEBOUNCE_DELAY_MS)
+        val virtualFile = FileDocumentManager.getInstance().getFile(document) ?: return
+        synchronized(changedFiles) {
+            changedFiles.add(virtualFile)
+            triggerAlarm.reset()
         }
     }
 
-    private fun initTimer() = Timer("File Events Trigger Timer", true)
+    private fun notifyPendingChanges() {
+        val changedFiles = synchronized(changedFiles) {
+            val list = changedFiles.toList()
+            changedFiles.clear()
+            list
+        }
 
-    class SendEventsTask(private val parent: EditorFileChangeListener) : TimerTask() {
+        groupByProject(changedFiles)
+            .forEach { (project, files) -> notifyFileChangesForProject(project, files) }
+    }
 
-        override fun run() {
-            val eventsToSend = parent.eventsToSend
-            synchronized(eventsToSend) {
-                val engine = getService(parent.project, ProjectBindingManager::class.java).engineIfStarted ?: return
-                eventsToSend.forEach {
-                    parent.fileEventsNotifier?.notifyAsync(engine, it.key, it.value.values.toList())
-                }
-                eventsToSend.clear()
+    private fun groupByProject(files: List<VirtualFile>) =
+        files.fold(mutableMapOf<Project, MutableList<VirtualFile>>()) { acc, file ->
+            ProjectLocator.getInstance().getProjectsForFile(file)
+                .filter { !it.isDisposed }
+                .forEach { project -> acc.computeIfAbsent(project) { mutableListOf() }.add(file) }
+            acc
+        }.toMap()
+
+    private fun notifyFileChangesForProject(project: Project, changedFiles: List<VirtualFile>) {
+        val filesToSendPerModule = HashMap<Module, MutableList<VirtualFileEvent>>()
+
+        changedFiles
+            .filter { FileUtils.Companion.isFileValidForSonarLintWithExtensiveChecks(it, project) }
+            .forEach { file ->
+                val module = findModuleForFile(file, project) ?: return@forEach
+                filesToSendPerModule.computeIfAbsent(module) { mutableListOf() }.add(VirtualFileEvent(ModuleFileEvent.Type.MODIFIED, file))
             }
+
+        if (filesToSendPerModule.isNotEmpty()) {
+            getService(BackendService::class.java).updateFileSystem(filesToSendPerModule, true)
         }
     }
 
     override fun dispose() {
-        triggerTimer.cancel()
+        changedFiles.clear()
+        triggerAlarm.shutdown()
     }
 }

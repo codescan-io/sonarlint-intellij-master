@@ -16,10 +16,10 @@
 
     You should have received a copy of the GNU Lesser General Public
     License along with this program; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 -->
-<idea-plugin url="https://www.sonarlint.org" require-restart="true">
+<idea-plugin url="https://codescan.io" require-restart="true">
     <id>com.code-scan.intellij</id>
     <name>CodeScan</name>
     <version>${project.version}</version>
@@ -42,16 +42,21 @@
                 If your project is analyzed on CodeScan or on CodeScanCloud, CodeScan can connect to
                 the server to retrieve the appropriate quality profiles and settings for that project.
             </p>
-            <br/>
-            <p>
-                CodeScan requires your IDE to be run with a JVM 11+ (this is the case for all recent JetBrains IDE);
-                the analysis of JavaScript and TypeScript requires Node.js >= 10.12 to be installed on your computer.
-            </p>
         </html>
       ]]></description>
 
     <change-notes><![CDATA[
       <ul>
+        <li>8.0.0 - Updated to the SonarLint for IntelliJ 10.14 code base, with all CodeScan changes kept.
+          Fixes the "slow operations are prohibited on the UI thread" errors and freezes on current IntelliJ versions (up to 2026.1):
+          opening Project Settings no longer searches every settings page, rule highlights in Settings no longer block, and the
+          before-commit check offers "Commit Anyway" / "Abort" if it runs longer than 60 seconds.
+          The Security Hotspots tab no longer shows a false "service stopped working" message, and Space now works on a rule in Settings > Rules.
+          Kotlin analysis works on IntelliJ 2026.1 for projects that are not bound to a CodeScan server.
+          Plugin error reports now go to CodeScan, and help links open the CodeScan knowledge base.
+          Passwords and tokens are masked in the analysis settings log.
+          Includes the 7.3.1 and 7.3.2 changes: severity names set in CodeScan project settings are shown in the issue list and rule details.
+          Supports IntelliJ IDEA 2023.1 and later. Rider and CLion are no longer supported.</li>
         <li>7.3.2 - Added severity masking based on CodeScan settings</li>
         <li>7.3.1 - Added compatibility fixes for CodeScan Cloud 25.1.5</li>
         <li>7.3.0 - Added support of Sonarqube 24.12 and fixed compatibility issue with CodeScan Cloud 25.1.0</li>
@@ -136,39 +141,32 @@
       ]]>
     </change-notes>
 
-    <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
-    <idea-version since-build="231"/>
-
     <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
          on how to target different products -->
+    <!-- CodeScan: IntelliJ IDEA only, so the Java plugin is required -->
     <depends>com.intellij.modules.lang</depends>
     <depends>com.intellij.modules.platform</depends>
     <depends config-file="plugin-java.xml">com.intellij.modules.java</depends>
     <depends optional="true" config-file="plugin-git.xml">Git4Idea</depends>
+    <depends optional="true" config-file="plugin-jupyter.xml">intellij.jupyter</depends>
 
     <projectListeners>
         <listener class="org.sonarlint.intellij.module.ModuleChangeListener" topic="com.intellij.openapi.project.ModuleListener"/>
-        <listener class="org.sonarlint.intellij.module.MoveModulesOnBindingChange" topic="org.sonarlint.intellij.messages.ProjectBindingListener"/>
-        <listener class="org.sonarlint.intellij.core.server.events.SubscribeOnProjectBindingChange" topic="org.sonarlint.intellij.messages.ProjectBindingListener"/>
-        <listener class="org.sonarlint.intellij.vcs.RefreshCacheOnBindingChange" topic="org.sonarlint.intellij.messages.ProjectBindingListener"/>
-        <listener class="org.sonarlint.intellij.vcs.RefreshCacheOnProjectSync" topic="org.sonarlint.intellij.messages.ServerBranchesListener"/>
-        <!-- should belong to plugin-git.xml but moved here because of this bug https://youtrack.jetbrains.com/issue/IDEA-231568 (can be moved back when min version 2020.2) -->
-        <listener class="org.sonarlint.intellij.git.RefreshVcsCacheOnRepositoryChange" topic="git4idea.repo.GitRepositoryChangeListener"/>
     </projectListeners>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="CodeScan" anchor="bottom" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_TOOLWINDOW_EMPTY" factoryClass="org.sonarlint.intellij.ui.SonarLintToolWindowFactory" canCloseContents="true"/>
-        <applicationConfigurable groupId="tools" id="sonarlint" displayName="CodeScan" instance="org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable"/>
+        <toolWindow id="CodeScan" anchor="bottom"
+                    icon="org.sonarlint.intellij.SonarLintIcons.CODESCAN_TOOLWINDOW"
+                    factoryClass="org.sonarlint.intellij.ui.SonarLintToolWindowFactory" canCloseContents="true"/>
+        <applicationConfigurable groupId="tools" id="sonarlint" displayName="CodeScan"
+                                 instance="org.sonarlint.intellij.config.global.SonarLintGlobalConfigurable"/>
         <projectConfigurable parentId="sonarlint" displayName="Project Settings" instance="org.sonarlint.intellij.config.project.SonarLintProjectConfigurable" nonDefaultProject="true"/>
-        <moduleConfigurable id="CodeScan" displayName="CodeScan" instance="org.sonarlint.intellij.config.module.SonarLintModuleConfigurable"/>
         <colorSettingsPage implementation="org.sonarlint.intellij.config.SonarLintColorSettingsPage"/>
         <checkinHandlerFactory implementation="org.sonarlint.intellij.trigger.SonarLintCheckinHandlerFactory"/>
         <additionalTextAttributes scheme="Default" file="colorSchemes/SonarLintDefault.xml"/>
         <additionalTextAttributes scheme="Darcula" file="colorSchemes/SonarLintDarcula.xml"/>
         <editorActionHandler action="EditorEscape" implementationClass="org.sonarlint.intellij.editor.EscapeHandler"/>
-        <projectService serviceImplementation="org.sonarlint.intellij.editor.EditorDecorator"/>
-        <projectService serviceImplementation="org.sonarlint.intellij.actions.SonarLintToolWindow"/>
-        <errorHandler implementation="org.sonarlint.intellij.errorsubmitter.BlameSonarSource"/>
+        <errorHandler implementation="org.sonarlint.intellij.errorsubmitter.ReportToCodeScan"/>
         <iw.actionProvider implementation="org.sonarlint.intellij.editor.SonarLintEditorWidgetActionProvider"/>
 
         <!-- Empty language attribute corresponds to any language (see com.intellij.lang.Language.ANY) -->
@@ -177,15 +175,8 @@
         <!-- Cannot be moved to service annotation because state should stay exportable (currently not available with the new annotations) -->
         <applicationService serviceImplementation="org.sonarlint.intellij.config.global.SonarLintGlobalSettingsStore"/>
 
-        <!-- Cannot be moved to service annotation because of getService on 'serviceInterface' -->
-        <applicationService serviceInterface="org.sonarlint.intellij.core.server.events.ServerEventsService"
-                            serviceImplementation="org.sonarlint.intellij.core.server.events.ServerEventsProductionService"
-                            testServiceImplementation="org.sonarlint.intellij.util.ServerEventsNoOpService"/>
-
-        <!-- Cannot be moved to service annotation because of getService on 'serviceInterface' -->
-        <applicationService serviceInterface="org.sonarlint.intellij.core.EngineManager"
-                            serviceImplementation="org.sonarlint.intellij.core.DefaultEngineManager"
-                            testServiceImplementation="org.sonarlint.intellij.core.TestEngineManager"/>
+        <!-- Cannot be moved to service annotation because state should stay exportable (currently not available with the new annotations) -->
+        <applicationService serviceImplementation="org.sonarlint.intellij.dogfood.DogfoodCredentialsStore"/>
 
         <!-- Cannot be moved to service annotation because of getService on 'serviceInterface' -->
         <applicationService serviceInterface="org.sonarlint.intellij.util.GlobalLogOutput"
@@ -215,9 +206,9 @@
         <moduleService serviceImplementation="org.sonarlint.intellij.config.module.SonarLintModuleSettingsStore"/>
 
         <postStartupActivity implementation="org.sonarlint.intellij.StartServicesOnProjectOpened"/>
-        <postStartupActivity implementation="org.sonarlint.intellij.trigger.EditorOpenTrigger"/>
-        <postStartupActivity implementation="org.sonarlint.intellij.fs.EditorFileChangeListener"/>
 
+        <notificationGroup id="CodeScan: In Context Promotions"
+                           displayType="BALLOON"/>
         <notificationGroup id="CodeScan: Server Binding Errors"
                            displayType="BALLOON"/>
         <notificationGroup id="CodeScan: Analyzer Requirement"
@@ -238,46 +229,58 @@
                            displayType="BALLOON"/>
         <notificationGroup id="CodeScan: Mark Issue as Resolved"
                            displayType="BALLOON"/>
+        <pluginRepositoryAuthProvider implementation="org.sonarlint.intellij.dogfood.DogfoodPluginRepositoryAuthProvider"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="com.code-scan.intellij">
+        <!-- CodeScan: here and not in plugin-java.xml, so the CodeScan analysis settings are sent in every IDE -->
+        <analysisConfiguration implementation="org.sonarlint.intellij.analysis.CodeScanAnalysisConfigurator"/>
     </extensions>
 
     <extensionPoints>
         <extensionPoint name="analysisConfiguration" interface="org.sonarlint.intellij.common.analysis.AnalysisConfigurator" dynamic="true"/>
-        <extensionPoint name="languageActivator" interface="org.sonarlint.intellij.common.LanguageActivator" dynamic="true"/>
         <extensionPoint name="fileExclusionContributor" interface="org.sonarlint.intellij.common.analysis.FileExclusionContributor" dynamic="true"/>
-        <extensionPoint name="vcsProvider" interface="org.sonarlint.intellij.common.vcs.ModuleVcsRepoProvider" dynamic="true"/>
+        <extensionPoint name="filesContributor" interface="org.sonarlint.intellij.common.analysis.FilesContributor" dynamic="true"/>
+        <extensionPoint name="vcsProvider" interface="org.sonarlint.intellij.common.vcs.VcsRepoProvider" dynamic="true"/>
     </extensionPoints>
 
     <applicationListeners>
         <listener class="org.sonarlint.intellij.fs.VirtualFileSystemListener" topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
-        <listener class="org.sonarlint.intellij.module.ProjectClosedListener" topic="com.intellij.openapi.project.ProjectManagerListener"/>
-        <listener class="org.sonarlint.intellij.core.server.events.UnsubscribeOnProjectClosed" topic="com.intellij.openapi.project.ProjectManagerListener"/>
-        <listener class="org.sonarlint.intellij.core.server.events.SubscribeOnConnectionEdit" topic="org.sonarlint.intellij.messages.GlobalConfigurationListener"/>
     </applicationListeners>
 
     <actions>
         <!-- Some actions are defined in SonarLintActions so that they aren't registered in ActionManager -->
-        <group id="CodeScan.AnalyzeMenu" searchable="false" text="CodeScan" popup="false" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
+      <group id="CodeScan.AnalyzeMenu" searchable="false" text="CodeScan" popup="false"
+               icon="org.sonarlint.intellij.SonarLintIcons.CODESCAN_ACTION">
             <separator/>
             <!-- This group is programmatically added to AnalyzeMenu if it exists -->
         </group>
+
+        <action id="CodeScan.SetFocusNewCode"
+                class="org.sonarlint.intellij.actions.SonarFocusOnNewCode"
+                text="Set Focus on New Code"
+                description="Change the current CodeScan focus to new code"
+                icon="org.sonarlint.intellij.SonarLintIcons.FOCUS">
+        </action>
 
         <action id="CodeScan.AnalyzeFiles"
                 class="org.sonarlint.intellij.actions.SonarAnalyzeFilesAction"
                 text="Analyze with CodeScan"
                 description="Run CodeScan analysis on selected file(s)"
-                icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
+                icon="org.sonarlint.intellij.SonarLintIcons.CODESCAN_ACTION">
             <keyboard-shortcut first-keystroke="shift ctrl S" keymap="$default"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 
-        <group id="CodeScan.ProjectViewPopupMenu" text="CodeScan" popup="true" icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
+        <group id="CodeScan.ProjectViewPopupMenu" searchable="false" text="CodeScan" popup="true"
+               icon="org.sonarlint.intellij.SonarLintIcons.CODESCAN_ACTION">
             <reference ref="CodeScan.AnalyzeFiles"/>
             <action id="CodeScan.Exclude"
                     class="org.sonarlint.intellij.actions.ExcludeFileAction"
-                    text="Exclude from CodeScan analysis"
+                    text="Exclude from CodeScan Analysis"
                     description="Adds resources to the list exclusions in the CodeScan project settings"
-                    icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
+                    icon="org.sonarlint.intellij.SonarLintIcons.CODESCAN_ACTION">
             </action>
             <add-to-group group-id="ProjectViewPopupMenu"/>
         </group>
@@ -286,7 +289,7 @@
                 class="org.sonarlint.intellij.actions.SonarAnalyzeChangedFilesAction"
                 text="Analyze VCS Changed Files with CodeScan"
                 description="Run a CodeScan analysis on VCS changed files"
-                icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
+                icon="org.sonarlint.intellij.SonarLintIcons.CODESCAN_ACTION">
             <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 
@@ -294,7 +297,7 @@
                 class="org.sonarlint.intellij.actions.SonarAnalyzeAllFilesAction"
                 text="Analyze All Files with CodeScan"
                 description="Run a CodeScan analysis on all files in the project"
-                icon="org.sonarlint.intellij.SonarLintIcons.SONARLINT_ACTION">
+                icon="org.sonarlint.intellij.SonarLintIcons.CODESCAN_ACTION">
             <add-to-group group-id="CodeScan.AnalyzeMenu"/>
         </action>
 

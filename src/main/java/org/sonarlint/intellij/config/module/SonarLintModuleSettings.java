@@ -15,27 +15,15 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.module;
-
-import java.util.UUID;
 
 import static org.sonarlint.intellij.common.util.SonarLintUtils.isBlank;
 
 public final class SonarLintModuleSettings {
-  private String uniqueId = UUID.randomUUID().toString();
-  private String sqPathPrefix = "";
-  private String idePathPrefix = "";
+
   private String projectKey = "";
-
-  public String getUniqueId() {
-    return uniqueId;
-  }
-
-  public void setUniqueId(String uniqueId) {
-    this.uniqueId = uniqueId;
-  }
 
   public String getProjectKey() {
     return projectKey;
@@ -53,19 +41,4 @@ public final class SonarLintModuleSettings {
     this.projectKey = "";
   }
 
-  public String getSqPathPrefix() {
-    return sqPathPrefix;
-  }
-
-  public void setSqPathPrefix(String sqPathPrefix) {
-    this.sqPathPrefix = sqPathPrefix;
-  }
-
-  public String getIdePathPrefix() {
-    return idePathPrefix;
-  }
-
-  public void setIdePathPrefix(String idePathPrefix) {
-    this.idePathPrefix = idePathPrefix;
-  }
 }

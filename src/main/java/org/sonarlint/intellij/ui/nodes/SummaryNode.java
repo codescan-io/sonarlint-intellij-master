@@ -15,52 +15,20 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.nodes;
 
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.stream.Collectors;
 import org.sonarlint.intellij.ui.tree.TreeCellRenderer;
+import org.sonarlint.intellij.ui.tree.TreeSummary;
 
 public class SummaryNode extends AbstractNode {
-  private String emptyText;
-  private final boolean forSecurityHotspot;
+  private final TreeSummary treeSummary;
 
-  public SummaryNode() {
-    super();
-    this.emptyText = "No issues to display";
-    this.forSecurityHotspot = false;
-  }
-
-  public SummaryNode(boolean forSecurityHotspot) {
-    super();
-    if (forSecurityHotspot) {
-      this.emptyText = "No Security Hotspots to display";
-    } else {
-      this.emptyText = "No issues to display";
-    }
-    this.forSecurityHotspot = forSecurityHotspot;
-  }
-
-  public void setEmptyText(String emptyText) {
-    this.emptyText = emptyText;
-  }
-
-  public String getText() {
-    var findings = getFindingCount();
-    var files = getChildCount();
-
-    if (findings == 0) {
-      return emptyText;
-    }
-
-    if (forSecurityHotspot) {
-      return String.format("Found %d %s in %d %s", findings, findings == 1 ? "Security Hotspot" : "Security Hotspots", files, files == 1 ? "file" : "files");
-    }
-
-    return String.format("Found %d %s in %d %s", findings, findings == 1 ? "issue" : "issues", files, files == 1 ? "file" : "files");
+  public SummaryNode(TreeSummary treeSummary) {
+    this.treeSummary = treeSummary;
   }
 
   public int insertFileNode(FileNode newChild, Comparator<FileNode> comparator) {
@@ -69,7 +37,7 @@ public class SummaryNode extends AbstractNode {
       return 0;
     }
 
-    var nodes = children.stream().map(n -> (FileNode) n).collect(Collectors.<FileNode>toList());
+    var nodes = children.stream().map(n -> (FileNode) n).toList();
     var foundIndex = Collections.binarySearch(nodes, newChild, comparator);
     if (foundIndex >= 0) {
       throw new IllegalArgumentException("Child already exists");
@@ -86,7 +54,7 @@ public class SummaryNode extends AbstractNode {
       return 0;
     }
 
-    var nodes = children.stream().map(n -> (LiveSecurityHotspotNode) n).collect(Collectors.<LiveSecurityHotspotNode>toList());
+    var nodes = children.stream().map(n -> (LiveSecurityHotspotNode) n).toList();
     var foundIndex = Collections.binarySearch(nodes, newChild, comparator);
     if (foundIndex >= 0) {
       throw new IllegalArgumentException("Child already exists");
@@ -99,11 +67,12 @@ public class SummaryNode extends AbstractNode {
 
   @Override
   public void render(TreeCellRenderer renderer) {
-    renderer.append(getText());
+    renderer.append(treeSummary.getText());
+    renderer.setToolTipText(null);
   }
 
   @Override
   public String toString() {
-    return getText();
+    return treeSummary.getText();
   }
 }

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.java;
 
@@ -38,25 +38,19 @@ import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.jrt.JrtFileSystem;
 import com.intellij.pom.java.LanguageLevel;
-import com.intellij.util.lang.JavaVersion;
 import java.io.File;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.CheckForNull;
-import javax.annotation.Nullable;
-import org.apache.commons.lang.StringUtils;
+import org.jetbrains.annotations.Nullable;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.sonarlint.intellij.common.analysis.AnalysisConfigurator;
 import org.sonarlint.intellij.common.ui.SonarLintConsole;
-import org.sonarlint.intellij.config.Settings;
-import org.sonarlint.intellij.config.global.ServerConnection;
 
 import static org.sonarlint.intellij.common.ui.ReadActionUtils.computeReadActionSafely;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.isEmpty;
@@ -71,12 +65,6 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
   private static final String JAVA_TEST_BINARIES_PROPERTY = "sonar.java.test.binaries";
   private static final String JAVA_JDK_HOME_PROPERTY = "sonar.java.jdkHome";
   private static final String JAVA_ENABLE_PREVIEW = "sonar.java.enablePreview";
-  private static final String SONAR_HOST_URL = "sonar.host.url";
-  private static final String CODESCAN_IDE_TYPE = "codescan.ide.type";
-  private static final String SONAR_ORGANIZATION = "sonar.organization";
-  private static final String SONAR_LOGIN = "sonar.login";
-  private static final String SONAR_PASSWORD = "sonar.password";
-
 
   private static final char SEPARATOR = ',';
 
@@ -92,31 +80,15 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
     setMultiValuePropertyIfNonEmpty(properties, JAVA_BINARIES_PROPERTY, moduleClasspath.binaries());
     setMultiValuePropertyIfNonEmpty(properties, JAVA_TEST_BINARIES_PROPERTY, moduleClasspath.testBinaries());
     configureJavaSourceTarget(ijModule, properties);
-
     if (moduleClasspath.getJdkHome() != null) {
       properties.put(JAVA_JDK_HOME_PROPERTY, moduleClasspath.getJdkHome());
     }
-
-    // Add project & connection specific sonar configurations
-    String connectionName = Settings.getSettingsFor(ijModule.getProject()).getConnectionName();
-    if (StringUtils.isNotEmpty(connectionName)) {
-      Optional<ServerConnection> currentConnection = Settings.getGlobalSettings().getServerConnectionByName(connectionName);
-
-      if (currentConnection.isPresent()) {
-        properties.put(SONAR_HOST_URL, currentConnection.get().getHostUrl());
-        properties.put(SONAR_ORGANIZATION, Objects.toString(currentConnection.get().getOrganizationKey(), ""));
-        properties.put(SONAR_LOGIN, currentConnection.get().getToken());
-        properties.put(SONAR_PASSWORD, "");
-      }
-    }
-
-    properties.put(CODESCAN_IDE_TYPE, "IntelliJ IDEA");
     return config;
   }
 
   private static void setMultiValuePropertyIfNonEmpty(Map<String, String> properties, String propKey, Set<String> values) {
     if (!values.isEmpty()) {
-      var joinedLibs = StringUtils.join(values.stream().map(JavaAnalysisConfigurator::csvEscape).collect(Collectors.toList()), SEPARATOR);
+      var joinedLibs = StringUtils.join(values.stream().map(JavaAnalysisConfigurator::csvEscape).toList(), SEPARATOR);
       properties.put(propKey, joinedLibs);
     }
   }
@@ -143,12 +115,7 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
   }
 
   private static String getLanguageLevelOption(LanguageLevel level) {
-    return complianceOption(level.toJavaVersion());
-  }
-
-  public static String complianceOption(@NotNull JavaVersion version) {
-    // for "-source" and "-target" options, a compiler accepts both "x" and "1.x" formats; for "--release" - only "x"
-    return version.feature < 5 ? "1." + version.feature : String.valueOf(version.feature);
+    return level.toJavaVersion().feature < 5 ? ("1." + level.toJavaVersion().feature) : String.valueOf(level.toJavaVersion().feature);
   }
 
   private static void collectModuleClasspath(JavaModuleClasspath moduleClasspath, @Nullable final Module module, boolean topLevel, boolean testClasspathOnly) {
@@ -162,12 +129,12 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
       if ((!topLevel && !isExported(entry)) || !entry.isValid()) {
         continue;
       }
-      if (entry instanceof ModuleOrderEntry) {
-        processModuleOrderEntry(moduleClasspath, testClasspathOnly, (ModuleOrderEntry) entry);
-      } else if (entry instanceof LibraryOrderEntry) {
-        processLibraryOrderEntry(moduleClasspath, (LibraryOrderEntry) entry, testClasspathOnly);
-      } else if (entry instanceof JdkOrderEntry) {
-        processJdkOrderEntry(module, moduleClasspath, ((JdkOrderEntry) entry).getJdk());
+      if (entry instanceof ModuleOrderEntry moduleEntry) {
+        processModuleOrderEntry(moduleClasspath, testClasspathOnly, moduleEntry);
+      } else if (entry instanceof LibraryOrderEntry libraryEntry) {
+        processLibraryOrderEntry(moduleClasspath, libraryEntry, testClasspathOnly);
+      } else if (entry instanceof JdkOrderEntry jdkEntry && jdkEntry.getJdk() != null) {
+        processJdkOrderEntry(module, moduleClasspath, jdkEntry.getJdk());
       }
     }
   }
@@ -237,13 +204,13 @@ public class JavaAnalysisConfigurator implements AnalysisConfigurator {
   }
 
   private static boolean isExported(OrderEntry entry) {
-    return (entry instanceof ExportableOrderEntry) && ((ExportableOrderEntry) entry).isExported();
+    return (entry instanceof ExportableOrderEntry exportableEntry) && exportableEntry.isExported();
   }
 
   private static void processJdkOrderEntry(final Module module, JavaModuleClasspath moduleClasspath, Sdk jdk) {
     var jdkHomePath = jdk.getHomePath();
     if (moduleClasspath.getJdkHome() != null) {
-      SonarLintConsole.get(module.getProject()).info("Multiple Jdk configured for module: " + module.getName());
+      SonarLintConsole.get(module.getProject()).info("Multiple JDK configured for module: " + module.getName());
     } else {
       moduleClasspath.setJdkHome(jdkHomePath);
     }

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.util;
 
@@ -27,14 +27,17 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.sonarsource.sonarlint.core.commons.IssueSeverity;
+import org.jetbrains.annotations.Nullable;
+import org.sonarsource.sonarlint.core.client.utils.ImpactSeverity;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.IssueSeverity;
 
 public enum SonarLintSeverity {
   BLOCKER(CodeInsightColors.WARNINGS_ATTRIBUTES, ProblemHighlightType.GENERIC_ERROR_OR_WARNING, HighlightSeverity.WARNING),
-  CRITICAL(CodeInsightColors.WARNINGS_ATTRIBUTES, ProblemHighlightType.GENERIC_ERROR_OR_WARNING, HighlightSeverity.WARNING),
-  MAJOR(CodeInsightColors.WARNINGS_ATTRIBUTES, ProblemHighlightType.GENERIC_ERROR_OR_WARNING, HighlightSeverity.WARNING),
-  MINOR(CodeInsightColors.WARNINGS_ATTRIBUTES, ProblemHighlightType.GENERIC_ERROR_OR_WARNING, HighlightSeverity.WARNING),
-  INFO(CodeInsightColors.WARNINGS_ATTRIBUTES, ProblemHighlightType.GENERIC_ERROR_OR_WARNING, HighlightSeverity.WEAK_WARNING);
+  HIGH(CodeInsightColors.WARNINGS_ATTRIBUTES, ProblemHighlightType.GENERIC_ERROR_OR_WARNING, HighlightSeverity.WARNING),
+  MEDIUM(CodeInsightColors.WARNINGS_ATTRIBUTES, ProblemHighlightType.GENERIC_ERROR_OR_WARNING, HighlightSeverity.WARNING),
+  LOW(CodeInsightColors.WARNINGS_ATTRIBUTES, ProblemHighlightType.GENERIC_ERROR_OR_WARNING, HighlightSeverity.WARNING),
+  INFO(CodeInsightColors.WARNINGS_ATTRIBUTES, ProblemHighlightType.GENERIC_ERROR_OR_WARNING, HighlightSeverity.WEAK_WARNING),
+  OLD_CODE(CodeInsightColors.WEAK_WARNING_ATTRIBUTES, ProblemHighlightType.GENERIC_ERROR_OR_WARNING, HighlightSeverity.WEAK_WARNING);
 
   private static final Map<String, SonarLintSeverity> cache = Stream.of(values()).collect(Collectors.toMap(Enum::toString, Function.identity()));
 
@@ -60,7 +63,16 @@ public enum SonarLintSeverity {
     return highlightSeverity;
   }
 
-  public static SonarLintSeverity fromCoreSeverity(IssueSeverity severity) {
-    return cache.get(severity.toString());
+  public static SonarLintSeverity fromCoreSeverity(@Nullable ImpactSeverity impact, IssueSeverity severity) {
+    if (impact != null) {
+      return cache.get(impact.toString());
+    }
+    return switch (severity) {
+      case BLOCKER -> cache.get(ImpactSeverity.BLOCKER.toString());
+      case CRITICAL -> cache.get(ImpactSeverity.HIGH.toString());
+      case MINOR -> cache.get(ImpactSeverity.LOW.toString());
+      case INFO -> cache.get(ImpactSeverity.INFO.toString());
+      default -> cache.get(ImpactSeverity.MEDIUM.toString());
+    };
   }
 }

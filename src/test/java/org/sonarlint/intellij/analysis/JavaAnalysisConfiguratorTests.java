@@ -15,12 +15,15 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.analysis;
 
 import com.intellij.compiler.CompilerConfiguration;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.module.Module;
+import com.intellij.openapi.projectRoots.JavaSdk;
+import com.intellij.openapi.projectRoots.ProjectJdkTable;
 import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.CompilerModuleExtension;
 import com.intellij.openapi.roots.ContentEntry;
@@ -35,11 +38,10 @@ import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.pom.java.LanguageLevel;
-import com.intellij.testFramework.IdeaTestUtil;
 import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.PsiTestUtil;
 import com.intellij.testFramework.VfsTestUtil;
-import com.intellij.testFramework.fixtures.DefaultLightProjectDescriptor;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -81,14 +83,14 @@ class JavaAnalysisConfiguratorTests extends AbstractSonarLintLightTests {
 
   @Override
   protected LightProjectDescriptor getProjectDescriptor() {
-    return new DefaultLightProjectDescriptor() {
+    return new LightProjectDescriptor() {
       @Override
       public Sdk getSdk() {
-        return addRtJarTo(IdeaTestUtil.getMockJdk18());
+        return addRtJarTo(ProjectJdkTable.getInstance().createSdk("sdk", JavaSdk.getInstance()));
       }
 
       @Override
-      public void configureModule(@NotNull Module module, @NotNull ModifiableRootModel model, @NotNull ContentEntry contentEntry) {
+      public void configureModule(Module module, ModifiableRootModel model, ContentEntry contentEntry) {
         super.configureModule(module, model, contentEntry);
         compilerOutputDirPath = createDirectory(tempDirPath.resolve("compiler,OutputDir"));
         compilerTestOutputDirPath = createDirectory(tempDirPath.resolve("compilerTestOutputDir"));
@@ -153,20 +155,17 @@ class JavaAnalysisConfiguratorTests extends AbstractSonarLintLightTests {
   }
 
   private static void addLibrary(Path libraryPath, String libraryName, ModifiableRootModel model, DependencyScope scope, boolean exported) {
-    var lib = PsiTestUtil.addLibrary(model, libraryName, libraryPath.getParent().toString(), libraryPath.getFileName().toString());
+    PsiTestUtil.addLibrary(model, libraryName, libraryPath.getParent().toString(), libraryPath.getFileName().toString());
     // workaround as ModifiableRootModel#findLibraryOrderEntry does not work
     for (OrderEntry entry : model.getOrderEntries()) {
-      if (entry instanceof LibraryOrderEntry) {
-        var libraryEntry = (LibraryOrderEntry) entry;
-        if (libraryName.equals(libraryEntry.getLibraryName())) {
-          libraryEntry.setScope(scope);
-          libraryEntry.setExported(exported);
-        }
+      if (entry instanceof LibraryOrderEntry libraryEntry && libraryName.equals(libraryEntry.getLibraryName())) {
+        libraryEntry.setScope(scope);
+        libraryEntry.setExported(exported);
       }
     }
   }
 
-  private static void setCompilerOutputs(@NotNull ModifiableRootModel model, Path compilerOutputDirPath, @Nullable Path compilerTestOutputDirPath) {
+  private static void setCompilerOutputs(ModifiableRootModel model, Path compilerOutputDirPath, @Nullable Path compilerTestOutputDirPath) {
     final var compilerOutputDir = LocalFileSystem.getInstance().refreshAndFindFileByPath(compilerOutputDirPath.toString());
     model.getModuleExtension(CompilerModuleExtension.class).setCompilerOutputPath(compilerOutputDir);
     if (compilerTestOutputDirPath != null) {
@@ -181,28 +180,28 @@ class JavaAnalysisConfiguratorTests extends AbstractSonarLintLightTests {
   void testSourceAndTarget_with_default_target() {
     CompilerConfiguration.getInstance(getProject()).setBytecodeTargetLevel(getModule(), null);
 
-    IdeaTestUtil.setModuleLanguageLevel(getModule(), LanguageLevel.JDK_1_8);
+    IdeaJdkTestUtils.INSTANCE.setModuleLanguageLevel(getModule(), LanguageLevel.JDK_1_8);
     assertThat(underTest.configure(getModule(), Collections.emptyList()).extraProperties).contains(entry("sonar.java.source", "8"), entry("sonar.java.target", "8"));
 
-    IdeaTestUtil.setModuleLanguageLevel(getModule(), LanguageLevel.JDK_1_9);
+    IdeaJdkTestUtils.INSTANCE.setModuleLanguageLevel(getModule(), LanguageLevel.JDK_1_9);
     assertThat(underTest.configure(getModule(), Collections.emptyList()).extraProperties).contains(entry("sonar.java.source", "9"), entry("sonar.java.target", "9"));
   }
 
   /** SLI-936: Property "sonar.java.enablePreview" not set automatically anymore but based on module configuration */
   @Test
   void test_enablePreview() {
-    IdeaTestUtil.setModuleLanguageLevel(getModule(), LanguageLevel.JDK_17);
+    IdeaJdkTestUtils.INSTANCE.setModuleLanguageLevel(getModule(), LanguageLevel.JDK_17);
     assertThat(underTest.configure(getModule(), Collections.emptyList()).extraProperties)
             .contains(entry("sonar.java.enablePreview", "false"));
 
-    IdeaTestUtil.setModuleLanguageLevel(getModule(), LanguageLevel.JDK_17_PREVIEW);
+    IdeaJdkTestUtils.INSTANCE.setModuleLanguageLevel(getModule(), LanguageLevel.JDK_17_PREVIEW);
     assertThat(underTest.configure(getModule(), Collections.emptyList()).extraProperties)
             .contains(entry("sonar.java.enablePreview", "true"));
   }
 
   @Test
   void testSourceAndTarget_with_different_target() {
-    IdeaTestUtil.setModuleLanguageLevel(getModule(), LanguageLevel.JDK_1_8);
+    IdeaJdkTestUtils.INSTANCE.setModuleLanguageLevel(getModule(), LanguageLevel.JDK_1_8);
     CompilerConfiguration.getInstance(getProject()).setBytecodeTargetLevel(getModule(), "7");
     assertThat(underTest.configure(getModule(), Collections.emptyList()).extraProperties).contains(entry("sonar.java.source", "8"), entry("sonar.java.target", "7"));
   }
@@ -210,6 +209,9 @@ class JavaAnalysisConfiguratorTests extends AbstractSonarLintLightTests {
   @Test
   void testClasspath() throws IOException {
     final var props = underTest.configure(getModule(), Collections.emptyList()).extraProperties;
+    var expectedJdkHome = FAKE_JDK_ROOT_PATH.resolve("jdk1.8").toRealPath().toString();
+    expectedJdkHome = expectedJdkHome.replace('/', File.separatorChar).replace('\\', File.separatorChar);
+
     assertThat(props)
       .containsEntry("sonar.java.binaries", "\"" + compilerOutputDirPath.toRealPath() + "\"")
       .containsEntry("sonar.java.libraries", String.join(",",
@@ -228,11 +230,12 @@ class JavaAnalysisConfiguratorTests extends AbstractSonarLintLightTests {
         dependentModCompilerOutputDirPath.toRealPath().toString(),
         exportedLibInDependentModulePath.toRealPath().toString(),
         testDependentModCompilerOutputDirPath.toRealPath().toString(),
-        exportedLibInTestDependentModulePath.toRealPath().toString()))
-      .containsEntry("sonar.java.jdkHome", FAKE_JDK_ROOT_PATH.resolve("jdk1.8").toRealPath().toString());
+        exportedLibInTestDependentModulePath.toRealPath().toString()));
+    assertThat(props.get("sonar.java.jdkHome").replace('/', File.separatorChar).replace('\\', File.separatorChar))
+      .isEqualTo(expectedJdkHome);
   }
 
-  private static Sdk addRtJarTo(@NotNull Sdk jdk) {
+  private static Sdk addRtJarTo(Sdk jdk) {
     try {
       jdk = (Sdk) jdk.clone();
     } catch (CloneNotSupportedException e) {
@@ -242,12 +245,12 @@ class JavaAnalysisConfiguratorTests extends AbstractSonarLintLightTests {
     sdkModificator.setHomePath(FAKE_JDK_ROOT_PATH.resolve("jdk1.8").toString());
     sdkModificator.addRoot(findJar("jdk1.8/lib/rt.jar"), OrderRootType.CLASSES);
     sdkModificator.addRoot(findJar("jdk1.8/lib/another.jar"), OrderRootType.CLASSES);
-    sdkModificator.commitChanges();
+    ApplicationManager.getApplication().runWriteAction(sdkModificator::commitChanges);
     return jdk;
   }
 
   @NotNull
-  private static VirtualFile findJar(@NotNull String name) {
+  private static VirtualFile findJar(String name) {
     var path = FAKE_JDK_ROOT_PATH.resolve(name);
     var file = VfsTestUtil.findFileByCaseSensitivePath(path.toString());
     var jar = JarFileSystem.getInstance().getJarRootForLocalFile(file);

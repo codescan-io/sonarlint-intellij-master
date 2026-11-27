@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui;
 
@@ -114,13 +114,7 @@ public class SonarLintConsoleImpl implements SonarLintConsole, Disposable {
     // nothing to do, the console view is already registered for dispose
   }
 
-  private static class Log {
-    private final String text;
-    private final ConsoleViewContentType outputType;
-
-    public Log(String text, ConsoleViewContentType outputType) {
-      this.text = text;
-      this.outputType = outputType;
-    }
+  private record Log(String text, ConsoleViewContentType outputType) {
   }
+
 }

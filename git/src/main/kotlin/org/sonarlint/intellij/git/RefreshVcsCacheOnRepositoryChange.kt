@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.git
 
@@ -27,6 +27,6 @@ import org.sonarlint.intellij.common.vcs.VcsService
 
 class RefreshVcsCacheOnRepositoryChange(private val project: Project) : GitRepositoryChangeListener {
     override fun repositoryChanged(repository: GitRepository) {
-        SonarLintUtils.getService(project, VcsService::class.java).refreshCacheAsync()
+        SonarLintUtils.getService(project, VcsService::class.java).onVcsRepoChange()
     }
 }

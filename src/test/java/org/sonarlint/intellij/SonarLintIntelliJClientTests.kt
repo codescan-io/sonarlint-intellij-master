@@ -15,20 +15,26 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij
 
+import java.nio.file.Paths
+import java.time.Instant
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.assertj.core.api.Assertions.tuple
+import org.eclipse.lsp4j.jsonrpc.ResponseErrorException
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.sonarlint.intellij.config.global.ServerConnection
-import org.sonarsource.sonarlint.core.clientapi.backend.config.binding.BindingSuggestionDto
-import org.sonarsource.sonarlint.core.clientapi.client.binding.SuggestBindingParams
-import org.sonarsource.sonarlint.core.clientapi.client.fs.FindFileByNamesInScopeParams
-import org.sonarsource.sonarlint.core.clientapi.client.message.MessageType
-import org.sonarsource.sonarlint.core.clientapi.client.message.ShowMessageParams
+import org.sonarlint.intellij.notifications.SonarLintProjectNotifications
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.config.binding.BindingSuggestionDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogLevel
+import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogParams
+import org.sonarsource.sonarlint.core.rpc.protocol.client.message.MessageType
+import org.sonarsource.sonarlint.core.rpc.protocol.common.ClientFileDto
+
 
 class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
     lateinit var client: SonarLintIntelliJClient
@@ -37,44 +43,32 @@ class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
     fun prepare() {
         // also important as this starts the notification manager service
         clearNotifications()
+        SonarLintProjectNotifications.get(project).reset()
         client = SonarLintIntelliJClient
     }
 
     @Test
-    fun it_should_not_find_files_if_project_does_not_exist() {
-        val result = client.findFileByNamesInScope(FindFileByNamesInScopeParams("blah", listOf("file.txt"))).get()
+    fun it_should_not_list_files_if_project_does_not_exist() {
+        val result = client.listFiles("blah")
 
-        assertThat(result.foundFiles).isEmpty()
+        assertThat(result).isEmpty()
     }
 
     @Test
-    fun it_should_not_find_files_if_project_does_not_have_any() {
-        val result =
-            client.findFileByNamesInScope(FindFileByNamesInScopeParams(projectBackendId, listOf("file.txt"))).get()
+    fun it_should_not_list_files_if_project_does_not_have_any() {
+        val result = client.listFiles(projectBackendId)
 
-        assertThat(result.foundFiles).isEmpty()
-    }
-
-    @Test
-    fun it_should_not_find_files_if_project_does_not_have_any_matching_name() {
-        myFixture.configureByFile("file.properties")
-
-        val result =
-            client.findFileByNamesInScope(FindFileByNamesInScopeParams(projectBackendId, listOf("file.txt"))).get()
-
-        assertThat(result.foundFiles).isEmpty()
+        assertThat(result).isEmpty()
     }
 
     @Test
     fun it_should_find_files_if_project_has_one_with_matching_name() {
         myFixture.configureByFile("file.properties")
 
-        val result =
-            client.findFileByNamesInScope(FindFileByNamesInScopeParams(projectBackendId, listOf("file.properties")))
-                .get()
+        val result = client.listFiles(projectBackendId)
 
-        assertThat(result.foundFiles).extracting("fileName", "content")
-            .containsOnly(tuple("file.properties", "content=hey\n"))
+        assertThat(result).extracting(ClientFileDto::getIdeRelativePath, ClientFileDto::getContent)
+            .containsOnly(tuple(Paths.get("file.properties"), null))
     }
 
     @Test
@@ -82,12 +76,31 @@ class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
         myFixture.configureByFile("file.properties")
         myFixture.type("pre")
 
-        val result =
-            client.findFileByNamesInScope(FindFileByNamesInScopeParams(projectBackendId, listOf("file.properties")))
-                .get()
+        val result = client.listFiles(projectBackendId)
 
-        assertThat(result.foundFiles).extracting("fileName", "content")
-            .containsOnly(tuple("file.properties", "precontent=hey\n"))
+        assertThat(result).extracting(ClientFileDto::getIdeRelativePath, ClientFileDto::getContent)
+            .containsOnly(tuple(Paths.get("file.properties"), null))
+    }
+
+    @Test
+    fun it_should_find_files_with_content_if_specific_property_file() {
+        myFixture.configureByFile("sonar-project.properties")
+
+        val result = client.listFiles(projectBackendId)
+
+        assertThat(result).extracting(ClientFileDto::getIdeRelativePath, ClientFileDto::getContent)
+            .containsOnly(tuple(Paths.get("sonar-project.properties"), "content=hey\n"))
+    }
+
+    @Test
+    fun it_should_find_files_with_content_if_specific_property_file_and_has_one_modified_in_editor() {
+        myFixture.configureByFile("sonar-project.properties")
+        myFixture.type("pre")
+
+        val result = client.listFiles(projectBackendId)
+
+        assertThat(result).extracting(ClientFileDto::getIdeRelativePath, ClientFileDto::getContent)
+            .containsOnly(tuple(Paths.get("sonar-project.properties"), "precontent=hey\n"))
     }
 
     @Test
@@ -95,18 +108,14 @@ class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
         globalSettings.serverConnections = listOf(ServerConnection.newBuilder().setName("connectionId").build())
 
         client.suggestBinding(
-            SuggestBindingParams(
-                mapOf(
-                    Pair(
-                        projectBackendId, listOf(BindingSuggestionDto("connectionId", "projectKey", "projectName"))
-                    )
-                )
+            mapOf(
+                projectBackendId to listOf(BindingSuggestionDto("connectionId", "projectKey", "projectName", false))
             )
         )
 
         assertThat(projectNotifications).extracting("title", "content").containsExactly(
             tuple(
-                "<b>SonarLint suggestions</b>", "Bind this project to 'projectName' on 'connectionId'?"
+                "<b>CodeScan suggestions</b>", "Bind this project to 'projectName' on 'connectionId'?"
             )
         )
     }
@@ -115,12 +124,12 @@ class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
     fun it_should_suggest_binding_config_if_there_is_no_suggestion() {
         globalSettings.serverConnections = listOf(ServerConnection.newBuilder().setName("connectionId").build())
 
-        client.suggestBinding(SuggestBindingParams(mapOf(Pair(projectBackendId, emptyList()))))
+        client.suggestBinding(mapOf(projectBackendId to emptyList()))
 
         assertThat(projectNotifications).extracting("title", "content").containsExactly(
             tuple(
-                "<b>SonarLint suggestions</b>",
-                "Bind this project to SonarQube or SonarCloud?"
+                "<b>CodeScan suggestions</b>",
+                "Bind this project to CodeScan?"
             )
         )
     }
@@ -130,23 +139,18 @@ class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
         globalSettings.serverConnections = listOf(ServerConnection.newBuilder().setName("connectionId").build())
 
         client.suggestBinding(
-            SuggestBindingParams(
-                mapOf(
-                    Pair(
-                        projectBackendId, listOf(
-                            BindingSuggestionDto("connectionId", "projectKey", "projectName"), BindingSuggestionDto(
-                                "connectionId", "projectKey2", "projectName2"
-                            )
-                        )
-                    )
+            mapOf(
+                projectBackendId to listOf(
+                    BindingSuggestionDto("connectionId", "projectKey", "projectName", false),
+                    BindingSuggestionDto("connectionId", "projectKey2", "projectName2", false)
                 )
             )
         )
 
         assertThat(projectNotifications).extracting("title", "content").containsExactly(
             tuple(
-                "<b>SonarLint suggestions</b>",
-                "Bind this project to SonarQube or SonarCloud?"
+                "<b>CodeScan suggestions</b>",
+                "Bind this project to CodeScan?"
             )
         )
     }
@@ -156,15 +160,10 @@ class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
         globalSettings.serverConnections = listOf(ServerConnection.newBuilder().setName("connectionId").build())
 
         client.suggestBinding(
-            SuggestBindingParams(
-                mapOf(
-                    Pair(
-                        "wrongProjectId", listOf(
-                            BindingSuggestionDto("connectionId", "projectKey", "projectName"), BindingSuggestionDto(
-                                "connectionId", "projectKey2", "projectName2"
-                            )
-                        )
-                    )
+            mapOf(
+                "wrongProjectId" to listOf(
+                    BindingSuggestionDto("connectionId", "projectKey", "projectName", false),
+                    BindingSuggestionDto("connectionId", "projectKey2", "projectName2", false)
                 )
             )
         )
@@ -175,18 +174,13 @@ class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
     @Test
     fun it_should_not_suggest_binding_if_the_suggestions_are_disabled_by_user() {
         globalSettings.serverConnections = listOf(ServerConnection.newBuilder().setName("connectionId").build())
-        projectSettings.setBindingSuggestionsEnabled(false)
+        projectSettings.isBindingSuggestionsEnabled = false
 
         client.suggestBinding(
-            SuggestBindingParams(
-                mapOf(
-                    Pair(
-                        "wrongProjectId", listOf(
-                            BindingSuggestionDto("connectionId", "projectKey", "projectName"), BindingSuggestionDto(
-                                "connectionId", "projectKey2", "projectName2"
-                            )
-                        )
-                    )
+            mapOf(
+                "wrongProjectId" to listOf(
+                    BindingSuggestionDto("connectionId", "projectKey", "projectName", false),
+                    BindingSuggestionDto("connectionId", "projectKey2", "projectName2", false)
                 )
             )
         )
@@ -195,19 +189,72 @@ class SonarLintIntelliJClientTests : AbstractSonarLintLightTests() {
     }
 
     @Test
+    fun it_should_report_a_clear_error_when_a_connection_has_no_credentials() {
+        globalSettings.serverConnections = listOf(ServerConnection.newBuilder().setName("connectionId").build())
+
+        assertThatThrownBy { client.getCredentials("connectionId") }
+            .isInstanceOf(ResponseErrorException::class.java)
+            .hasMessageContaining("No credentials stored for connection 'connectionId'")
+    }
+
+    @Test
     fun it_should_returns_host_info() {
-        assertThat(client.clientInfo.get().description).isEqualTo("2021.3 (Community Edition) - " + project.name)
+        assertThat(client.clientLiveDescription).isEqualTo("2023.1.7 (Community Edition) - " + project.name)
     }
 
     @Test
     fun it_should_show_message_as_notification() {
-        client.showMessage(ShowMessageParams(MessageType.WARNING, "Some message"))
+        client.showMessage(MessageType.WARNING, "Some message")
 
         assertThat(projectNotifications).extracting("title", "content").containsExactly(
             tuple(
-                "SonarLint message",
+                "",
                 "Some message"
             )
         )
+    }
+
+    @Test
+    fun it_should_notify_once_when_a_backend_error_shows_an_ip_allowlist_block() {
+        client.log(LogParams(LogLevel.ERROR, "Error during synchronization", projectBackendId, ipAllowlistStackTrace, Instant.now()))
+        client.log(LogParams(LogLevel.ERROR, "Error during synchronization", projectBackendId, ipAllowlistStackTrace, Instant.now()))
+
+        assertThat(projectNotifications).extracting("title", "content").containsExactly(
+            tuple(
+                "<b>CodeScan - Blocked by IP allowlist</b>",
+                "$IP_ALLOWLIST_MESSAGE Ask an administrator of the organization to add your network to the IP allowlist."
+            )
+        )
+    }
+
+    @Test
+    fun it_should_notify_the_projects_bound_to_the_blocked_organization_when_the_error_names_no_project() {
+        connectProjectTo(ServerConnection.newBuilder().setName("conn").setHostUrl("https://app.codescan.io").setOrganizationKey("acme").build(), "projectKey")
+
+        client.log(LogParams(LogLevel.ERROR, "Error during the auto-sync", null, ipAllowlistStackTrace, Instant.now()))
+
+        assertThat(projectNotifications).extracting("title").containsExactly("<b>CodeScan - Blocked by IP allowlist</b>")
+    }
+
+    @Test
+    fun it_should_not_notify_a_project_bound_to_another_organization() {
+        connectProjectTo(ServerConnection.newBuilder().setName("conn").setHostUrl("https://app.codescan.io").setOrganizationKey("other").build(), "projectKey")
+
+        client.log(LogParams(LogLevel.ERROR, "Error during the auto-sync", null, ipAllowlistStackTrace, Instant.now()))
+
+        assertThat(projectNotifications).isEmpty()
+    }
+
+    @Test
+    fun it_should_not_notify_for_other_backend_errors() {
+        client.log(LogParams(LogLevel.ERROR, "Error during synchronization", projectBackendId, "java.lang.IllegalStateException: Error 500\n", Instant.now()))
+
+        assertThat(projectNotifications).isEmpty()
+    }
+
+    companion object {
+        private const val IP_ALLOWLIST_MESSAGE = "Access to organization 'acme' is blocked by its IP allowlist. Your IP address is 203.0.113.9."
+        private val ipAllowlistStackTrace = "java.lang.IllegalStateException: $IP_ALLOWLIST_MESSAGE\n" +
+            "\tat org.sonarsource.sonarlint.core.serverapi.ServerApiHelper.handleError(ServerApiHelper.java:145)\n"
     }
 }

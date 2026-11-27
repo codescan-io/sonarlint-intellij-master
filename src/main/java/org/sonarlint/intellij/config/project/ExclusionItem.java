@@ -15,29 +15,21 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.project;
 
 import java.util.Locale;
 import javax.annotation.CheckForNull;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import static org.sonarlint.intellij.config.project.ExclusionItem.Type.DIRECTORY;
 import static org.sonarlint.intellij.config.project.ExclusionItem.Type.FILE;
 import static org.sonarlint.intellij.config.project.ExclusionItem.Type.GLOB;
 
-public class ExclusionItem {
-  private final Type type;
-  private final String item;
-
+public record ExclusionItem(Type type, String item) {
   public enum Type {
     FILE, DIRECTORY, GLOB
-  }
-
-  public ExclusionItem(Type type, String item) {
-    this.type = type;
-    this.item = item;
   }
 
   @CheckForNull
@@ -50,24 +42,12 @@ public class ExclusionItem {
     if (StringUtils.trimToNull(item) == null) {
       return null;
     }
-    switch (text.substring(0, i).toUpperCase(Locale.ENGLISH)) {
-      case "FILE":
-        return new ExclusionItem(FILE, item);
-      case "DIRECTORY":
-        return new ExclusionItem(DIRECTORY, item);
-      case "GLOB":
-        return new ExclusionItem(GLOB, item);
-      default:
-        return null;
-    }
-  }
-
-  public String item() {
-    return item;
-  }
-
-  public Type type() {
-    return type;
+    return switch (text.substring(0, i).toUpperCase(Locale.ENGLISH)) {
+      case "FILE" -> new ExclusionItem(FILE, item);
+      case "DIRECTORY" -> new ExclusionItem(DIRECTORY, item);
+      case "GLOB" -> new ExclusionItem(GLOB, item);
+      default -> null;
+    };
   }
 
   public String toStringWithType() {

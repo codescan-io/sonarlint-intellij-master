@@ -15,181 +15,276 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui.ruledescription
 
+import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.text.StringUtil
-import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.ui.Gray
+import com.intellij.ui.HyperlinkLabel
+import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.panels.HorizontalLayout
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
-import org.sonarlint.intellij.SonarLintIcons
-import org.sonarlint.intellij.actions.ReviewSecurityHotspotAction
-import org.sonarlint.intellij.finding.Finding
-import org.sonarlint.intellij.finding.issue.LiveIssue
-import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability
-import org.sonarlint.intellij.ui.tree.IssueTreeModelBuilder.severityMaskingsMap
-import org.sonarsource.sonarlint.core.commons.HotspotReviewStatus
-import org.sonarsource.sonarlint.core.commons.IssueSeverity
-import org.sonarsource.sonarlint.core.commons.RuleType
-import org.sonarsource.sonarlint.core.commons.VulnerabilityProbability
+import com.intellij.util.ui.WrapLayout
+import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.awt.event.ActionEvent
+import java.util.LinkedList
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
 import javax.swing.JButton
 import javax.swing.JPanel
 import javax.swing.SwingConstants
+import org.sonarlint.intellij.SonarLintIcons
+import org.sonarlint.intellij.SonarLintIcons.backgroundColorsByImpact
+import org.sonarlint.intellij.SonarLintIcons.backgroundColorsBySeverity
+import org.sonarlint.intellij.SonarLintIcons.backgroundColorsByVulnerabilityProbability
+import org.sonarlint.intellij.SonarLintIcons.borderColorsByImpact
+import org.sonarlint.intellij.SonarLintIcons.borderColorsBySeverity
+import org.sonarlint.intellij.SonarLintIcons.borderColorsByVulnerabilityProbability
+import org.sonarlint.intellij.actions.MarkAsResolvedAction.Companion.canBeMarkedAsResolved
+import org.sonarlint.intellij.actions.MarkAsResolvedAction.Companion.openMarkAsResolvedDialogAsync
+import org.sonarlint.intellij.actions.ReopenIssueAction.Companion.canBeReopened
+import org.sonarlint.intellij.actions.ReopenIssueAction.Companion.reopenIssueDialog
+import org.sonarlint.intellij.actions.ReviewSecurityHotspotAction
+import org.sonarlint.intellij.documentation.SonarLintDocumentation.Intellij.CLEAN_CODE_LINK
+import org.sonarlint.intellij.common.util.SonarLintUtils.getService
+import org.sonarlint.intellij.finding.Issue
+import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot
+import org.sonarlint.intellij.finding.issue.SeverityMaskingService
+import org.sonarlint.intellij.util.RoundedPanelWithBackgroundColor
+import org.sonarsource.sonarlint.core.client.utils.CleanCodeAttribute
+import org.sonarsource.sonarlint.core.client.utils.ImpactSeverity
+import org.sonarsource.sonarlint.core.client.utils.SoftwareQuality
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.issue.EffectiveIssueDetailsDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.EffectiveRuleDetailsDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.rules.ImpactDto
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Either
+import org.sonarsource.sonarlint.core.rpc.protocol.common.IssueSeverity
+import org.sonarsource.sonarlint.core.rpc.protocol.common.MQRModeDetails
+import org.sonarsource.sonarlint.core.rpc.protocol.common.RuleType
+import org.sonarsource.sonarlint.core.rpc.protocol.common.StandardModeDetails
 
 
-class RuleHeaderPanel : JBPanel<RuleHeaderPanel>(FlowLayout(FlowLayout.LEFT)) {
+class RuleHeaderPanel(private val parent: Disposable, private val project: Project? = null) : JBPanel<RuleHeaderPanel>(BorderLayout()) {
     companion object {
-        val MARK_AS_RESOLVED = "Mark as Resolved"
+        private const val MARK_AS_RESOLVED = "Mark Issue as\u2026"
+        private const val REOPEN = "Reopen"
     }
 
-    private val ruleTypeIcon = JBLabel()
-    private val ruleTypeLabel = JBLabel()
-    private val ruleSeverityIcon = JBLabel()
-    private val ruleSeverityLabel = JBLabel()
+    private val wrappedPanel = JBPanel<JBPanel<*>>(WrapLayout(FlowLayout.LEFT))
+    private val attributePanel = RoundedPanelWithBackgroundColor(JBColor(Gray._236, Gray._72))
+    private val qualityLabels = LinkedList<RoundedPanelWithBackgroundColor>()
+    private var severityLabel: RoundedPanelWithBackgroundColor? = null
     private val hotspotVulnerabilityLabel = JBLabel("Review priority: ")
     private val hotspotVulnerabilityValueLabel = JBLabel()
     private val ruleKeyLabel = JBLabel()
     private val changeStatusButton = JButton()
+    private val learnMore = HyperlinkLabel("Learn more")
+    private val disposableFlag = Disposer.newCheckedDisposable()
 
     init {
-        add(ruleTypeIcon)
-        add(ruleTypeLabel.apply {
-            border = JBUI.Borders.emptyRight(10)
-        })
-        add(ruleSeverityIcon)
-        add(ruleSeverityLabel)
-        add(hotspotVulnerabilityLabel)
-        add(hotspotVulnerabilityValueLabel.apply {
-            font = JBFont.label().asBold()
-            verticalTextPosition = SwingConstants.CENTER
-            isOpaque = true
-            border = BorderFactory.createEmptyBorder(0, 15, 0, 15)
-        })
-        add(ruleKeyLabel.apply {
+        learnMore.addHyperlinkListener { BrowserUtil.browse(CLEAN_CODE_LINK) }
+        Disposer.register(parent, disposableFlag)
+    }
+
+    fun clear() {
+        attributePanel.removeAll()
+        qualityLabels.clear()
+        severityLabel = null
+        ruleKeyLabel.text = ""
+        hotspotVulnerabilityLabel.isVisible = false
+        hotspotVulnerabilityValueLabel.text = ""
+        hotspotVulnerabilityValueLabel.border = BorderFactory.createEmptyBorder()
+        changeStatusButton.isVisible = false
+        wrappedPanel.removeAll()
+        removeAll()
+        repaint()
+    }
+
+    fun updateForRuleConfiguration(
+        cleanCodeAttribute: CleanCodeAttribute,
+        impacts: List<ImpactDto>,
+        ruleKey: String
+    ) {
+        updateCommonFieldsInMQRMode(cleanCodeAttribute, impacts, ruleKey)
+    }
+
+    fun updateForIssue(project: Project, severityDetails: Either<StandardModeDetails, MQRModeDetails>, ruleKey: String, issue: Issue) {
+        updateCommonFields(severityDetails, ruleKey)
+
+        if (canBeReopened(project, issue)) {
+            changeStatusButton.isVisible = true
+            changeStatusButton.action = object : AbstractAction(REOPEN) {
+                override fun actionPerformed(e: ActionEvent?) {
+                    reopenIssueDialog(project, issue)
+                }
+            }
+        } else if (canBeMarkedAsResolved(project, issue)) {
+            changeStatusButton.isVisible = true
+            changeStatusButton.action = object : AbstractAction(MARK_AS_RESOLVED) {
+                override fun actionPerformed(e: ActionEvent?) {
+                    openMarkAsResolvedDialogAsync(project, issue)
+                }
+            }
+        }
+    }
+
+    fun updateForServerIssue(ruleDetails: EffectiveRuleDetailsDto) {
+        updateCommonFields(ruleDetails.severityDetails, ruleDetails.key)
+    }
+
+    fun updateForServerIssue(issueDetails: EffectiveIssueDetailsDto) {
+        updateCommonFields(issueDetails.severityDetails, issueDetails.ruleKey)
+    }
+
+    fun updateForSecurityHotspot(project: Project, ruleKey: String, securityHotspot: LiveSecurityHotspot) {
+        clear()
+        severityLabel =
+            RoundedPanelWithBackgroundColor(
+                backgroundColorsByVulnerabilityProbability[securityHotspot.vulnerabilityProbability],
+                borderColorsByVulnerabilityProbability[securityHotspot.vulnerabilityProbability]
+            ).apply {
+                add(JBLabel().apply { icon = SonarLintIcons.hotspotTypeWithProbability(securityHotspot.vulnerabilityProbability) })
+                add(JBLabel(cleanCapitalized(RuleType.SECURITY_HOTSPOT.toString())).apply {
+                    foreground = SonarLintIcons.fontColorsByVulnerabilityProbability[securityHotspot.vulnerabilityProbability]
+                })
+            }
+        ruleKeyLabel.text = ruleKey
+        ruleKeyLabel.setCopyable(true)
+        organizeHeader(false)
+        hotspotVulnerabilityLabel.isVisible = true
+        hotspotVulnerabilityValueLabel.apply {
+            text = securityHotspot.vulnerabilityProbability.name
+            setCopyable(true)
+            border = BorderFactory.createEmptyBorder(0, 0, 0, 15)
+        }
+
+        securityHotspot.getServerKey()?.let {
+            changeStatusButton.action = object : AbstractAction("Change Status") {
+                override fun actionPerformed(e: ActionEvent?) {
+                    ReviewSecurityHotspotAction(it, securityHotspot.status).openReviewingDialogAsync(project, securityHotspot.file())
+                }
+            }
+            changeStatusButton.isVisible = securityHotspot.isValid()
+        }
+    }
+
+    private fun updateCommonFields(severityDetails: Either<StandardModeDetails, MQRModeDetails>, ruleKey: String) {
+        if (severityDetails.isLeft) {
+            val mqrMode = severityDetails.left
+            updateCommonFieldsInStandardMode(mqrMode.severity, mqrMode.type, ruleKey)
+        } else {
+            val standardMode = severityDetails.right
+            updateCommonFieldsInMQRMode(
+                CleanCodeAttribute.fromDto(standardMode.cleanCodeAttribute),
+                standardMode.impacts,
+                ruleKey
+            )
+        }
+    }
+
+    private fun updateCommonFieldsInStandardMode(
+        severity: IssueSeverity,
+        type: RuleType,
+        ruleKey: String
+    ) {
+        clear()
+        severityLabel = RoundedPanelWithBackgroundColor(backgroundColorsBySeverity[severity], borderColorsBySeverity[severity]).apply {
+            add(JBLabel().apply { icon = SonarLintIcons.getIconForTypeAndSeverity(type, severity) })
+            add(JBLabel(cleanCapitalized(type.toString())).apply {
+                foreground = SonarLintIcons.fontColorsBySeverity[severity]
+            })
+            // CodeScan: show the project's own name for the severity when it sets one (codescan.severity.masking.*)
+            val mask = project?.takeUnless { it.isDisposed }?.let { getService(it, SeverityMaskingService::class.java).mask(severity.name) }
+            add(JBLabel().apply {
+                icon = SonarLintIcons.severity(severity)
+                toolTipText = mask ?: cleanCapitalized(severity.name)
+            })
+            if (mask != null) {
+                add(JBLabel(mask).apply { foreground = SonarLintIcons.fontColorsBySeverity[severity] })
+            }
+        }
+        ruleKeyLabel.text = ruleKey
+        ruleKeyLabel.setCopyable(true)
+
+        organizeHeader(false)
+    }
+
+    private fun updateCommonFieldsInMQRMode(
+        cleanCodeAttribute: CleanCodeAttribute,
+        impacts: List<ImpactDto>,
+        ruleKey: String
+    ) {
+        clear()
+        val attributeLabel =
+            JBLabel("<html><b>" + cleanCapitalized(cleanCodeAttribute.category.label) + " issue</b> | " + cleanCodeAttribute.label + "<br></html>")
+        attributePanel.apply {
+            add(attributeLabel)
+            toolTipText = "Clean Code attributes are characteristics code needs to have to be considered clean."
+        }
+        impacts.forEach {
+            val impactSeverity = ImpactSeverity.fromDto(it.impactSeverity)
+            val cleanImpact = impactSeverity.label
+            val cleanQuality = SoftwareQuality.fromDto(it.softwareQuality).label
+            val qualityPanel =
+                RoundedPanelWithBackgroundColor(backgroundColorsByImpact[impactSeverity], borderColorsByImpact[impactSeverity]).apply {
+                    toolTipText = "Issues found for this rule will have a $cleanImpact impact on the $cleanQuality of your software."
+                }
+            qualityPanel.add(JBLabel(cleanCapitalized(it.softwareQuality.toString())).apply {
+                foreground = SonarLintIcons.fontColorsByImpact[impactSeverity]
+            })
+            qualityPanel.add(JBLabel().apply { icon = SonarLintIcons.impact(impactSeverity) })
+            qualityLabels.add(qualityPanel)
+        }
+        ruleKeyLabel.text = ruleKey
+        ruleKeyLabel.setCopyable(true)
+
+        organizeHeader(true)
+    }
+
+    private fun organizeHeader(isMQRMode: Boolean) {
+        if (isMQRMode) {
+            wrappedPanel.add(attributePanel.apply { border = BorderFactory.createEmptyBorder(0, 0, 0, 15) })
+            qualityLabels.forEach { wrappedPanel.add(it) }
+        } else {
+            wrappedPanel.add(severityLabel)
+            wrappedPanel.add(hotspotVulnerabilityLabel)
+            wrappedPanel.add(hotspotVulnerabilityValueLabel.apply {
+                font = JBFont.label().asBold()
+                verticalTextPosition = SwingConstants.CENTER
+                isOpaque = true
+            })
+        }
+        wrappedPanel.add(ruleKeyLabel.apply {
             border = JBUI.Borders.emptyLeft(10)
         }, HorizontalLayout.CENTER)
-
         val changeStatusPanel = JPanel(FlowLayout(FlowLayout.CENTER, 0, 0))
         changeStatusPanel.apply { border = BorderFactory.createEmptyBorder(0, 15, 0, 0) }
 
         changeStatusPanel.add(changeStatusButton)
-        add(changeStatusPanel)
-    }
-
-    fun clear() {
-        ruleTypeIcon.icon = null
-        ruleTypeLabel.text = ""
-        ruleKeyLabel.text = ""
-        ruleSeverityIcon.icon = null
-        ruleSeverityLabel.text = ""
-        hotspotVulnerabilityLabel.isVisible = false
-        hotspotVulnerabilityValueLabel.text = ""
-        changeStatusButton.isVisible = false
-    }
-
-    fun update(ruleKey: String, type: RuleType, severity: IssueSeverity) {
-        clear()
-        updateCommonFields(type, ruleKey)
-        updateRuleSeverity(severity)
-    }
-
-    fun update(ruleKey: String, type: RuleType, severity: IssueSeverity, finding: Finding) {
-        clear()
-        updateCommonFields(type, ruleKey)
-        updateRuleSeverity(severity)
-        val serverFindingKey: String
-        val isIssueValid: Boolean
-
-        when (finding) {
-            is LiveIssue -> {
-                serverFindingKey = finding.serverFindingKey ?: return
-                isIssueValid = finding.isValid
-            }
-
-            is LocalTaintVulnerability -> {
-                serverFindingKey = finding.key() ?: return
-                isIssueValid = finding.isValid()
-            }
-
-            else -> {
-                return
-            }
+        wrappedPanel.add(changeStatusPanel)
+        if (isMQRMode) {
+            wrappedPanel.add(learnMore)
         }
-
-        listenIssueButton(isIssueValid)
+        add(wrappedPanel, BorderLayout.CENTER)
+        revalidate()
+        repaint()
     }
 
-    private fun listenIssueButton(isValid: Boolean) {
-        changeStatusButton.action = object : AbstractAction(MARK_AS_RESOLVED) {
-            override fun actionPerformed(e: ActionEvent?) {
-                System.out.println("Open Dialog")
-            }
-        }
-
-        changeStatusButton.isVisible = isValid
-    }
-
-    private fun updateRuleSeverity(severity: IssueSeverity) {
-        val severityStr = severity.toString()
-        ruleSeverityIcon.icon = SonarLintIcons.severity(severity)
-        ruleSeverityLabel.text = severityMaskingsMap[severityStr] ?: clean(severityStr)
-        ruleSeverityLabel.setCopyable(true)
-    }
-
-    fun update(
-        project: Project,
-        securityHotspotKey: String?,
-        status: HotspotReviewStatus,
-        isValid: Boolean,
-        file: VirtualFile,
-        ruleKey: String,
-        type: RuleType,
-        vulnerabilityProbability: VulnerabilityProbability,
-    ) {
-        clear()
-        updateCommonFields(type, ruleKey)
-        hotspotVulnerabilityLabel.isVisible = true
-        hotspotVulnerabilityValueLabel.apply {
-            text = vulnerabilityProbability.name
-            setCopyable(true)
-            background = SonarLintIcons.colorsByProbability[vulnerabilityProbability]
-        }
-
-        securityHotspotKey?.let {
-            changeStatusButton.action = object : AbstractAction("Change Status") {
-                override fun actionPerformed(e: ActionEvent?) {
-                    ReviewSecurityHotspotAction(securityHotspotKey, status).openReviewingDialog(project, file)
-                }
-            }
-            changeStatusButton.isVisible = isValid
-        }
-    }
-
-    private fun updateCommonFields(type: RuleType, ruleKey: String) {
-        ruleTypeIcon.icon = SonarLintIcons.type(type)
-        ruleTypeLabel.text = clean(type.toString())
-        ruleTypeLabel.setCopyable(true)
-        ruleKeyLabel.text = ruleKey
-        ruleKeyLabel.setCopyable(true)
-    }
-
-
-    fun showMessage(msg: String) {
-        clear()
-        ruleTypeLabel.text = msg
+    private fun cleanCapitalized(txt: String): String {
+        return StringUtil.capitalizeWords(clean(txt), true)
     }
 
     private fun clean(txt: String): String {
-        return StringUtil.capitalizeWords(txt.lowercase().replace("_", " "), true)
+        return txt.lowercase().replace("_", " ")
     }
 
 }

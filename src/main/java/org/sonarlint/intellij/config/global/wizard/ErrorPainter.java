@@ -15,15 +15,16 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global.wizard;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.ui.AbstractPainter;
 import com.intellij.openapi.wm.IdeGlassPaneUtil;
-import com.intellij.util.ui.UIUtil;
+import com.intellij.util.ModalityUiUtil;
 import java.awt.Component;
 import java.awt.Graphics2D;
 import java.util.HashSet;
@@ -47,7 +48,8 @@ public class ErrorPainter extends AbstractPainter {
 
   public void installOn(JPanel component, Disposable disposable) {
     this.panel = component;
-    UIUtil.invokeLaterIfNeeded(() -> IdeGlassPaneUtil.installPainter(component, this, disposable));
+    ModalityUiUtil.invokeLaterIfNeeded(ModalityState.stateForComponent(component),
+      () -> IdeGlassPaneUtil.installPainter(component, this, disposable));
   }
 
   public void addComponentWithErrors(JComponent component) {

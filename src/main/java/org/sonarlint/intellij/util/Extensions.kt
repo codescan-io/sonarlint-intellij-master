@@ -15,28 +15,42 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.util
 
 import com.intellij.openapi.application.Application
+import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.vfs.VirtualFile
-import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.computeReadActionSafely
+import com.intellij.psi.PsiDocumentManager
 import java.util.concurrent.atomic.AtomicReference
+import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.runReadActionSafely
+import org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile
+import org.sonarlint.intellij.util.SonarLintAppUtils.getRelativePathForAnalysis
 
 fun Project.getOpenFiles() = FileEditorManager.getInstance(this).openFiles.toList()
 
-fun Project.getRelativePathOf(file: VirtualFile) = SonarLintAppUtils.getRelativePathForAnalysis(this, file)
+fun Project.getRelativePathOf(file: VirtualFile) = getRelativePathForAnalysis(this, file)
 
 fun Project.findModuleOf(file: VirtualFile): Module? {
-    return computeReadActionSafely(this) {
-        return@computeReadActionSafely if (!isOpen) null else
-            ProjectFileIndex.SERVICE.getInstance(this).getModuleForFile(file, false)
+    return findModuleForFile(file, this)
+}
+
+fun Project.openFileFrom(rangeMarker: RangeMarker?) {
+    if (rangeMarker == null || !rangeMarker.isValid) {
+        return
+    }
+
+    runReadActionSafely(this) {
+        val psiFile = PsiDocumentManager.getInstance(this).getPsiFile(rangeMarker.document)
+        if (psiFile != null && psiFile.isValid) {
+            OpenFileDescriptor(this, psiFile.virtualFile, rangeMarker.startOffset).navigate(false)
+        }
     }
 }
 

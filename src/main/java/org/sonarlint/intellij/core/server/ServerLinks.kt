@@ -15,23 +15,17 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.core.server
 
-import org.sonarlint.intellij.common.util.SonarLintUtils.SONARCLOUD_URL
-import org.sonarlint.intellij.common.util.SonarLintUtils.withTrailingSlash
+import org.sonarlint.intellij.documentation.SonarLintDocumentation.KNOWLEDGE_BASE_URL
 
 sealed interface ServerLinks {
     fun formattingSyntaxDoc(): String
 }
 
-object SonarCloudLinks : ServerLinks {
-    override fun formattingSyntaxDoc() = "$SONARCLOUD_URL/markdown/help"
-}
-
-class SonarQubeLinks(sonarQubeUrl: String) : ServerLinks {
-    override fun formattingSyntaxDoc() = "${baseUrl}formatting/help"
-
-    private val baseUrl: String = withTrailingSlash(sonarQubeUrl)
+// CodeScan: the formatting help is in the AutoRABIT knowledge base, not on the server, so it is the same for every connection
+object KnowledgeBaseLinks : ServerLinks {
+    override fun formattingSyntaxDoc() = KNOWLEDGE_BASE_URL
 }

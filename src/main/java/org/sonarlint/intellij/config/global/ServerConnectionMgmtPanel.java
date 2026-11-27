@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config.global;
 
@@ -23,17 +23,23 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.ui.VerticalFlowLayout;
 import com.intellij.ui.AnActionButton;
 import com.intellij.ui.AnActionButtonRunnable;
 import com.intellij.ui.CollectionListModel;
 import com.intellij.ui.ColoredListCellRenderer;
-import com.intellij.ui.IdeBorderFactory;
+import com.intellij.ui.HyperlinkAdapter;
+import com.intellij.ui.SeparatorComponent;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBList;
-import org.sonarlint.intellij.SonarLintIcons;
+import com.intellij.ui.components.panels.HorizontalLayout;
+import com.intellij.util.ui.JBUI;
+import com.intellij.util.ui.SwingHelper;
 import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -42,21 +48,28 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
+import javax.annotation.CheckForNull;
+import org.jetbrains.annotations.Nullable;
+import javax.swing.BorderFactory;
 import javax.swing.JComponent;
+import javax.swing.JEditorPane;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
+import javax.swing.event.HyperlinkEvent;
+import org.sonarlint.intellij.SonarLintIcons;
 import org.sonarlint.intellij.config.ConfigurationPanel;
 import org.sonarlint.intellij.config.global.wizard.ServerConnectionWizard;
 import org.sonarlint.intellij.core.ProjectBindingManager;
 import org.sonarlint.intellij.messages.GlobalConfigurationListener;
 
+import static org.sonarlint.intellij.common.util.SonarLintUtils.SONARCLOUD_URL;
+import static org.sonarlint.intellij.common.util.SonarLintUtils.equalsIgnoringTrailingSlash;
 import static org.sonarlint.intellij.common.util.SonarLintUtils.getService;
 import static org.sonarlint.intellij.config.Settings.getSettingsFor;
+import static org.sonarlint.intellij.telemetry.LinkTelemetry.CONNECTED_MODE_DOCS;
 
 public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGlobalSettings> {
-  private static final String LABEL_NO_SERVERS = "Add a connection to Codescan";
 
   // UI
   private JPanel panel;
@@ -72,7 +85,7 @@ public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGl
     var app = ApplicationManager.getApplication();
     connectionChangeListener = app.getMessageBus().syncPublisher(GlobalConfigurationListener.TOPIC);
     connectionList = new JBList<>();
-    connectionList.getEmptyText().setText(LABEL_NO_SERVERS);
+    connectionList.getEmptyText().appendLine("Add a connection to CodeScan");
     connectionList.addMouseListener(new MouseAdapter() {
       @Override
       public void mouseClicked(MouseEvent evt) {
@@ -92,31 +105,88 @@ public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGl
     toolbarDecorator.setAddAction(new AddConnectionAction());
     toolbarDecorator.setRemoveAction(new RemoveServerAction());
 
-    serversPanel.add(toolbarDecorator.createPanel(), BorderLayout.CENTER);
+    var serversPanelToolbar = toolbarDecorator.createPanel();
+    serversPanelToolbar.setMinimumSize(new Dimension(200, 200));
+    serversPanelToolbar.setPreferredSize(new Dimension(200, 200));
+    serversPanel.add(serversPanelToolbar, BorderLayout.CENTER);
 
     var emptyLabel = new JBLabel("No connection selected", SwingConstants.CENTER);
     var emptyPanel = new JPanel(new BorderLayout());
     emptyPanel.add(emptyLabel, BorderLayout.CENTER);
 
-    var border = IdeBorderFactory.createTitledBorder("CodeScan / CodeScanCloud connections");
-    panel = new JPanel(new BorderLayout());
-    panel.setBorder(border);
+    var titlePanel = initConnectionTitle();
+
+    var optionsPanel = new JPanel(new VerticalFlowLayout());
+    var connectedModeDescription = initConnectedModeDescription();
+    optionsPanel.add(connectedModeDescription);
+
+    panel = new JPanel(new VerticalFlowLayout());
+    panel.add(new SeparatorComponent(5, 0, JBUI.CurrentTheme.CustomFrameDecorations.separatorForeground(), null));
+    panel.add(titlePanel);
+    panel.add(optionsPanel);
     panel.add(serversPanel);
 
     connectionList.setCellRenderer(new ColoredListCellRenderer<>() {
       @Override
       protected void customizeCellRenderer(JList list, ServerConnection server, int index, boolean selected, boolean hasFocus) {
-        if (server.isCodeScanCloud()) {
-          setIcon(SonarLintIcons.ICON_SONARCLOUD_16);
+        if (server.isSonarCloud()) {
+          setIcon(SonarLintIcons.ICON_SONARQUBE_CLOUD_16);
         } else {
-          setIcon(SonarLintIcons.ICON_SONARQUBE_16);
+          setIcon(SonarLintIcons.ICON_SONARQUBE_SERVER_16);
         }
         append(server.getName(), SimpleTextAttributes.REGULAR_ATTRIBUTES);
-        if (!server.isCodeScanCloud()) {
-          append("    (" + server.getHostUrl() + ")", SimpleTextAttributes.GRAYED_ATTRIBUTES, false);
+        var address = shownAddress(server);
+        if (address != null) {
+          append("    (" + address + ")", SimpleTextAttributes.GRAYED_ATTRIBUTES, false);
         }
       }
     });
+  }
+
+  /**
+   * The server address shown next to the connection name in the list, if any.
+   * CodeScan: hidden only for the default cloud address, so a self-hosted CodeScan server (a cloud connection) shows its address.
+   */
+  @CheckForNull
+  public static String shownAddress(ServerConnection server) {
+    var hostUrl = server.getHostUrl();
+    return hostUrl == null || equalsIgnoringTrailingSlash(hostUrl, SONARCLOUD_URL) ? null : hostUrl;
+  }
+
+  private static JPanel initConnectionTitle() {
+    var titlePanel = new JPanel(new HorizontalLayout(5));
+    var connectionLabel = new JBLabel("Connections to CodeScan (");
+    connectionLabel.setFont(connectionLabel.getFont().deriveFont(Font.BOLD, 16f));
+    var sonarQubeIcon = new JBLabel(SonarLintIcons.ICON_SONARQUBE_SERVER_16);
+    var sonarQubeLabel = new JBLabel("Server, ");
+    sonarQubeLabel.setFont(sonarQubeLabel.getFont().deriveFont(Font.BOLD, 16f));
+    var sonarCloudIcon = new JBLabel(SonarLintIcons.ICON_SONARQUBE_CLOUD_16);
+    var sonarCloudLabel = new JBLabel("Cloud)");
+    sonarCloudLabel.setFont(sonarQubeLabel.getFont().deriveFont(Font.BOLD, 16f));
+    titlePanel.add(connectionLabel);
+    titlePanel.add(sonarQubeIcon);
+    titlePanel.add(sonarQubeLabel);
+    titlePanel.add(sonarCloudIcon);
+    titlePanel.add(sonarCloudLabel);
+    return titlePanel;
+  }
+
+  private JEditorPane initConnectedModeDescription() {
+    var connectedModeLabel = new JEditorPane();
+    connectedModeLabel.addHyperlinkListener(new HyperlinkAdapter() {
+      @Override
+      protected void hyperlinkActivated(HyperlinkEvent e) {
+        CONNECTED_MODE_DOCS.browseWithTelemetry();
+      }
+    });
+    connectedModeLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 15, 0));
+    initHtmlPane(connectedModeLabel);
+    SwingHelper.setHtml(connectedModeLabel, "<a href=\"" + CONNECTED_MODE_DOCS.getUrl() + "\">Connected Mode</a> " +
+      "links this plugin to CodeScan to apply the same Clean Code standards as your team. " +
+        "Analyze more languages, detect more issues, receive notifications about the quality gate status, and more. " +
+        "Quality Profiles and file exclusion settings defined on the server are shared between all connected users.",
+      JBUI.CurrentTheme.ContextHelp.FOREGROUND);
+    return connectedModeLabel;
   }
 
   private void unbindRemovedServers() {
@@ -250,7 +320,7 @@ public class ServerConnectionMgmtPanel implements ConfigurationPanel<SonarLintGl
       return Stream.of(openProjects)
         .filter(p -> server.getName().equals(getSettingsFor(p).getConnectionName()))
         .map(Project::getName)
-        .collect(Collectors.toList());
+        .toList();
     }
   }
 }

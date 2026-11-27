@@ -15,14 +15,15 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.analysis;
 
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.projectRoots.JavaSdk;
+import com.intellij.openapi.projectRoots.ProjectJdkTable;
 import com.intellij.openapi.projectRoots.Sdk;
-import com.intellij.testFramework.IdeaTestUtil;
 import com.intellij.testFramework.LightProjectDescriptor;
-import com.intellij.testFramework.fixtures.DefaultLightProjectDescriptor;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -38,14 +39,14 @@ class JavaAnalysisConfiguratorWithModularJdkTests extends AbstractSonarLintLight
 
   private static final Path FAKE_JDK_ROOT_PATH = Paths.get("src/test/resources/fake_jdk/").toAbsolutePath();
 
-  private JavaAnalysisConfigurator underTest = new JavaAnalysisConfigurator();
+  private final JavaAnalysisConfigurator underTest = new JavaAnalysisConfigurator();
 
   @Override
   protected LightProjectDescriptor getProjectDescriptor() {
-    return new DefaultLightProjectDescriptor() {
+    return new LightProjectDescriptor() {
       @Override
       public Sdk getSdk() {
-        return addJrtFsJarTo(IdeaTestUtil.getMockJdk9());
+        return addJrtFsJarTo(ProjectJdkTable.getInstance().createSdk("sdk", JavaSdk.getInstance()));
       }
     };
   }
@@ -69,7 +70,7 @@ class JavaAnalysisConfiguratorWithModularJdkTests extends AbstractSonarLintLight
     }
     var sdkModificator = jdk.getSdkModificator();
     sdkModificator.setHomePath(FAKE_JDK_ROOT_PATH.resolve("jdk9").toString());
-    sdkModificator.commitChanges();
+    ApplicationManager.getApplication().runWriteAction(sdkModificator::commitChanges);
     return jdk;
   }
 

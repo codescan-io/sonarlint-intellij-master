@@ -15,91 +15,196 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij
 
 import com.intellij.ide.BrowserUtil
-import com.intellij.ide.impl.ProjectUtil
-import com.intellij.notification.NotificationGroup
-import com.intellij.notification.NotificationGroupManager
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ApplicationNamesInfo
-import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.project.guessProjectDir
-import com.intellij.openapi.roots.ProjectRootManager
-import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.project.modules
+import com.intellij.openapi.roots.TestSourcesFilter.isTestSources
+import com.intellij.openapi.ui.MessageDialogBuilder
+import com.intellij.openapi.util.io.FileUtilRt
+import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.net.ssl.CertificateManager
 import com.intellij.util.proxy.CommonProxy
-import org.apache.commons.lang.StringEscapeUtils
-import org.sonarlint.intellij.analysis.AnalysisSubmitter
-import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.computeReadActionSafely
-import org.sonarlint.intellij.common.util.SonarLintUtils
-import org.sonarlint.intellij.common.util.SonarLintUtils.getService
-import org.sonarlint.intellij.config.Settings.getGlobalSettings
-import org.sonarlint.intellij.config.Settings.getSettingsFor
-import org.sonarlint.intellij.config.global.wizard.ServerConnectionCreator
-import org.sonarlint.intellij.core.BackendService
-import org.sonarlint.intellij.core.ProjectBindingManager
-import org.sonarlint.intellij.finding.issue.vulnerabilities.TaintVulnerabilitiesPresenter
-import org.sonarlint.intellij.notifications.SonarLintProjectNotifications
-import org.sonarlint.intellij.notifications.binding.BindingSuggestion
-import org.sonarlint.intellij.progress.BackendTaskProgressReporter
-import org.sonarlint.intellij.trigger.TriggerType
-import org.sonarlint.intellij.ui.ProjectSelectionDialog
-import org.sonarlint.intellij.util.GlobalLogOutput
-import org.sonarlint.intellij.util.computeInEDT
-import org.sonarsource.sonarlint.core.clientapi.SonarLintClient
-import org.sonarsource.sonarlint.core.clientapi.backend.config.binding.BindingSuggestionDto
-import org.sonarsource.sonarlint.core.clientapi.client.OpenUrlInBrowserParams
-import org.sonarsource.sonarlint.core.clientapi.client.binding.AssistBindingParams
-import org.sonarsource.sonarlint.core.clientapi.client.binding.AssistBindingResponse
-import org.sonarsource.sonarlint.core.clientapi.client.binding.SuggestBindingParams
-import org.sonarsource.sonarlint.core.clientapi.client.connection.AssistCreatingConnectionParams
-import org.sonarsource.sonarlint.core.clientapi.client.connection.AssistCreatingConnectionResponse
-import org.sonarsource.sonarlint.core.clientapi.client.connection.GetCredentialsParams
-import org.sonarsource.sonarlint.core.clientapi.client.connection.GetCredentialsResponse
-import org.sonarsource.sonarlint.core.clientapi.client.fs.FindFileByNamesInScopeParams
-import org.sonarsource.sonarlint.core.clientapi.client.fs.FindFileByNamesInScopeResponse
-import org.sonarsource.sonarlint.core.clientapi.client.fs.FoundFileDto
-import org.sonarsource.sonarlint.core.clientapi.client.hotspot.ShowHotspotParams
-import org.sonarsource.sonarlint.core.clientapi.client.http.*
-import org.sonarsource.sonarlint.core.clientapi.client.info.GetClientInfoResponse
-import org.sonarsource.sonarlint.core.clientapi.client.message.MessageType
-import org.sonarsource.sonarlint.core.clientapi.client.message.ShowMessageParams
-import org.sonarsource.sonarlint.core.clientapi.client.progress.ReportProgressParams
-import org.sonarsource.sonarlint.core.clientapi.client.progress.StartProgressParams
-import org.sonarsource.sonarlint.core.clientapi.client.smartnotification.ShowSmartNotificationParams
-import org.sonarsource.sonarlint.core.clientapi.client.sync.DidSynchronizeConfigurationScopeParams
-import org.sonarsource.sonarlint.core.clientapi.common.TokenDto
-import org.sonarsource.sonarlint.core.clientapi.common.UsernamePasswordDto
-import org.sonarsource.sonarlint.core.commons.log.ClientLogOutput
-import org.sonarsource.sonarlint.core.commons.log.SonarLintLogger
 import java.io.ByteArrayInputStream
+import java.io.IOException
 import java.net.Authenticator
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.URI
+import java.net.URL
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
+import java.util.UUID
 import java.util.concurrent.CancellationException
-import java.util.concurrent.CompletableFuture
-import java.util.stream.Collectors
+import org.apache.commons.text.StringEscapeUtils
+import org.eclipse.lsp4j.jsonrpc.ResponseErrorException
+import org.eclipse.lsp4j.jsonrpc.messages.ResponseError
+import org.eclipse.lsp4j.jsonrpc.messages.ResponseErrorCode
+import org.sonarlint.intellij.actions.OpenInBrowserAction
+import org.sonarlint.intellij.actions.SonarLintToolWindow
+import org.sonarlint.intellij.analysis.AnalysisReadinessCache
+import org.sonarlint.intellij.analysis.AnalysisSubmitter
+import org.sonarlint.intellij.analysis.AnalysisSubmitter.collectContributedLanguages
+import org.sonarlint.intellij.analysis.CodeScanAnalysisConfigurator
+import org.sonarlint.intellij.analysis.OpenInIdeFindingCache
+import org.sonarlint.intellij.analysis.RunningAnalysesTracker
+import org.sonarlint.intellij.common.analysis.FilesContributor
+import org.sonarlint.intellij.common.ui.ReadActionUtils.Companion.computeReadActionSafely
+import org.sonarlint.intellij.common.ui.SonarLintConsole
+import org.sonarlint.intellij.common.util.FileUtils.Companion.isFileValidForSonarLintWithExtensiveChecks
+import org.sonarlint.intellij.common.util.SonarLintUtils.getService
+import org.sonarlint.intellij.common.util.SonarLintUtils.isRider
+import org.sonarlint.intellij.common.vcs.VcsRepo
+import org.sonarlint.intellij.common.vcs.VcsRepoProvider
+import org.sonarlint.intellij.config.Settings.getGlobalSettings
+import org.sonarlint.intellij.config.Settings.getSettingsFor
+import org.sonarlint.intellij.config.global.AutomaticServerConnectionCreator
+import org.sonarlint.intellij.config.global.wizard.ManualServerConnectionCreator
+import org.sonarlint.intellij.connected.SonarProjectBranchCache
+import org.sonarlint.intellij.core.BackendService
+import org.sonarlint.intellij.core.ProjectBindingManager
+import org.sonarlint.intellij.core.ProjectBindingManager.BindingMode.AUTOMATIC
+import org.sonarlint.intellij.core.ProjectBindingManager.BindingMode.IMPORTED
+import org.sonarlint.intellij.documentation.SonarLintDocumentation.Intellij.CONNECTED_MODE_BENEFITS_LINK
+import org.sonarlint.intellij.documentation.SonarLintDocumentation.Intellij.CONNECTED_MODE_SETUP_LINK
+import org.sonarlint.intellij.documentation.SonarLintDocumentation.Intellij.SUPPORT_POLICY_LINK
+import org.sonarlint.intellij.documentation.SonarLintDocumentation.Intellij.TROUBLESHOOTING_CONNECTED_MODE_SETUP_LINK
+import org.sonarlint.intellij.finding.Finding
+import org.sonarlint.intellij.finding.ShowFinding
+import org.sonarlint.intellij.finding.hotspot.LiveSecurityHotspot
+import org.sonarlint.intellij.finding.hotspot.SecurityHotspotsRefreshTrigger
+import org.sonarlint.intellij.finding.issue.LiveIssue
+import org.sonarlint.intellij.finding.issue.vulnerabilities.LocalTaintVulnerability
+import org.sonarlint.intellij.finding.issue.vulnerabilities.TaintVulnerabilityMatcher
+import org.sonarlint.intellij.fix.ShowFixSuggestion
+import org.sonarlint.intellij.notifications.AnalysisRequirementNotifications.notifyOnceForSkippedPlugins
+import org.sonarlint.intellij.notifications.OpenLinkAction
+import org.sonarlint.intellij.notifications.SonarLintProjectNotifications.Companion.get
+import org.sonarlint.intellij.notifications.SonarLintProjectNotifications.Companion.projectLessNotification
+import org.sonarlint.intellij.notifications.binding.BindingSuggestion
+import org.sonarlint.intellij.progress.BackendTaskProgressReporter
+import org.sonarlint.intellij.promotion.PromotionProvider
+import org.sonarlint.intellij.sharing.ConfigurationSharing
+import org.sonarlint.intellij.sharing.SonarLintSharedFolderUtils.Companion.findSharedFolder
+import org.sonarlint.intellij.trigger.TriggerType
+import org.sonarlint.intellij.ui.UiUtils.Companion.runOnUiThread
+import org.sonarlint.intellij.finding.issue.SeverityMaskingService
+import org.sonarlint.intellij.util.GlobalLogOutput
+import org.sonarlint.intellij.util.IpAllowlistBlock
+import org.sonarlint.intellij.util.ProjectUtils.tryFindFile
+import org.sonarlint.intellij.util.SonarLintAppUtils.findModuleForFile
+import org.sonarlint.intellij.util.SonarLintAppUtils.getRelativePathForAnalysis
+import org.sonarlint.intellij.util.SonarLintAppUtils.visitAndAddAllFilesForModule
+import org.sonarlint.intellij.util.VirtualFileUtils
+import org.sonarlint.intellij.util.VirtualFileUtils.getFileContent
+import org.sonarlint.intellij.util.computeInEDT
+import org.sonarlint.intellij.util.computeOnPooledThread
+import org.sonarlint.intellij.util.runOnPooledThread
+import org.sonarsource.sonarlint.core.client.utils.ClientLogOutput
+import org.sonarsource.sonarlint.core.rpc.client.ConfigScopeNotFoundException
+import org.sonarsource.sonarlint.core.rpc.client.SonarLintCancelChecker
+import org.sonarsource.sonarlint.core.rpc.client.SonarLintRpcClientDelegate
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.config.binding.BindingSuggestionDto
+import org.sonarsource.sonarlint.core.rpc.protocol.backend.tracking.TaintVulnerabilityDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.binding.AssistBindingParams
+import org.sonarsource.sonarlint.core.rpc.protocol.client.binding.AssistBindingResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.client.binding.NoBindingSuggestionFoundParams
+import org.sonarsource.sonarlint.core.rpc.protocol.client.connection.AssistCreatingConnectionParams
+import org.sonarsource.sonarlint.core.rpc.protocol.client.connection.AssistCreatingConnectionResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.client.connection.ConnectionSuggestionDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.event.DidReceiveServerHotspotEvent
+import org.sonarsource.sonarlint.core.rpc.protocol.client.fix.FixSuggestionDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.hotspot.HotspotDetailsDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.hotspot.RaisedHotspotDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.http.GetProxyPasswordAuthenticationResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.client.http.ProxyDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.http.X509CertificateDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.IssueDetailsDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.RaisedIssueDto
+import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogLevel
+import org.sonarsource.sonarlint.core.rpc.protocol.client.log.LogParams
+import org.sonarsource.sonarlint.core.rpc.protocol.client.message.MessageType
+import org.sonarsource.sonarlint.core.rpc.protocol.client.message.ShowSoonUnsupportedMessageParams
+import org.sonarsource.sonarlint.core.rpc.protocol.client.plugin.DidSkipLoadingPluginParams
+import org.sonarsource.sonarlint.core.rpc.protocol.client.progress.ReportProgressParams
+import org.sonarsource.sonarlint.core.rpc.protocol.client.progress.StartProgressParams
+import org.sonarsource.sonarlint.core.rpc.protocol.client.smartnotification.ShowSmartNotificationParams
+import org.sonarsource.sonarlint.core.rpc.protocol.client.telemetry.TelemetryClientLiveAttributesResponse
+import org.sonarsource.sonarlint.core.rpc.protocol.common.ClientFileDto
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Either
+import org.sonarsource.sonarlint.core.rpc.protocol.common.FlowDto
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Language
+import org.sonarsource.sonarlint.core.rpc.protocol.common.TextRangeDto
+import org.sonarsource.sonarlint.core.rpc.protocol.common.TokenDto
+import org.sonarsource.sonarlint.core.rpc.protocol.common.UsernamePasswordDto
 
-object SonarLintIntelliJClient : SonarLintClient {
 
-    private val GROUP: NotificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("CodeScan")
+object SonarLintIntelliJClient : SonarLintRpcClientDelegate {
+    private val BLOCKED_ORGANIZATION = Regex("organization '([^']+)'")
+
+    private const val SONAR_SCANNER_CONFIG_FILENAME = "sonar-project.properties"
+    private const val SKIP_AUTO_SHARE_CONFIGURATION_DIALOG_PROPERTY = "SonarLint.AutoShareConfiguration"
+    private const val AUTOSCAN_CONFIG_FILENAME = ".sonarcloud.properties"
+    private const val SONARLINT_CONFIGURATION_FOLDER = ".sonarlint"
     private val backendTaskProgressReporter = BackendTaskProgressReporter()
 
-    override fun suggestBinding(params: SuggestBindingParams) {
-        params.suggestions.forEach { (projectId, suggestions) -> suggestAutoBind(findProject(projectId), suggestions) }
+    override fun suggestBinding(suggestionsByConfigScopeId: Map<String, List<BindingSuggestionDto>>) {
+        suggestionsByConfigScopeId.forEach { (configScopeId, suggestions) -> suggestAutoBind(findProject(configScopeId), suggestions) }
+    }
+
+    override fun suggestConnection(suggestionsByConfigScope: Map<String, List<ConnectionSuggestionDto>>) {
+        for (suggestion in suggestionsByConfigScope) {
+            val project = BackendService.findModule(suggestion.key)?.project
+                ?: BackendService.findProject(suggestion.key) ?: continue
+
+            if (suggestion.value.size == 1) {
+                // It was decided to only handle the case where there is only one notification per configuration scope
+                val uniqueSuggestion = suggestion.value[0]
+                val (connectionKind, projectKey, connectionName) = getAutoShareConfigParams(uniqueSuggestion)
+                val mode = if (uniqueSuggestion.isFromSharedConfiguration) IMPORTED else AUTOMATIC
+
+                ConfigurationSharing.showAutoSharedConfigurationNotification(
+                    project, """
+                    A Connected Mode configuration file is available to bind to project '%s' on %s '%s'.
+                    The binding can also be manually configured later.
+                """.trimIndent().format(projectKey, connectionKind, connectionName),
+                    SKIP_AUTO_SHARE_CONFIGURATION_DIALOG_PROPERTY,
+                    uniqueSuggestion,
+                    mode
+                )
+            }
+        }
+    }
+
+    private fun getAutoShareConfigParams(uniqueSuggestion: ConnectionSuggestionDto): Triple<String, String, String> {
+        return if (uniqueSuggestion.connectionSuggestion.isRight) {
+            Triple(
+                "CodeScan organization", uniqueSuggestion.connectionSuggestion.right.projectKey,
+                uniqueSuggestion.connectionSuggestion.right.organization)
+        } else {
+            Triple(
+                "CodeScan server", uniqueSuggestion.connectionSuggestion.left.projectKey,
+                uniqueSuggestion.connectionSuggestion.left.serverUrl)
+        }
     }
 
     private fun suggestAutoBind(project: Project?, suggestions: List<BindingSuggestionDto>) {
@@ -107,109 +212,131 @@ object SonarLintIntelliJClient : SonarLintClient {
             GlobalLogOutput.get().log("Discarding binding suggestions, project was closed", ClientLogOutput.Level.DEBUG)
             return
         }
-        if (getSettingsFor(project).isBindingSuggestionsEnabled) {
-            val notifications = getService(project, SonarLintProjectNotifications::class.java)
+        if (getSettingsFor(project).isBindingSuggestionsEnabled && !getSettingsFor(project).isBound) {
+            val notifications = get(project)
             notifications.suggestBindingOptions(suggestions.map {
-                BindingSuggestion(
-                    it.connectionId, it.sonarProjectKey, it.sonarProjectName
-                )
+                BindingSuggestion(it.connectionId, it.sonarProjectKey, it.sonarProjectName, it.isFromSharedConfiguration)
             })
         }
     }
 
-    override fun findFileByNamesInScope(params: FindFileByNamesInScopeParams): CompletableFuture<FindFileByNamesInScopeResponse> {
-        val project = findProject(params.configScopeId) ?: return CompletableFuture.completedFuture(
-            FindFileByNamesInScopeResponse(emptyList())
-        )
-
-        val foundFiles = computeReadActionSafely(project) {
-            findFiles(project, params)
-        }
-
-        return CompletableFuture.completedFuture(FindFileByNamesInScopeResponse(foundFiles ?: emptyList()))
-    }
-
-    private fun findFiles(project: Project, params: FindFileByNamesInScopeParams): List<FoundFileDto> {
-        if (project.isDisposed) {
-            return emptyList()
-        }
-        val fileNames = params.filenames
-        val foundVirtualFiles = findInContentRoots(project, fileNames) + findInProjectBaseDir(project, fileNames)
-        return foundVirtualFiles.map {
-            FoundFileDto(
-                it.name, it.path, getFileContent(it)
-            )
-        }
-    }
-
-    private fun findInContentRoots(
-        project: Project, fileNames: List<String>,
-    ): Set<VirtualFile> {
-        val contentRoots = ProjectRootManager.getInstance(project).contentRoots.filter { it.isDirectory }
-        return fileNames.mapNotNull { fileName ->
-            contentRoots.firstNotNullOfOrNull { root ->
-                root.findFileByRelativePath(
-                    fileName
-                )
-            }
-        }.toSet()
-    }
-
-    // useful for Rider where the files to find are not located in content roots
-    private fun findInProjectBaseDir(project: Project, fileNames: List<String>): Set<VirtualFile> {
-        val projectDir = project.guessProjectDir() ?: return emptySet()
-        return fileNames.mapNotNull { fileName ->
-            projectDir.findFileByRelativePath(
-                fileName
-            )
-        }.toSet()
-    }
-
     private fun findProject(configScopeId: String): Project? {
+        // XXX modules?
         return ProjectManager.getInstance().openProjects.find { configScopeId == BackendService.projectId(it) }
     }
 
-    private fun getFileContent(virtualFile: VirtualFile): String {
-        val fileDocumentManager = FileDocumentManager.getInstance()
-        if (fileDocumentManager.isFileModified(virtualFile)) {
-            val document = FileDocumentManager.getInstance().getDocument(virtualFile)
-            if (document != null) {
-                return document.text
+    override fun openUrlInBrowser(url: URL) {
+        BrowserUtil.browse(url)
+    }
+
+    override fun showMessage(type: MessageType, text: String) {
+        projectLessNotification(null, text, convert(type))
+    }
+
+    override fun log(params: LogParams) {
+        notifyIfIpAllowlistBlock(params)
+        // CodeScan: the backend prints the analysis settings, which hold the connection token (see CodeScanAnalysisConfigurator)
+        val message = CodeScanAnalysisConfigurator.maskSecrets(params.toString())
+        val configScopeId = params.configScopeId
+
+        configScopeId?.let {
+            val project = BackendService.findModule(configScopeId)?.project ?: BackendService.findProject(configScopeId)
+            project?.let {
+                val console: SonarLintConsole = getService(project, SonarLintConsole::class.java)
+                logProjectLevel(params.level, message, console)
+                return
             }
         }
-        return virtualFile.contentsToByteArray().toString(virtualFile.charset)
+
+        val globalLogOutput = getService(GlobalLogOutput::class.java)
+        globalLogOutput.log(message, mapLevel(params.level))
     }
 
-    override fun openUrlInBrowser(params: OpenUrlInBrowserParams) {
-        BrowserUtil.browse(params.url)
+
+    // CodeScan: synchronization failures are only logged by the backend, so an IP allowlist block is recognized here
+    private fun notifyIfIpAllowlistBlock(params: LogParams) {
+        try {
+            val blockMessage = IpAllowlistBlock.find(params.message).or { IpAllowlistBlock.find(params.stackTrace) }.orElse(null) ?: return
+            val scopedProject = params.configScopeId?.let { BackendService.findModule(it)?.project ?: BackendService.findProject(it) }
+            val projects = if (scopedProject != null) listOf(scopedProject) else projectsBoundToBlockedOrganization(blockMessage)
+            projects.filter { !it.isDisposed }.forEach { get(it).notifyIpAllowlistBlocked(blockMessage) }
+        } catch (e: Exception) {
+            GlobalLogOutput.get().logError("Could not show the IP allowlist notification", e)
+        }
     }
 
-    override fun showMessage(params: ShowMessageParams) {
-        showBalloon(null, params.text, convert(params.type))
+    // A log line without a project comes from a connection-wide task: tell the projects that use this organization,
+    // and those whose connection has no organization key, as they cannot be told apart
+    private fun projectsBoundToBlockedOrganization(blockMessage: String): List<Project> {
+        val organization = BLOCKED_ORGANIZATION.find(blockMessage)?.groupValues?.get(1)
+        return ProjectManager.getInstance().openProjects.filter { project ->
+            val settings = getSettingsFor(project)
+            if (project.isDisposed || !settings.isBound) {
+                return@filter false
+            }
+            val connectionOrganization = getGlobalSettings().getServerConnectionByName(settings.connectionName)
+                .map { it.organizationKey }.orElse(null)
+            organization == null || connectionOrganization.isNullOrEmpty() || connectionOrganization == organization
+        }
+    }
+
+    private fun mapLevel(level: LogLevel): ClientLogOutput.Level {
+        return when (level) {
+            LogLevel.ERROR -> {
+                ClientLogOutput.Level.ERROR
+            }
+
+            LogLevel.WARN -> {
+                ClientLogOutput.Level.WARN
+            }
+
+            LogLevel.INFO -> {
+                ClientLogOutput.Level.INFO
+            }
+
+            LogLevel.DEBUG -> {
+                ClientLogOutput.Level.DEBUG
+            }
+
+            LogLevel.TRACE -> {
+                ClientLogOutput.Level.TRACE
+            }
+        }
+    }
+
+
+    override fun showSoonUnsupportedMessage(params: ShowSoonUnsupportedMessageParams) {
+        val project = BackendService.findModule(params.configurationScopeId)?.project
+            ?: BackendService.findProject(params.configurationScopeId) ?: return
+        showOneTimeBalloon(project, params.text, params.doNotShowAgainId, OpenLinkAction(SUPPORT_POLICY_LINK, "Learn more"))
+    }
+
+    private fun logProjectLevel(
+        logLevel: LogLevel,
+        message: String,
+        console: SonarLintConsole,
+    ) {
+        when (logLevel) {
+            LogLevel.TRACE, LogLevel.DEBUG -> console.debug(message)
+            LogLevel.ERROR -> console.error(message)
+            else -> console.info(message)
+        }
     }
 
     override fun showSmartNotification(params: ShowSmartNotificationParams) {
-        val projects = params.scopeIds.mapNotNull { BackendService.findModule(it)?.project ?: BackendService.findProject(it) }.toSet()
-        projects.map { SonarLintProjectNotifications.get(it).handle(params) }
+        val projects = params.scopeIds.mapNotNull {
+            BackendService.findModule(it)?.project ?: BackendService.findProject(it)
+        }.toSet()
+        projects.map { get(it).handle(params) }
     }
 
-    private fun convert(type: String?): NotificationType {
-        if (type == MessageType.ERROR.name) return NotificationType.ERROR
-        if (type == MessageType.WARNING.name) return NotificationType.WARNING
-        return NotificationType.INFORMATION
+    private fun showOneTimeBalloon(project: Project, message: String, doNotShowAgainId: String, action: AnAction?) {
+        if (!PropertiesComponent.getInstance().getBoolean(doNotShowAgainId)) {
+            get(project).showOneTimeBalloon(message, doNotShowAgainId, action)
+        }
     }
 
-    private fun showBalloon(project: Project?, message: String, type: NotificationType) {
-        val notification = GROUP.createNotification(
-            "CodeScan message",
-            message,
-            type
-        )
-        notification.isImportant = type != NotificationType.INFORMATION
-        notification.notify(project)
-    }
-
-    override fun getClientInfo(): CompletableFuture<GetClientInfoResponse> {
+    override fun getClientLiveDescription(): String {
         var description = ApplicationInfo.getInstance().fullVersion
         val edition = ApplicationNamesInfo.getInstance().editionName
         if (edition != null) {
@@ -219,95 +346,190 @@ object SonarLintIntelliJClient : SonarLintClient {
         if (openProjects.isNotEmpty()) {
             description += " - " + openProjects.joinToString(", ") { it.name }
         }
-        val hostInfoDto = GetClientInfoResponse(description)
-        return CompletableFuture.completedFuture(hostInfoDto)
+        return description
     }
 
-    override fun showHotspot(params: ShowHotspotParams) {
-        val configurationScopeId = params.configurationScopeId
-        val project =
-            findProject(configurationScopeId) ?: throw IllegalStateException("Unable to find project with id '$configurationScopeId'")
-        SonarLintProjectNotifications.get(project).expireCurrentHotspotNotificationIfNeeded()
-        val file = tryFindFile(project, params.hotspotDetails.filePath)
+    private fun convert(type: MessageType): NotificationType {
+        if (type == MessageType.ERROR) return NotificationType.ERROR
+        if (type == MessageType.WARNING) return NotificationType.WARNING
+        return NotificationType.INFORMATION
+    }
+
+    override fun showHotspot(configurationScopeId: String, hotspotDetails: HotspotDetailsDto) {
+        showFinding(configurationScopeId, hotspotDetails.ideFilePath, hotspotDetails.key, hotspotDetails.rule.key, hotspotDetails.textRange, hotspotDetails.codeSnippet, LiveSecurityHotspot::class.java, emptyList(), hotspotDetails.message)
+    }
+
+    override fun showIssue(configurationScopeId: String, issueDetails: IssueDetailsDto) {
+        val findingType = if (issueDetails.isTaint) LocalTaintVulnerability::class.java else LiveIssue::class.java
+        showFinding(configurationScopeId, issueDetails.ideFilePath, issueDetails.issueKey, issueDetails.ruleKey, issueDetails.textRange, issueDetails.codeSnippet, findingType, issueDetails.flows, issueDetails.message)
+    }
+
+    override fun showFixSuggestion(configurationScopeId: String, issueKey: String, fixSuggestion: FixSuggestionDto) {
+        val project = BackendService.findModule(configurationScopeId)?.project ?: BackendService.findProject(configurationScopeId)
+        ?: throw IllegalStateException("Unable to find project with id '$configurationScopeId'")
+
+        val file = tryFindFile(project, fixSuggestion.fileEdit().idePath())
         if (file == null) {
-            showBalloon(project, "Unable to open Security Hotspot. Can't find the file: ${params.hotspotDetails.filePath}", NotificationType.WARNING)
+            if (!project.isDisposed) {
+                get(project).simpleNotification(
+                    null,
+                    "Unable to open the fix suggestion. Cannot find the file: ${fixSuggestion.fileEdit().idePath()}",
+                    NotificationType.WARNING
+                )
+            }
             return
         }
-        ApplicationManager.getApplication().invokeAndWait {
-            openFile(project, file)
-        }
-        getService(project, AnalysisSubmitter::class.java).analyzeFileAndTrySelectHotspot(file, params.hotspotDetails.key)
+
+        ShowFixSuggestion(project, file, fixSuggestion).show()
     }
 
-    private fun tryFindFile(project: Project, filePath: String): VirtualFile? {
-        for (contentRoot in ProjectRootManager.getInstance(project).contentRoots) {
-            if (contentRoot.isDirectory) {
-                val matchedFile = contentRoot.findFileByRelativePath(filePath)
-                if (matchedFile != null) {
-                    return matchedFile
-                }
+    private fun <T : Finding> showFinding(
+        configScopeId: String, filePath: Path, findingKey: String, ruleKey: String,
+        textRange: TextRangeDto, codeSnippet: String?, type: Class<T>, flows: List<FlowDto>, flowMessage: String,
+    ) {
+        val project = BackendService.findModule(configScopeId)?.project ?: BackendService.findProject(configScopeId)
+        ?: throw IllegalStateException("Unable to find project with id '$configScopeId'")
+        if (!project.isDisposed) {
+            get(project).expireCurrentFindingNotificationIfNeeded()
+        }
+        val file = tryFindFile(project, filePath)
+        if (file == null) {
+            if (!project.isDisposed) {
+                get(project).simpleNotification(null, "Unable to open finding. Cannot find the file: $filePath", NotificationType.WARNING)
+            }
+            return
+        }
+
+        val module = findModuleForFile(file, project)
+        if (module == null) {
+            if (!project.isDisposed) {
+                get(project).simpleNotification(
+                    null, "Unable to open finding. Cannot find the module corresponding to file: $filePath", NotificationType.WARNING
+                )
+            }
+            return
+        }
+
+        val descriptor = OpenFileDescriptor(project, file, textRange.startLine - 1, -1)
+
+        runOnUiThread(project, ModalityState.defaultModalityState()) {
+            FileEditorManager.getInstance(project).openTextEditor(
+                descriptor, true
+            )
+        }
+
+        val showFinding = ShowFinding(
+            module,
+            ruleKey,
+            findingKey,
+            file,
+            textRange,
+            codeSnippet,
+            ShowFinding.handleFlows(module.project, flows),
+            flowMessage,
+            type
+        )
+        getService(project, OpenInIdeFindingCache::class.java).finding = showFinding
+        getService(project, OpenInIdeFindingCache::class.java).analysisQueued = false
+        if (getService(project, AnalysisReadinessCache::class.java).isReady) {
+            getService(project, AnalysisSubmitter::class.java).analyzeFileAndTrySelectFinding(showFinding)
+        }
+    }
+
+    override fun assistCreatingConnection(
+        params: AssistCreatingConnectionParams,
+        cancelChecker: SonarLintCancelChecker,
+    ): AssistCreatingConnectionResponse {
+        val isSQ = params.connectionParams.isLeft
+        val serverOrOrg = if (isSQ) params.connectionParams.left.serverUrl else params.connectionParams.right.organizationKey
+        val tokenName = if (isSQ) params.connectionParams.left.tokenName else params.connectionParams.right.tokenName
+        val tokenValue = if (isSQ) params.connectionParams.left.tokenValue else params.connectionParams.right.tokenValue
+
+        val response = if (tokenName != null && tokenValue != null) {
+            setUpAutomaticConnection(serverOrOrg, tokenValue, isSQ)
+        } else {
+            if (isSQ) {
+                setUpManualConnection(serverOrOrg)
             } else {
-                // On Rider, all source files are returned as individual content roots, so simply check for equality
-                if (contentRoot.path.endsWith(filePath)) {
-                    return contentRoot
-                }
+                throw CancellationException("Cannot assist with a manual connection to a CodeScan organization")
             }
         }
-        return null
+
+        projectLessNotification(
+            "",
+            "You have successfully established a connection to the ${if (isSQ) "CodeScan server" else "CodeScan organization"}",
+            NotificationType.INFORMATION
+        )
+
+        return response
     }
 
-    private fun openFile(project: Project, file: VirtualFile) {
-        OpenFileDescriptor(project, file).navigate(true)
-    }
-
-    override fun assistCreatingConnection(params: AssistCreatingConnectionParams): CompletableFuture<AssistCreatingConnectionResponse> {
-        return CompletableFuture.supplyAsync {
-            val serverUrl = params.serverUrl
-            val message = "No connections configured to '$serverUrl'."
-            if (!showConfirmModal("Opening Security Hotspot...", message, "Create connection", null)) {
-                throw CancellationException("Connection creation rejected by the user")
-            }
-            val newConnection = ApplicationManager.getApplication().computeInEDT {
-                ServerConnectionCreator().createThroughWizard(serverUrl)
-            } ?: throw CancellationException("Connection creation cancelled by the user")
-            AssistCreatingConnectionResponse(newConnection.name)
+    private fun setUpAutomaticConnection(serverOrOrg: String, tokenValue: String, isSQ: Boolean): AssistCreatingConnectionResponse {
+        val newConnection = ApplicationManager.getApplication().computeInEDT {
+            AutomaticServerConnectionCreator(serverOrOrg, tokenValue, isSQ).chooseResolution()
+        } ?: run {
+            throw CancellationException("Connection creation cancelled by the user")
         }
+        return AssistCreatingConnectionResponse(newConnection.name)
     }
 
-    override fun assistBinding(params: AssistBindingParams): CompletableFuture<AssistBindingResponse> {
-        return CompletableFuture.supplyAsync {
-            val connectionId = params.connectionId
-            val projectKey = params.projectKey
+    private fun setUpManualConnection(serverUrl: String): AssistCreatingConnectionResponse {
+        val warningTitle = "Trust This CodeScan Server?"
+        val message = """
+                        The server <b>${StringEscapeUtils.escapeHtml4(serverUrl)}</b> is attempting to set up a connection with this plugin. Connecting to a CodeScan server you do not trust is potentially dangerous.
+                        
+                        If you don’t trust this server, we recommend canceling this action and <a href="$CONNECTED_MODE_SETUP_LINK">manually setting up Connected Mode<icon src="AllIcons.Ide.External_link_arrow" href="$CONNECTED_MODE_SETUP_LINK"></a>.
+                    """.trimIndent()
+        val connectButtonText = "Connect to This CodeScan Server"
+        val dontTrustButtonText = "I Don't Trust This Server"
+
+        val choice = ApplicationManager.getApplication().computeInEDT {
+            MessageDialogBuilder.Message(warningTitle, message).buttons(connectButtonText, dontTrustButtonText)
+                .defaultButton(connectButtonText).focusedButton(dontTrustButtonText).asWarning().show()
+        }
+
+        if (connectButtonText != choice) {
+            throw CancellationException("Connection creation rejected by the user")
+        }
+        val newConnection = ApplicationManager.getApplication().computeInEDT {
+            ManualServerConnectionCreator().createThroughWizard(serverUrl)
+        } ?: throw CancellationException("Connection creation cancelled by the user")
+        return AssistCreatingConnectionResponse(newConnection.name)
+    }
+
+    override fun assistBinding(params: AssistBindingParams, cancelChecker: SonarLintCancelChecker): AssistBindingResponse {
+        val connectionId = params.connectionId
+        val projectKey = params.projectKey
+        val configScopeId = params.configScopeId
+        val project: Project? = configScopeId?.let {
+            BackendService.findModule(it)?.project ?: findProject(it)
+        }
+
+        return if (project == null) {
+            AssistBindingResponse(null)
+        } else {
             val connection = getGlobalSettings().getServerConnectionByName(connectionId)
                 .orElseThrow { IllegalStateException("Unable to find connection '$connectionId'") }
-            val message = "Cannot automatically find a project bound to:\n" +
-                "  • Project: $projectKey\n" +
-                "  • Connection: $connectionId\n" +
-                "Please manually select a project."
-            if (!showConfirmModal("Opening Security Hotspot...", message, "Select project", null)) {
-                throw CancellationException("Project selection rejected by the user")
+            val binding = getService(project, ProjectBindingManager::class.java).binding
+            if (binding == null || binding.projectKey != projectKey || binding.connectionName != connection.name) {
+                val mode = if (params.isFromSharedConfiguration) IMPORTED else AUTOMATIC
+                getService(project, ProjectBindingManager::class.java).bindTo(connection, projectKey, emptyMap(), mode)
+                get(project).simpleNotification(
+                    "Project successfully bound",
+                    "Local project bound to project '$projectKey' of CodeScan server '${connection.name}'. "
+                        + "You can now enjoy all capabilities of CodeScan Connected Mode. The binding of this project can be updated in the CodeScan Settings.",
+                    NotificationType.INFORMATION,
+                    OpenInBrowserAction("Learn More in Documentation", null, CONNECTED_MODE_BENEFITS_LINK)
+                )
             }
-            val selectedProject = ApplicationManager.getApplication().computeInEDT {
-                ProjectSelectionDialog().selectProject()?.let {
-                    ProjectUtil.openOrImport(it, null, false)
-                }
-            } ?: throw CancellationException("Project selection cancelled by the user")
-            val confirmed = showConfirmModal(
-                "Opening Security Hotspot...",
-                "You are going to bind current project to '${connection.hostUrl}'. Do you agree?",
-                "Yes",
-                selectedProject
-            )
-            if (!confirmed) {
-                throw CancellationException("Project binding rejected by the user")
-            }
-            getService(selectedProject, ProjectBindingManager::class.java).bindTo(connection, projectKey, emptyMap())
-            AssistBindingResponse(BackendService.projectId(selectedProject))
+            val module = BackendService.findModule(configScopeId)
+            getService(project, SecurityHotspotsRefreshTrigger::class.java).triggerRefresh(module)
+            AssistBindingResponse(BackendService.projectId(project))
         }
     }
 
-    override fun startProgress(params: StartProgressParams): CompletableFuture<Void> {
-        return backendTaskProgressReporter.startTask(params)
+    override fun startProgress(params: StartProgressParams) {
+        backendTaskProgressReporter.startTask(params)
     }
 
     override fun reportProgress(params: ReportProgressParams) {
@@ -318,76 +540,451 @@ object SonarLintIntelliJClient : SonarLintClient {
         }
     }
 
-    override fun didSynchronizeConfigurationScopes(params: DidSynchronizeConfigurationScopeParams) {
-        if (SonarLintUtils.isTaintVulnerabilitiesEnabled()) {
-            params.configurationScopeIds.mapNotNull { scopeId ->
-                    BackendService.findModule(scopeId)?.project ?: BackendService.findProject(scopeId)
-            }
-                .toSet()
-                .forEach { project ->
-                    getService(
-                        project,
-                        TaintVulnerabilitiesPresenter::class.java
-                    ).presentTaintVulnerabilitiesForOpenFiles()
-                    // trigger new analysis as some things might have changed (findings, new code period)
-                    getService(project, AnalysisSubmitter::class.java).autoAnalyzeOpenFiles(TriggerType.BINDING_UPDATE)
-                }
+    override fun didSynchronizeConfigurationScopes(configurationScopeIds: Set<String>) {
+        GlobalLogOutput.get().log("Did synchronize config scopes $configurationScopeIds", ClientLogOutput.Level.INFO)
+        refreshSeverityMasks(configurationScopeIds)
+    }
+
+    override fun getCredentials(connectionId: String): Either<TokenDto, UsernamePasswordDto> {
+        val connectionOpt = getGlobalSettings().getServerConnectionByName(connectionId)
+        if (connectionOpt.isEmpty) {
+            throw ResponseErrorException(ResponseError(ResponseErrorCode.InvalidParams, "Unknown connection: $connectionId", connectionId))
         }
+        val connection = connectionOpt.get()
+        val token = connection.token
+        if (token != null) {
+            return Either.forLeft(TokenDto(token))
+        }
+        val login = connection.login
+        if (login == null) {
+            // No token (none stored, or it could not be read back) and no login: tell the backend plainly instead of
+            // failing with a null-pointer error deep inside this call.
+            throw ResponseErrorException(
+                ResponseError(
+                    ResponseErrorCode.InvalidParams,
+                    "No credentials stored for connection '$connectionId'. Edit the connection and enter a token.",
+                    connectionId
+                )
+            )
+        }
+        return Either.forRight(UsernamePasswordDto(login, connection.password.orEmpty()))
     }
 
-    override fun getCredentials(params: GetCredentialsParams): CompletableFuture<GetCredentialsResponse> {
-        return getGlobalSettings().getServerConnectionByName(params.connectionId)
-            .map { connection -> connection.token?.let { CompletableFuture.completedFuture(GetCredentialsResponse(TokenDto(it))) }
-                ?: connection.login?.let { CompletableFuture.completedFuture(GetCredentialsResponse(UsernamePasswordDto(it, connection.password))) }
-                ?: CompletableFuture.failedFuture(IllegalArgumentException("Invalid credentials for connection: " + params.connectionId))
-            }.orElse(CompletableFuture.failedFuture(IllegalArgumentException("Unknown connection: " + params.connectionId)))
+    override fun getProxyPasswordAuthentication(
+        host: String,
+        port: Int,
+        protocol: String,
+        prompt: String,
+        scheme: String,
+        targetHost: URL,
+    ): GetProxyPasswordAuthenticationResponse {
+        val auth = CommonProxy.getInstance().authenticator.requestPasswordAuthenticationInstance(host, null, port, protocol, prompt, scheme, targetHost, Authenticator.RequestorType.PROXY)
+        return GetProxyPasswordAuthenticationResponse(auth?.userName, auth?.let { String(it.password) })
     }
 
-    override fun getProxyPasswordAuthentication(params: GetProxyPasswordAuthenticationParams): CompletableFuture<GetProxyPasswordAuthenticationResponse> {
-        val auth = CommonProxy.getInstance().authenticator.requestPasswordAuthenticationInstance(
-            params.host,
-            null,
-            params.port,
-            params.protocol,
-            params.prompt,
-            params.scheme,
-            null,
-            Authenticator.RequestorType.PROXY
-        )
-        return CompletableFuture.completedFuture(GetProxyPasswordAuthenticationResponse(auth.userName, String(auth.password)))
-    }
-
-    override fun checkServerTrusted(params: CheckServerTrustedParams): CompletableFuture<CheckServerTrustedResponse> {
+    override fun checkServerTrusted(chain: List<X509CertificateDto>, authType: String): Boolean {
         val certificateFactory = CertificateFactory.getInstance("X.509")
-        val certificates: Array<X509Certificate> = params.chain.stream()
-            .map { certificateFactory.generateCertificate(ByteArrayInputStream(it.pem.toByteArray())) as X509Certificate }
-            .collect(Collectors.toList()).toTypedArray()
+        val certificates: Array<X509Certificate> = chain.stream().map { certificateFactory.generateCertificate(ByteArrayInputStream(it.pem.toByteArray())) as X509Certificate }.toList().toTypedArray()
         return try {
-            CertificateManager.getInstance().trustManager.checkServerTrusted(certificates, params.authType)
-            CompletableFuture.completedFuture(CheckServerTrustedResponse(true))
+            CertificateManager.getInstance().trustManager.checkServerTrusted(certificates, authType)
+            true
         } catch (e: CertificateException) {
-            SonarLintLogger.get().warn("Certificate is not trusted", e.message)
-            return CompletableFuture.completedFuture(CheckServerTrustedResponse(false))
+            GlobalLogOutput.get().logError("Certificate is not trusted", e)
+            false
         }
     }
 
-    override fun selectProxies(params: SelectProxiesParams): CompletableFuture<SelectProxiesResponse> {
-        val uri = URI.create(params.uri)
-        val proxiesResponse =
-            SelectProxiesResponse(CommonProxy.getInstance().select(uri).stream().map {
-                if (it.type() != Proxy.Type.DIRECT && it.address() is InetSocketAddress) {
-                    val socketAddress = it.address() as InetSocketAddress
-                    ProxyDto(it.type(), socketAddress.hostString, socketAddress.port)
-                } else {
-                    ProxyDto.NO_PROXY
+    override fun selectProxies(uri: URI): List<ProxyDto> {
+        return CommonProxy.getInstance().select(uri).stream().map {
+            if (it.type() != Proxy.Type.DIRECT && it.address() is InetSocketAddress) {
+                val socketAddress = it.address() as InetSocketAddress
+                ProxyDto(it.type(), socketAddress.hostString, socketAddress.port)
+            } else {
+                ProxyDto.NO_PROXY
+            }
+        }.toList()
+    }
+
+    override fun getTelemetryLiveAttributes(): TelemetryClientLiveAttributesResponse {
+        return TelemetryClientLiveAttributesResponse(emptyMap())
+    }
+
+    override fun didReceiveServerHotspotEvent(params: DidReceiveServerHotspotEvent) {
+        findProjects(params.sonarProjectKey).forEach { project ->
+            val openFiles = FileEditorManager.getInstance(project).openFiles
+            val filePath = params.ideFilePath
+            val impactedFiles = ArrayList<VirtualFile>()
+
+            val matchedFile = tryFindFile(project, filePath)
+
+            if (matchedFile != null && matchedFile in openFiles) {
+                impactedFiles.add(matchedFile)
+            }
+
+            getService(project, AnalysisSubmitter::class.java).autoAnalyzeFiles(impactedFiles, TriggerType.SERVER_SENT_EVENT)
+        }
+    }
+
+    override fun noBindingSuggestionFound(params: NoBindingSuggestionFoundParams) {
+        projectLessNotification(
+            "No matching open project found",
+            "Cannot match the CodeScan project '${params.projectKey}' to any of the currently open projects. Please open your project and try again.",
+            NotificationType.WARNING,
+            OpenInBrowserAction("Open Troubleshooting Documentation", null, TROUBLESHOOTING_CONNECTED_MODE_SETUP_LINK)
+        )
+    }
+
+    private fun refreshSeverityMasks(configurationScopeIds: Set<String>) {
+        configurationScopeIds.mapNotNull { BackendService.findModule(it)?.project ?: findProject(it) }
+            .distinct()
+            .filter { !it.isDisposed }
+            .forEach { getService(it, SeverityMaskingService::class.java).refresh() }
+    }
+
+    override fun didChangeAnalysisReadiness(configurationScopeIds: Set<String>, areReadyForAnalysis: Boolean) {
+        GlobalLogOutput.get().log("Analysis became ready=$areReadyForAnalysis for $configurationScopeIds", ClientLogOutput.Level.DEBUG)
+        if (areReadyForAnalysis) {
+            // CodeScan: readiness follows project open, binding changes and syncs
+            refreshSeverityMasks(configurationScopeIds)
+        }
+        configurationScopeIds.associateBy(
+            { BackendService.findModule(it)?.project ?: findProject(it) },
+            { BackendService.findModule(it) }
+        )
+            .forEach { (project, module) ->
+                if (project == null || project.isDisposed) return@forEach
+                getService(project, AnalysisReadinessCache::class.java).isReady = areReadyForAnalysis
+                if (areReadyForAnalysis) {
+                    runOnPooledThread(project) {
+                        val findingToShow = getService(project, OpenInIdeFindingCache::class.java).finding
+                        if (findingToShow != null && !getService(project, OpenInIdeFindingCache::class.java).analysisQueued) {
+                            getService(project, AnalysisSubmitter::class.java).analyzeFileAndTrySelectFinding(findingToShow)
+                        }
+
+                        getService(project, AnalysisSubmitter::class.java).autoAnalyzeOpenFilesForModule(
+                            TriggerType.BINDING_UPDATE,
+                            module
+                        )
+                    }
                 }
-            }.collect(Collectors.toList()))
-        return CompletableFuture.completedFuture(proxiesResponse)
+            }
     }
 
-    private fun showConfirmModal(title: String, message: String, confirmText: String, project: Project?): Boolean {
-        return Messages.OK == ApplicationManager.getApplication().computeInEDT {
-            Messages.showYesNoDialog(project, StringEscapeUtils.escapeHtml(message), title, confirmText, "Cancel", Messages.getWarningIcon())
+    override fun matchSonarProjectBranch(
+        configurationScopeId: String,
+        mainBranchName: String,
+        allBranchesNames: Set<String>,
+        cancelChecker: SonarLintCancelChecker,
+    ): String? {
+        val repositoriesEPs = VcsRepoProvider.EP_NAME.extensionList
+        val repositories = BackendService.findModule(configurationScopeId)?.let { module ->
+            matchSonarModule(module, repositoriesEPs)
+        } ?: run {
+            BackendService.findProject(configurationScopeId)?.let { project ->
+                matchSonarProject(project, repositoriesEPs)
+            }
+        } ?: return null
+        val repo = repositories.first()
+        return repo.electBestMatchingServerBranchForCurrentHead(mainBranchName, allBranchesNames) ?: mainBranchName
+    }
+
+    override fun matchProjectBranch(
+        configurationScopeId: String, branchNameToMatch: String, cancelChecker: SonarLintCancelChecker
+    ): Boolean {
+        val repositoriesEPs = VcsRepoProvider.EP_NAME.extensionList
+        val repositories = BackendService.findModule(configurationScopeId)?.let { module ->
+            matchSonarModule(module, repositoriesEPs)
+        } ?: run {
+            BackendService.findProject(configurationScopeId)?.let { project ->
+                matchSonarProject(project, repositoriesEPs)
+            }
+        } ?: return false
+        val repo = repositories.first()
+        return repo.isBranchMatchingCurrentHead(branchNameToMatch)
+    }
+
+    private fun matchSonarModule(module: Module, repositoriesEPs: List<VcsRepoProvider>): List<VcsRepo>? {
+        val repositories = computeOnPooledThread(module.project, "Match Sonar Project Branch Task") {
+            repositoriesEPs.mapNotNull { it.getRepoFor(module) }.toList()
+        }
+        if (repositories.isNullOrEmpty()) {
+            return null
+        }
+        if (repositories.size > 1) {
+            getService(
+                module.project,
+                SonarLintConsole::class.java
+            ).debug("Several candidate VCS repositories detected for module $module, choosing first")
+        }
+        return repositories
+    }
+
+    private fun matchSonarProject(project: Project, repositoriesEPs: List<VcsRepoProvider>): List<VcsRepo>? {
+        val repositories = computeOnPooledThread(project, "Match Sonar Project Branch Task") {
+            repositoriesEPs.mapNotNull { it.getRepoFor(project) }.toList()
+        }
+        if (repositories.isNullOrEmpty()) {
+            return null
+        }
+        if (repositories.size > 1) {
+            getService(
+                project,
+                SonarLintConsole::class.java
+            ).debug("Several candidate VCS repositories detected for project $project, choosing first")
+        }
+        return repositories
+    }
+
+    override fun didChangeMatchedSonarProjectBranch(configScopeId: String, newMatchedBranchName: String) {
+        val module = BackendService.findModule(configScopeId)
+        if (module != null) {
+            getService(module.project, SonarProjectBranchCache::class.java).setMatchedBranch(module, newMatchedBranchName)
+        } else {
+            val project = findProject(configScopeId) ?: return
+            getService(project, SonarProjectBranchCache::class.java).setMatchedBranch(project, newMatchedBranchName)
         }
     }
+
+    override fun listFiles(configScopeId: String): List<ClientFileDto> {
+        val timeStart = System.currentTimeMillis()
+        val listClientFiles = BackendService.findModule(configScopeId)?.let { module ->
+            listModuleFiles(module, configScopeId)
+        } ?: findProject(configScopeId)?.let { project ->
+            val listProjectFiles = listProjectFiles(project, configScopeId)
+
+            if (isRider()) {
+                computeRiderSharedConfiguration(project, configScopeId)?.let {
+                    listProjectFiles.add(it)
+                }
+            }
+
+            listProjectFiles
+        }
+        ?: emptyList()
+        val timeEnd = System.currentTimeMillis()
+        GlobalLogOutput.get().log(
+            "Listed ${listClientFiles.size} files for $configScopeId in ${(timeEnd - timeStart)} ms",
+            ClientLogOutput.Level.DEBUG
+        )
+        return listClientFiles
+    }
+
+    private fun computeRiderSharedConfiguration(project: Project, configScopeId: String): ClientFileDto? {
+        val sonarlintFolder = findSharedFolder(project) ?: return null
+        VfsUtil.findFile(sonarlintFolder, false)?.let { sonarlintDir ->
+            sonarlintDir.children.forEach { conf ->
+                val solutionName = conf.nameWithoutExtension
+                if (project.name == solutionName) {
+                    getRelativePathForAnalysis(project.modules[0], conf)?.let { path ->
+                        val clientFileDto = toClientFileDto(
+                            project,
+                            configScopeId,
+                            conf,
+                            path,
+                            Language.JSON
+                        )
+                        if (clientFileDto != null) {
+                            return clientFileDto
+                        }
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun listModuleFiles(module: Module, configScopeId: String): MutableList<ClientFileDto> {
+        val filesInContentRoots = visitAndAddAllFilesForModule(module)
+
+        FilesContributor.EP_NAME.extensionList.forEach {
+            filesInContentRoots.addAll(it.listFiles(module))
+        }
+
+        val forcedLanguages = collectContributedLanguages(module, filesInContentRoots)
+
+        val clientFiles = filesInContentRoots.mapNotNull { file ->
+            val forcedLanguage = forcedLanguages[file]?.let { fl -> Language.valueOf(fl.name) }
+            getRelativePathForAnalysis(module, file)?.let { relativePath ->
+                toClientFileDto(
+                    module.project,
+                    configScopeId,
+                    file,
+                    relativePath,
+                    forcedLanguage
+                )
+            }
+        }.toMutableList()
+
+        if (isRider()) {
+            computeRiderSharedConfiguration(module.project, configScopeId)?.let {
+                clientFiles.add(it)
+            }
+        }
+
+        return clientFiles
+    }
+
+    private fun listProjectFiles(project: Project, configScopeId: String): MutableList<ClientFileDto> {
+        return listFilesInProjectBaseDir(project).mapNotNull { file ->
+            getRelativePathForAnalysis(project, file)?.let { relativePath ->
+                toClientFileDto(
+                    project,
+                    configScopeId,
+                    file,
+                    relativePath,
+                    null
+                )
+            }
+        }.toMutableList()
+    }
+
+    // useful for Rider where the files to find are not located in content roots
+    private fun listFilesInProjectBaseDir(project: Project): Set<VirtualFile> {
+        return project.guessProjectDir()?.children?.filter {
+            !it.isDirectory && isFileValidForSonarLintWithExtensiveChecks(
+                it,
+                project
+            )
+        }?.toSet() ?: return emptySet()
+    }
+
+    @JvmOverloads
+    fun toClientFileDto(
+        project: Project,
+        configScopeId: String,
+        file: VirtualFile,
+        relativePath: String,
+        language: Language?,
+        includeFileContent: Boolean = false,
+    ): ClientFileDto? {
+        if (!file.isValid || FileUtilRt.isTooLarge(file.length)) return null
+        val uri = VirtualFileUtils.toURI(file) ?: return null
+        return try {
+            computeReadActionSafely(file, project) {
+                ClientFileDto(
+                    uri,
+                    Paths.get(relativePath),
+                    configScopeId,
+                    isTestSources(file, project),
+                    VirtualFileUtils.getEncoding(file, project),
+                    Paths.get(file.path),
+                    readFileContentIfNeeded(file, includeFileContent),
+                    language,
+                    true
+                )
+            }
+        } catch (e: IOException) {
+            GlobalLogOutput.get().logError("Error while computing ClientFileDto", e)
+            null
+        }
+    }
+
+    private fun readFileContentIfNeeded(file: VirtualFile, includeFileContent: Boolean): String? {
+        val shouldReadContent = includeFileContent
+            || file.name == SONAR_SCANNER_CONFIG_FILENAME
+            || file.name == AUTOSCAN_CONFIG_FILENAME
+            || file.parent?.name == SONARLINT_CONFIGURATION_FOLDER
+            // Notebooks require special parsing, we should always send the content
+            || file.extension == "ipynb"
+        if (!shouldReadContent || FileUtilRt.isTooLarge(file.length)) return null
+        return getFileContent(file)
+    }
+
+    override fun didChangeTaintVulnerabilities(
+        configurationScopeId: String, closedTaintVulnerabilityIds: Set<UUID>, addedTaintVulnerabilities: List<TaintVulnerabilityDto>,
+        updatedTaintVulnerabilities: List<TaintVulnerabilityDto>,
+    ) {
+        val project = findProject(configurationScopeId) ?: return
+        val taintVulnerabilityMatcher = TaintVulnerabilityMatcher(project)
+        val (locallyMatchedAddedTaintVulnerabilities, locallyMatchedUpdatedTaintVulnerabilities) = computeReadActionSafely(project) {
+            addedTaintVulnerabilities.map { taintVulnerabilityMatcher.match(it) } to updatedTaintVulnerabilities.map { taintVulnerabilityMatcher.match(it) }
+        } ?: return
+        getService(project, SonarLintToolWindow::class.java).updateTaintVulnerabilities(closedTaintVulnerabilityIds, locallyMatchedAddedTaintVulnerabilities, locallyMatchedUpdatedTaintVulnerabilities)
+    }
+
+    private fun findProjects(projectKey: String?) = ProjectManager.getInstance().openProjects.filter { project ->
+        projectKey in getService(project, ProjectBindingManager::class.java).uniqueProjectKeys
+    }.toSet()
+
+    override fun raiseIssues(
+        configurationScopeId: String,
+        issuesByFileUri: Map<URI, List<RaisedIssueDto>>,
+        isIntermediatePublication: Boolean,
+        analysisId: UUID?,
+    ) {
+        val module = BackendService.findModule(configurationScopeId)
+        val project = module?.project ?: BackendService.findProject(configurationScopeId) ?: return
+        val runningAnalysis = analysisId?.let { getService(project, RunningAnalysesTracker::class.java).getById(it) }
+
+        if (runningAnalysis != null) {
+            runningAnalysis.addRawIssues(analysisId, issuesByFileUri, isIntermediatePublication)
+            if (runningAnalysis.isAnalysisFinished()) {
+                getService(project, RunningAnalysesTracker::class.java).finish(runningAnalysis)
+            }
+        } else if (analysisId == null && module != null) {
+            val onTheFlyFindingsHolder = getService(project, AnalysisSubmitter::class.java).onTheFlyFindingsHolder
+            onTheFlyFindingsHolder.updateViewsWithNewIssues(module, issuesByFileUri)
+        }
+    }
+
+    override fun raiseHotspots(
+        configurationScopeId: String,
+        hotspotsByFileUri: Map<URI, List<RaisedHotspotDto>>,
+        isIntermediatePublication: Boolean,
+        analysisId: UUID?,
+    ) {
+        val module = BackendService.findModule(configurationScopeId)
+        val project = module?.project ?: BackendService.findProject(configurationScopeId) ?: return
+        val runningAnalysis = analysisId?.let { getService(project, RunningAnalysesTracker::class.java).getById(it) }
+
+        if (runningAnalysis != null) {
+            runningAnalysis.addRawHotspots(analysisId, hotspotsByFileUri, isIntermediatePublication)
+            if (runningAnalysis.isAnalysisFinished()) {
+                getService(project, RunningAnalysesTracker::class.java).finish(runningAnalysis)
+            }
+        } else if (analysisId == null && module != null) {
+            val onTheFlyFindingsHolder = getService(project, AnalysisSubmitter::class.java).onTheFlyFindingsHolder
+            onTheFlyFindingsHolder.updateViewsWithNewSecurityHotspots(module, hotspotsByFileUri)
+        }
+    }
+
+    override fun didSkipLoadingPlugin(
+        configurationScopeId: String, language: Language, reason: DidSkipLoadingPluginParams.SkipReason,
+        minVersion: String, currentVersion: String?,
+    ) {
+        val project = BackendService.findModule(configurationScopeId)?.project
+            ?: BackendService.findProject(configurationScopeId) ?: return
+
+        notifyOnceForSkippedPlugins(project, language, reason, minVersion, currentVersion)
+    }
+
+    override fun didDetectSecret(configurationScopeId: String) {
+        val project = BackendService.findModule(configurationScopeId)?.project
+            ?: BackendService.findProject(configurationScopeId) ?: return
+
+        if (getGlobalSettings().isSecretsNeverBeenAnalysed) {
+            get(project).sendNotification()
+            getGlobalSettings().rememberNotificationOnSecretsBeenSent()
+        }
+    }
+
+    override fun promoteExtraEnabledLanguagesInConnectedMode(configurationScopeId: String, languagesToPromote: Set<Language>) {
+        if (languagesToPromote.isEmpty()) return
+
+        val project = BackendService.findModule(configurationScopeId)?.project
+            ?: BackendService.findProject(configurationScopeId) ?: return
+
+        getService(project, PromotionProvider::class.java).processExtraLanguagePromotion(languagesToPromote)
+    }
+
+    @Throws(ConfigScopeNotFoundException::class)
+    override fun getBaseDir(configurationScopeId: String): Path {
+        val project = BackendService.findProject(configurationScopeId)
+            ?: BackendService.findModule(configurationScopeId)?.project
+            ?: throw ConfigScopeNotFoundException()
+        return project.guessProjectDir()?.let {
+            Paths.get(it.path)
+        } ?: throw ConfigScopeNotFoundException()
+    }
+
 }

@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.config;
 
@@ -26,11 +26,12 @@ import org.sonarlint.intellij.util.SonarLintSeverity;
 import static com.intellij.openapi.editor.colors.TextAttributesKey.createTextAttributesKey;
 
 public class SonarLintTextAttributes {
-  public static final TextAttributesKey CRITICAL;
-  public static final TextAttributesKey MAJOR;
-  public static final TextAttributesKey MINOR;
   public static final TextAttributesKey BLOCKER;
+  public static final TextAttributesKey HIGH;
+  public static final TextAttributesKey MEDIUM;
+  public static final TextAttributesKey LOW;
   public static final TextAttributesKey INFO;
+  public static final TextAttributesKey OLD_CODE;
   public static final TextAttributesKey SELECTED;
 
   public static final TextAttributesKey DIFF_ADDITION;
@@ -40,11 +41,12 @@ public class SonarLintTextAttributes {
     /*
      * Defaults should be consistent with SonarLintSeverity
      */
-    CRITICAL = createTextAttributesKey("SONARLINT_CRITICAL", SonarLintSeverity.CRITICAL.defaultTextAttributes());
-    MAJOR = createTextAttributesKey("SONARLINT_MAJOR", SonarLintSeverity.MAJOR.defaultTextAttributes());
-    MINOR = createTextAttributesKey("SONARLINT_MINOR", SonarLintSeverity.MINOR.defaultTextAttributes());
-    INFO = createTextAttributesKey("SONARLINT_INFO", SonarLintSeverity.INFO.defaultTextAttributes());
     BLOCKER = createTextAttributesKey("SONARLINT_BLOCKER", SonarLintSeverity.BLOCKER.defaultTextAttributes());
+    HIGH = createTextAttributesKey("SONARLINT_HIGH", SonarLintSeverity.HIGH.defaultTextAttributes());
+    MEDIUM = createTextAttributesKey("SONARLINT_MEDIUM", SonarLintSeverity.MEDIUM.defaultTextAttributes());
+    LOW = createTextAttributesKey("SONARLINT_LOW", SonarLintSeverity.LOW.defaultTextAttributes());
+    INFO = createTextAttributesKey("SONARLINT_INFO", SonarLintSeverity.INFO.defaultTextAttributes());
+    OLD_CODE = createTextAttributesKey("SONARLINT_OLD_CODE", SonarLintSeverity.OLD_CODE.defaultTextAttributes());
     SELECTED = createTextAttributesKey("SONARLINT_SELECTED");
     DIFF_ADDITION = createTextAttributesKey("SONARLINT_DIFF_ADDITION", DiffColors.DIFF_INSERTED);
     DIFF_REMOVAL = createTextAttributesKey("SONARLINT_DIFF_REMOVAL", DiffColors.DIFF_DELETED);

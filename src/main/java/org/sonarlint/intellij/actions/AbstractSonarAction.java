@@ -15,23 +15,23 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.actions;
 
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.actionSystem.UpdateInBackground;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import java.util.stream.Stream;
 import javax.swing.Icon;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.sonarlint.intellij.analysis.AnalysisStatus;
 
-// UpdateInBackground is scheduled for removal and comes with a replacement in 2022.2. We have to use it for older versions
-public abstract class AbstractSonarAction extends AnAction implements DumbAware, UpdateInBackground {
+public abstract class AbstractSonarAction extends AnAction implements DumbAware {
   protected AbstractSonarAction() {
     super();
   }
@@ -42,6 +42,11 @@ public abstract class AbstractSonarAction extends AnAction implements DumbAware,
 
   protected AbstractSonarAction(@Nullable String text, @Nullable String description, @Nullable Icon icon) {
     super(text, description, icon);
+  }
+
+  @Override
+  public @NotNull ActionUpdateThread getActionUpdateThread() {
+    return ActionUpdateThread.BGT;
   }
 
   @Override

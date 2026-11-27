@@ -15,17 +15,19 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij;
 
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.Project;
 import java.awt.GraphicsEnvironment;
-import javax.annotation.Nullable;
-import org.sonarsource.sonarlint.core.client.api.common.analysis.Issue;
-import org.sonarsource.sonarlint.core.commons.IssueSeverity;
-import org.sonarsource.sonarlint.core.commons.RuleType;
+import org.jetbrains.annotations.Nullable;
+import org.sonarsource.sonarlint.core.rpc.protocol.client.issue.RaisedIssueDto;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.Either;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.IssueSeverity;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.RuleType;
+import org.sonarsource.sonarlint.core.rpc.protocol.common.StandardModeDetails;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -45,12 +47,11 @@ public class SonarLintTestUtils {
     return event;
   }
 
-  public static Issue createIssue(int id) {
-    var issue = mock(Issue.class);
+  public static RaisedIssueDto createIssue(int id) {
+    var issue = mock(RaisedIssueDto.class);
     when(issue.getRuleKey()).thenReturn(Integer.toString(id));
-    when(issue.getMessage()).thenReturn("issue " + id);
-    when(issue.getSeverity()).thenReturn(IssueSeverity.MAJOR);
-    when(issue.getType()).thenReturn(RuleType.BUG);
+    when(issue.getPrimaryMessage()).thenReturn("issue " + id);
+    when(issue.getSeverityMode()).thenReturn(Either.forLeft(new StandardModeDetails(IssueSeverity.MAJOR, RuleType.BUG)));
     return issue;
   }
 }

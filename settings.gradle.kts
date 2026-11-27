@@ -1,19 +1,56 @@
+import org.jetbrains.intellij.platform.gradle.extensions.intellijPlatform
+
+plugins {
+    id("org.jetbrains.intellij.platform.settings") version "2.7.2"
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.9.0"
+}
+
 rootProject.name = "codescan-intellij"
-include("its", "clion", "common", "git", "rider")
+
+// CodeScan libraries come from AWS CodeArtifact. Run `eval "$(./scripts/codeartifact-bootstrap.sh)"` first to set
+// CODEARTIFACT_MAVEN_URL and CODEARTIFACT_AUTH_TOKEN, or put codeartifactAuthToken in ~/.gradle/gradle.properties.
+val codeartifactMavenUrl: String = providers.environmentVariable("CODEARTIFACT_MAVEN_URL")
+    .getOrElse("https://autorabit-artifacts-domain-261140574810.d.codeartifact.us-east-1.amazonaws.com/maven/codescan-libs-release/")
+val codeartifactAuthToken: String = providers.environmentVariable("CODEARTIFACT_AUTH_TOKEN")
+    .orElse(providers.gradleProperty("codeartifactAuthToken"))
+    .getOrElse("")
 
 dependencyResolutionManagement {
-    versionCatalogs {
-        create("libs") {
-            val junit5 = version("junit5", "5.9.2")
-            library("junit-api", "org.junit.jupiter", "junit-jupiter-api").versionRef(junit5)
-            library("junit-engine", "org.junit.jupiter", "junit-jupiter-engine").versionRef(junit5)
-            // Needed for https://github.com/gradle/gradle/issues/22333
-            library("junit-launcher", "org.junit.platform:junit-platform-launcher:1.9.2")
-            library("assertj-core", "org.assertj:assertj-core:3.23.1")
-            library("mockito-core", "org.mockito:mockito-core:3.10.0")
+    @Suppress("UnstableApiUsage")
+    repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
+
+    @Suppress("UnstableApiUsage")
+    repositories {
+        // The CodeScan build of sonarlint-core is installed locally (`./mvnw install` in sonarlint-core)
+        mavenLocal {
+            content {
+                includeVersionByRegex("org\\.sonarsource\\.sonarlint\\.core", ".*", ".*-CODESCAN")
+            }
+        }
+        maven(codeartifactMavenUrl) {
+            name = "codeartifact"
+            credentials {
+                username = "aws"
+                password = codeartifactAuthToken
+            }
+            content {
+                includeGroup("com.villagechief.codescan.thirdparty")
+                includeVersionByRegex(".*", ".*", ".*-CODESCAN")
+            }
+        }
+        mavenCentral {
+            content {
+                // avoid dependency confusion
+                excludeGroupByRegex("com\\.sonarsource.*")
+            }
+        }
+        intellijPlatform {
+            defaultRepositories()
         }
     }
 }
+
+include("its", "common", "git")
 
 val isCiServer = System.getenv().containsKey("CIRRUS_CI")
 val isMasterBranch = System.getenv()["CIRRUS_BRANCH"] == "master"

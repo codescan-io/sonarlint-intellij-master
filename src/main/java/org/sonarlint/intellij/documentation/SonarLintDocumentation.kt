@@ -15,13 +15,47 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.documentation
 
 object SonarLintDocumentation {
-    private const val BASE_DOCS_URL = "https://github.com/SonarSource/sonarlint-intellij/wiki"
-    const val CONNECTED_MODE_LINK = "${BASE_DOCS_URL}/Bind-to-SonarQube-or-SonarCloud"
-    const val SECURITY_HOTSPOTS_LINK = "${BASE_DOCS_URL}/Security-Hotspots"
-    const val TAINT_VULNERABILITIES_LINK = "${BASE_DOCS_URL}/Taint-Vulnerabilities"
+
+    // CodeScan: SonarSource's documentation does not describe CodeScan, so every help and "Learn more" link opens the
+    // AutoRABIT knowledge base. It has no pages matching SonarSource's, so all of them open its start page.
+    const val KNOWLEDGE_BASE_URL = "https://knowledgebase.autorabit.com/"
+
+    object Intellij {
+        const val BASE_DOCS_URL = KNOWLEDGE_BASE_URL
+        const val CONNECTED_MODE_LINK = KNOWLEDGE_BASE_URL
+        const val CONNECTED_MODE_SETUP_LINK = KNOWLEDGE_BASE_URL
+        const val SECURITY_HOTSPOTS_LINK = KNOWLEDGE_BASE_URL
+        const val TAINT_VULNERABILITIES_LINK = KNOWLEDGE_BASE_URL
+        const val CLEAN_CODE_LINK = KNOWLEDGE_BASE_URL
+        const val SUPPORT_POLICY_LINK = KNOWLEDGE_BASE_URL
+        const val FOCUS_ON_NEW_CODE_LINK = KNOWLEDGE_BASE_URL
+        const val CONNECTED_MODE_BENEFITS_LINK = KNOWLEDGE_BASE_URL
+        const val SHARING_CONNECTED_MODE_CONFIGURATION_LINK = KNOWLEDGE_BASE_URL
+        const val TROUBLESHOOTING_CONNECTED_MODE_SETUP_LINK = KNOWLEDGE_BASE_URL
+        const val RULE_SECTION_LINK = KNOWLEDGE_BASE_URL
+        const val FILE_EXCLUSION_LINK = KNOWLEDGE_BASE_URL
+    }
+
+    object SonarQube {
+        const val SMART_NOTIFICATIONS = KNOWLEDGE_BASE_URL
+    }
+
+    object SonarCloud {
+        const val SMART_NOTIFICATIONS = KNOWLEDGE_BASE_URL
+    }
+
+    // CodeScan: SonarSource's product, download and sign-up pages do not apply to CodeScan, so every product link opens the CodeScan site
+    object Marketing {
+        private const val BASE_MARKETING_URL = "https://www.codescan.io"
+        const val COMPARE_SERVER_PRODUCTS_LINK = BASE_MARKETING_URL
+        const val SONARQUBE_EDITIONS_DOWNLOADS_LINK = BASE_MARKETING_URL
+        const val SONARCLOUD_PRODUCT_LINK = BASE_MARKETING_URL
+        const val SONARCLOUD_PRODUCT_SIGNUP_LINK = BASE_MARKETING_URL
+    }
+
 }

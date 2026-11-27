@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package org.sonarlint.intellij.ui;
 
@@ -27,9 +27,6 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.SimpleToolWindowPanel;
 import com.intellij.openapi.wm.ToolWindow;
-import com.intellij.openapi.wm.ex.ToolWindowEx;
-import com.intellij.tools.SimpleActionGroup;
-import com.intellij.util.messages.MessageBusConnection;
 import javax.swing.Box;
 import org.sonarlint.intellij.actions.ToolWindowLogAnalysisAction;
 import org.sonarlint.intellij.actions.ToolWindowVerboseModeAction;
@@ -49,7 +46,7 @@ public class SonarLintLogPanel extends SimpleToolWindowPanel {
   private ActionToolbar mainToolbar;
 
   public SonarLintLogPanel(ToolWindow toolWindow, Project project) {
-    super(false, true);
+    super(false, false);
     this.toolWindow = toolWindow;
     this.project = project;
 
@@ -57,9 +54,8 @@ public class SonarLintLogPanel extends SimpleToolWindowPanel {
     addToolbar();
     addConsole();
 
-    MessageBusConnection busConnection = project.getMessageBus().connect(project);
-    busConnection.subscribe(StatusListener.SONARLINT_STATUS_TOPIC, newStatus ->
-      runOnUiThread(project, mainToolbar::updateActionsImmediately));
+    project.getMessageBus().connect().subscribe(StatusListener.SONARLINT_STATUS_TOPIC, newStatus ->
+    runOnUiThread(project, mainToolbar::updateActionsImmediately));
   }
 
   private void addToolbar() {
@@ -75,7 +71,7 @@ public class SonarLintLogPanel extends SimpleToolWindowPanel {
 
   private static ActionGroup createActionGroup() {
     var sonarLintActions = SonarLintActions.getInstance();
-    var actionGroup = new SimpleActionGroup();
+    var actionGroup = new DefaultActionGroup();
     actionGroup.add(sonarLintActions.configure());
     actionGroup.add(sonarLintActions.cleanConsole());
     return actionGroup;
@@ -85,7 +81,7 @@ public class SonarLintLogPanel extends SimpleToolWindowPanel {
     var group = new DefaultActionGroup();
     group.add(new ToolWindowLogAnalysisAction());
     group.add(new ToolWindowVerboseModeAction());
-    ((ToolWindowEx) toolWindow).setAdditionalGearActions(group);
+    toolWindow.setAdditionalGearActions(group);
   }
 
   private void addConsole() {
